@@ -92,4 +92,8 @@ dependencies {
 
     ksp("androidx.room:room-compiler:$room_version")
 
+    implementation("androidx.compose.material:material-icons-extended")
+
+
+
 }
