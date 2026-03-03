@@ -31,22 +31,21 @@ class ExpenseViewModel (private  val repository: FinanceRepository): ViewModel()
     val uiState: StateFlow<GamificationUiState> = _uiState
 
 
-    fun submitExpense(amount: String){
-        //1. Safely convert the text input into a Float number
-        val enteredAmount = amount.toFloatOrNull()
-        if (enteredAmount == null || enteredAmount <= 0f){
+    //Now accepts both the Double amount and the String category
+    fun submitExpense(amount: Double, category: String,userId: String){
+        if (amount <= 0.0){
             _uiState.value = GamificationUiState.Error("Please enter a valid number.")
             return
         }
         _uiState.value = GamificationUiState.Loading
 
-        //3. Launch a background coroutine
+        // Launch a background coroutine
         viewModelScope.launch {
-            //The viewModel calls the Repository and waits
+            // The viewModel calls the Repository and waits
             val result = repository.logExpenseAndGetStrategy(
-                userId = "test_user_001",
-                amount = enteredAmount
-
+                userId = userId,
+                amount = amount.toFloat(),
+                category = category       // 🟢 NEW: Pass the category to the repository
             )
 
             result.fold(
@@ -74,6 +73,11 @@ class ExpenseViewModel (private  val repository: FinanceRepository): ViewModel()
         }
     }
 
+    // Resets the UI so it doesn't double-fire!
+    fun resetState() {
+        _uiState.value = GamificationUiState.Idle
+    }
+
 }
 
 //Tells android how to build viewModel with database
@@ -85,4 +89,6 @@ class ExpenseViewModelFactory(private val repository: FinanceRepository): ViewMo
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
+
     }
+

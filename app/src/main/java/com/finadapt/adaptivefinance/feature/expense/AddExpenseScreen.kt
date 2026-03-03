@@ -1,134 +1,144 @@
 package com.finadapt.adaptivefinance.feature.expense
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.unit.sp
 
+val ThemePrimary = Color(0xFF30E87A)
+val ThemeBgLight = Color(0xFFF6F8F7)
 
-
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddExpenseScreen(viewModel: ExpenseViewModel = viewModel()){
-    // Listen to the ViewModel's state
-    val uiState by viewModel.uiState.collectAsState()
-    var amount by remember { mutableStateOf("") }
+fun AddExpenseScreen(
+    uiState: GamificationUiState, // 🟢 NEW: Listens to the ViewModel
+    onLogExpense: (amount: Double, category: String) -> Unit,
+    onFeedback: (predictionId: String, reward: Float) -> Unit, // 🟢 NEW: Sends reward to Python
+    onDismissState: () -> Unit // 🟢 NEW: Resets the UI
+) {
+    var amountInput by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("Food") }
 
-    Column (
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-    ){
-        Text(
-            text = "Adaptive Finance AI",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
-        )
+    val categories = listOf(
+        "Food" to "🍔",
+        "Transport" to "🚗",
+        "Entertainment" to "🎬",
+        "Bills" to "💡"
+    )
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = amount,
-            onValueChange = { amount = it },
-            label = { Text("Enter Expense Amount (RM)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick =  {viewModel.submitExpense(amount)},
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            enabled = uiState !is GamificationUiState.Loading && amount.isNotBlank()
+    // 🟢 The AI Pop-up (Bottom Sheet)
+    if (uiState is GamificationUiState.Success) {
+        ModalBottomSheet(
+            onDismissRequest = { onDismissState() },
+            containerColor = Color.White
         ) {
-            if (uiState is  GamificationUiState.Loading){
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-            } else {
-                Text("Log Expense & fetch AI Strategy")
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("AI Gamification", color = Color.Gray, style = MaterialTheme.typography.labelMedium)
+                Spacer(modifier = Modifier.height(16.dp))
 
+                // The AI's Strategy & Message
+                Text(
+                    text = uiState.message,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // The Reward Trigger!
+                Button(
+                    onClick = {
+                        onFeedback(uiState.predictionId, 1.0f) // Sends +1.0 Reward to Bandit
+                        onDismissState() // Close the sheet
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ThemePrimary)
+                ) {
+                    Text("Got it! 🚀", color = Color(0xFF022C22), fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
-        Spacer(modifier = Modifier.height(32.dp))
+    }
 
-        //Displaying the AI Response from AWS
-        when (val state = uiState){
-            is GamificationUiState.Success ->{
-                // 1. Calculate the dynamic color
-                val dynamicColor = when (state.visualTheme.lowercase()){
-                    "warning","alert","danger" -> MaterialTheme.colorScheme.errorContainer
-                    "success","reward","positive"-> MaterialTheme.colorScheme.primaryContainer
-                    else -> MaterialTheme.colorScheme.secondaryContainer
-                }
+    // ... (KEEP YOUR EXISTING SURFACE AND COLUMN UI EXACTLY THE SAME HERE)
+    Surface(modifier = Modifier.fillMaxSize(), color = ThemeBgLight) {
+        Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Spacer(modifier = Modifier.height(48.dp))
+            Text("Log Expense", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+            Spacer(modifier = Modifier.height(32.dp))
+            Text("Amount (RM)", color = Color.Gray, style = MaterialTheme.typography.labelLarge)
 
-                Card(
-                    // 2. USE the dynamic color we just calculated!
-                    colors = CardDefaults.cardColors(containerColor = dynamicColor),
-                    modifier = Modifier.fillMaxWidth()
-                ){
-                    Column (modifier = Modifier.padding(16.dp)){
-                        Text(
-                            text = "\uD83C\uDFAF AI Action: ${state.action.replace("_", " ").uppercase()}",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "\uD83E\uDDE0 Bandit Strategy: ${state.strategy}",
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = state.message,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium
-                        )
+            TextField(
+                value = amountInput,
+                onValueChange = { if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d*$"))) amountInput = it },
+                textStyle = TextStyle(fontSize = 56.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color(0xFF0F172A)),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
+                placeholder = { Text("0.00", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 56.sp, color = Color.LightGray) },
+                modifier = Modifier.fillMaxWidth()
+            )
 
-                        // 🟢 3. THE MISSING REWARD BUTTON!
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = {
-                                println("🎯 USER CLICKED! Sending Reward...")
-                                // Tell the ViewModel the user engaged!
-                                viewModel.submitFeedback(state.predictionId, 1.0f)
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                contentColor = MaterialTheme.colorScheme.primaryContainer
-                            ),
-                            modifier = Modifier.align(Alignment.End)
-                        ) {
-                            Text("Got it! \uD83D\uDE80") // Rocket emoji
-                        }
-                    }
-                }
-            }
-            is GamificationUiState.Error -> {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Error: ${state.exception}",
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(16.dp)
+            Spacer(modifier = Modifier.height(48.dp))
+            Text("SELECT CATEGORY", color = Color.Gray, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 24.dp).align(Alignment.Start))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            LazyRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 24.dp)) {
+                items(categories) { (name, emoji) ->
+                    val isSelected = selectedCategory == name
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedCategory = name },
+                        label = { Text("$emoji  $name", fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, fontSize = 16.sp) },
+                        shape = RoundedCornerShape(24.dp),
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFFD1FAE5), selectedLabelColor = Color(0xFF064E3B), containerColor = Color.White),
+                        border = FilterChipDefaults.filterChipBorder(enabled = true, selected = isSelected, borderColor = if (isSelected) ThemePrimary else Color(0xFFE2E8F0), borderWidth = if (isSelected) 2.dp else 1.dp),
+                        modifier = Modifier.height(48.dp)
                     )
                 }
             }
-            else -> {} //Do nothing if idle
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Check if UI is loading
+            if (uiState is GamificationUiState.Loading) {
+                CircularProgressIndicator(color = ThemePrimary)
+            } else {
+                Button(
+                    onClick = {
+                        val amount = amountInput.toDoubleOrNull()
+                        if (amount != null && amount > 0) {
+                            onLogExpense(amount, selectedCategory)
+                            amountInput = ""
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(24.dp).height(60.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = ThemePrimary),
+                    shape = RoundedCornerShape(50),
+                    enabled = amountInput.isNotBlank() && (amountInput.toDoubleOrNull()
+                        ?: 0.0) > 0.0
+                ) {
+                    Text("Log & Analyze 🚀", color = Color(0xFF022C22), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+            }
         }
     }
 }
