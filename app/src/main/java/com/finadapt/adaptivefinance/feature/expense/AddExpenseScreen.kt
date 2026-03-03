@@ -39,46 +39,91 @@ fun AddExpenseScreen(
     )
 
     // 🟢 The AI Pop-up (Bottom Sheet)
+    // 🟢 The AI Pop-up (Bottom Sheet)
     if (uiState is GamificationUiState.Success) {
+        // Track if they voted so we don't accidentally send duplicate feedback
+        var hasVoted by remember(uiState.predictionId) { mutableStateOf(false) }
+
         ModalBottomSheet(
-            onDismissRequest = { onDismissState() },
+            onDismissRequest = {
+                // If they swipe away without voting, we just close it.
+                // We don't punish the AI, because they might have just been in a rush.
+                onDismissState()
+            },
             containerColor = Color.White
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("AI Gamification", color = Color.Gray, style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = "✨ AI Gamification",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.labelMedium
+                )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // The AI's Strategy & Message
+                // The AI Message
                 Text(
                     text = uiState.message,
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    color = Color(0xFF0F172A)
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // The Reward Trigger!
-                Button(
-                    onClick = {
-                        onFeedback(uiState.predictionId, 1.0f) // Sends +1.0 Reward to Bandit
-                        onDismissState() // Close the sheet
-                    },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = ThemePrimary)
+                // 🟢 NEW: Explicit Feedback Row
+                Text(
+                    text = "Was this helpful?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Text("Got it! 🚀", color = Color(0xFF022C22), fontWeight = FontWeight.Bold)
+                    // 👎 Negative Feedback Button
+                    OutlinedButton(
+                        onClick = {
+                            if (!hasVoted) {
+                                hasVoted = true
+                                onFeedback(uiState.predictionId, 0.0f) // Tell AI to stop doing this
+                                println("📉 User voted: Not Helpful (0.0)")
+                                onDismissState()
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Gray)
+                    ) {
+                        Text("Not Really 👎", fontWeight = FontWeight.Bold)
+                    }
+
+                    // 👍 Positive Feedback Button
+                    Button(
+                        onClick = {
+                            if (!hasVoted) {
+                                hasVoted = true
+                                onFeedback(uiState.predictionId, 1.0f) // Tell AI to keep doing this!
+                                println("📈 User voted: Helpful (1.0)")
+                                onDismissState()
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = ThemePrimary)
+                    ) {
+                        Text("Yes, Thanks! 👍", color = Color(0xFF022C22), fontWeight = FontWeight.Bold)
+                    }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
-
     // ... (KEEP YOUR EXISTING SURFACE AND COLUMN UI EXACTLY THE SAME HERE)
     Surface(modifier = Modifier.fillMaxSize(), color = ThemeBgLight) {
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {

@@ -14,6 +14,9 @@ interface  ExpenseDao{
     // 2. Get the total amount spent ( For bandit context Vector )
     @Query("SELECT SUM(amount) FROM expenses")
     suspend fun  getTotalSpend(): Float?
+    //The 30-Day Rolling Window Query
+    @Query("SELECT SUM(amount) FROM expenses WHERE timestamp >= :timeLimit")
+    suspend fun getTotalSpendTimeBounded(timeLimit: Long): Float?
 
     //3. Get total number of transactions (fo bandit context vector)
     @Query("SELECT COUNT(id) FROM expenses")
