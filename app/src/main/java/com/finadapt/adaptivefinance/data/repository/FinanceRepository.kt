@@ -9,8 +9,12 @@ import com.finadapt.adaptivefinance.data.remote.AiResponse
 import com.finadapt.adaptivefinance.data.remote.FeedbackRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.content.SharedPreferences
 
-class FinanceRepository(private val expenseDao: ExpenseDao) {
+class FinanceRepository(
+    private val expenseDao: ExpenseDao,
+    private val prefs: SharedPreferences
+) {
 
     private val apiService = ApiClient.fastApiService
 
@@ -21,20 +25,35 @@ class FinanceRepository(private val expenseDao: ExpenseDao) {
     ): Result<AiResponse> {
         return withContext(Dispatchers.IO) {
             try {
-                // 1. SAVE TO DEVICE BRAIN (Room SQLite)
-                val newExpense = ExpenseEntity(amount = amount, category = category)
-                expenseDao.insertExpense(newExpense)
+                // 2. EDGE FEATURE ENGINEERING (With Projected Run Rate!)
 
-                // 2. EDGE FEATURE ENGINEERING (Calculate on device for privacy/speed)
-                val totalSpend = expenseDao.getTotalSpend() ?: 0f
+                // Fetch the 30-Day Bounded Spend (from your DAO)
+                val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
+                val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
+                val totalSpend = expenseDao.getTotalSpendTimeBounded(timeLimit) ?: 0f
                 val txCount = expenseDao.getTransactionCount().toFloat()
-
                 val avgTxValue = if (txCount > 0f) totalSpend / txCount else 0f
 
-                //Edge Volatility Math: Spike the volatility if they spend 2x their normal average
-                val spendingVolatility = if (avgTxValue > 0f) {
-                    val ratio = amount / avgTxValue
-                    (ratio * 0.5f).coerceIn(0.1f, 1.5f)
+                // Fetch Baseline & Install Date
+                val monthlyBudget = prefs.getFloat("MONTHLY_BUDGET", 1000f)
+                val installTimestamp = prefs.getLong("INSTALL_TIMESTAMP", System.currentTimeMillis())
+
+                // Calculate "Days Active"
+                val millisActive = System.currentTimeMillis() - installTimestamp
+                val daysActive = maxOf(1f, millisActive / (1000f * 60f * 60f * 24f))
+
+                // 🟢 THE FIX: Calculate the Projected 30-Day Spend
+                val projectedSpend = if (daysActive < 30f) {
+                    // New User: Extrapolate their current pace to a full month
+                    (totalSpend / daysActive) * 30f
+                } else {
+                    // Veteran User: The 30-day window is already fully accurate
+                    totalSpend
+                }
+
+                // Final Volatility Math using the PROJECTED spend
+                val spendingVolatility = if (monthlyBudget > 0f) {
+                    (projectedSpend / monthlyBudget).coerceIn(0.0f, 2.0f)
                 } else {
                     0.5f
                 }
@@ -42,14 +61,17 @@ class FinanceRepository(private val expenseDao: ExpenseDao) {
                 // 3. SEND THE ANONYMIZED VECTOR TO AWS
                 val request = ContextRequest(
                     userId = userId,
+                    testGroup = "adaptive",     //tell the DB they are in the AI group
+                    amount = amount,            //Pass the amount down
+                    category = category,        //Pass the category down
                     features = mapOf(
                         "total_spend" to totalSpend,
                         "spending_volatility" to spendingVolatility,
                         "return_rate" to 0.05f, // Mocked for now
                         "transaction_count" to txCount,
                         "avg_transaction_value" to avgTxValue
-                    ),
-                    actionName = "log_expense"
+                    )
+
                 )
 
                 val response = apiService.getAiGamification(ApiClient.API_TOKEN, request)

@@ -1,5 +1,4 @@
 package com.finadapt.adaptivefinance.data.remote
-import androidx.core.util.Predicate
 import com.google.gson.annotations.SerializedName
 import retrofit2.http.Body
 import retrofit2.http.Header
@@ -9,12 +8,17 @@ import retrofit2.http.POST
 data class ContextRequest(
     @SerializedName("user_id")
     val userId: String,
+    @SerializedName("test_group")
+    val testGroup: String = "adaptive", // 🟢 NEW: Tells the DB they are in the AI group
+
+    @SerializedName("amount")
+    val amount: Float,                  // 🟢 NEW: The raw RM amount
+
+    @SerializedName("category")
+    val category: String,
 
     @SerializedName("features")
     val features: Map<String, Float>,
-
-    @SerializedName("action_name")
-    val actionName: String
 
 )
 
@@ -38,7 +42,7 @@ data class AiResponse(
 //3 The Feedback Payload for Phase 3
 data class FeedbackRequest(
     @SerializedName("prediction_id")
-    val predicate: String,
+    val predictionId: String,
     @SerializedName("reward")
     val reward: Float
 )

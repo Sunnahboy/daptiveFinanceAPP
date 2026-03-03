@@ -24,13 +24,16 @@ import com.finadapt.adaptivefinance.feature.expense.ExpenseViewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        //1. Initialize the Room Database
+        // 1.Initialize the Room Database
         val database = AppDatabase.getDatabase(applicationContext)
 
-        //2. Give the Database to the repository
-        val repository = FinanceRepository(database.expenseDao())
+        //Get SharedPreferences
+        val prefs = applicationContext.getSharedPreferences("AdaptiveFinancePrefs", MODE_PRIVATE)
 
-        //3.Prepare the factory to build viewModel
+        // 2.Give BOTH the Database and Prefs to the repository
+        val repository = FinanceRepository(database.expenseDao(), prefs)
+
+        // 3.Prepare the factory to build viewModel
         val factory = ExpenseViewModelFactory(repository)
 
         setContent {

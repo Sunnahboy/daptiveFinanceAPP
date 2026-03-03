@@ -348,6 +348,8 @@ suspend fun saveUserBaseline(context: Context, goal: String, budget: String) {
             putFloat("MONTHLY_BUDGET", budget.toFloatOrNull() ?: 0f)
             // the AI Gamified group for testing
             putString("TEST_GROUP", "adaptive")
+            //Save the exact moment they started the app
+            putLong("INSTALL_TIMESTAMP", System.currentTimeMillis())
         }
     }
 }
