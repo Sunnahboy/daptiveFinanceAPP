@@ -44,7 +44,7 @@ data class FeedbackRequest(
     @SerializedName("prediction_id")
     val predictionId: String,
     @SerializedName("reward")
-    val reward: Float
+    val reward: Int
 )
 
 //4. The exact FastAPI Endpoint

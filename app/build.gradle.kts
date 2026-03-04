@@ -93,6 +93,9 @@ dependencies {
     ksp("androidx.room:room-compiler:$room_version")
 
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("com.airbnb.android:lottie-compose:6.3.0")
+    implementation("com.patrykandpatrick.vico:compose:1.14.0")
+    implementation("com.patrykandpatrick.vico:compose-m3:1.14.0")
 
 
 

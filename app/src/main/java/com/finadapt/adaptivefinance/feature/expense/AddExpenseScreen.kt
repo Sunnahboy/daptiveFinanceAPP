@@ -1,188 +1,207 @@
 package com.finadapt.adaptivefinance.feature.expense
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val ThemePrimary = Color(0xFF30E87A)
-val ThemeBgLight = Color(0xFFF6F8F7)
-
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddExpenseScreen(
-    uiState: GamificationUiState, // 🟢 NEW: Listens to the ViewModel
-    onLogExpense: (amount: Double, category: String) -> Unit,
-    onFeedback: (predictionId: String, reward: Float) -> Unit, // 🟢 NEW: Sends reward to Python
-    onDismissState: () -> Unit // 🟢 NEW: Resets the UI
+    uiState: GamificationUiState, // 🟢 Correctly uses your AI state!
+    onLogExpense: (Float, String) -> Unit,
+    onFeedback: (String, Int) -> Unit,
+    onDismissState: () -> Unit
 ) {
     var amountInput by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("Food") }
+    var categoryInput by remember { mutableStateOf("") }
 
-    val categories = listOf(
-        "Food" to "🍔",
-        "Transport" to "🚗",
-        "Entertainment" to "🎬",
-        "Bills" to "💡"
-    )
+    val commonCategories = listOf("Food", "Transport", "Groceries", "Coffee", "Entertainment")
+    val keyboardController = LocalSoftwareKeyboardController.current
 
-    // 🟢 The AI Pop-up (Bottom Sheet)
-    // 🟢 The AI Pop-up (Bottom Sheet)
-    if (uiState is GamificationUiState.Success) {
-        // Track if they voted so we don't accidentally send duplicate feedback
-        var hasVoted by remember(uiState.predictionId) { mutableStateOf(false) }
+    val bgColor = Color(0xFFF8FAFC)
+    val cardColor = Color.White
+    val primaryColor = Color(0xFF0284C7)
 
-        ModalBottomSheet(
-            onDismissRequest = {
-                // If they swipe away without voting, we just close it.
-                // We don't punish the AI, because they might have just been in a rush.
-                onDismissState()
-            },
-            containerColor = Color.White
+    val isValid = amountInput.isNotBlank() && categoryInput.isNotBlank() && amountInput.toFloatOrNull() != null
+    val isLoading = uiState is GamificationUiState.Loading
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Log Expense", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onDismissState) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = bgColor)
+            )
+        },
+        containerColor = bgColor
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+
+            // 🟢 1. AMOUNT INPUT
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = cardColor),
+                elevation = CardDefaults.cardElevation(2.dp),
+                shape = RoundedCornerShape(24.dp)
             ) {
-                Text(
-                    text = "✨ AI Gamification",
-                    color = Color.Gray,
-                    style = MaterialTheme.typography.labelMedium
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // The AI Message
-                Text(
-                    text = uiState.message,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    color = Color(0xFF0F172A)
-                )
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // 🟢 NEW: Explicit Feedback Row
-                Text(
-                    text = "Was this helpful?",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                Column(
+                    modifier = Modifier.padding(32.dp).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // 👎 Negative Feedback Button
-                    OutlinedButton(
-                        onClick = {
-                            if (!hasVoted) {
-                                hasVoted = true
-                                onFeedback(uiState.predictionId, 0.0f) // Tell AI to stop doing this
-                                println("📉 User voted: Not Helpful (0.0)")
-                                onDismissState()
-                            }
-                        },
-                        modifier = Modifier.weight(1f).height(56.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Gray)
-                    ) {
-                        Text("Not Really 👎", fontWeight = FontWeight.Bold)
-                    }
-
-                    // 👍 Positive Feedback Button
-                    Button(
-                        onClick = {
-                            if (!hasVoted) {
-                                hasVoted = true
-                                onFeedback(uiState.predictionId, 1.0f) // Tell AI to keep doing this!
-                                println("📈 User voted: Helpful (1.0)")
-                                onDismissState()
-                            }
-                        },
-                        modifier = Modifier.weight(1f).height(56.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = ThemePrimary)
-                    ) {
-                        Text("Yes, Thanks! 👍", color = Color(0xFF022C22), fontWeight = FontWeight.Bold)
-                    }
+                    Text("How much did you spend?", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = amountInput,
+                        onValueChange = { amountInput = it },
+                        prefix = { Text("RM ", fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = primaryColor) },
+                        textStyle = LocalTextStyle.current.copy(fontSize = 32.sp, fontWeight = FontWeight.Bold),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                        )
+                    )
                 }
-                Spacer(modifier = Modifier.height(24.dp))
             }
-        }
-    }
-    // ... (KEEP YOUR EXISTING SURFACE AND COLUMN UI EXACTLY THE SAME HERE)
-    Surface(modifier = Modifier.fillMaxSize(), color = ThemeBgLight) {
-        Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Spacer(modifier = Modifier.height(48.dp))
-            Text("Log Expense", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-            Spacer(modifier = Modifier.height(32.dp))
-            Text("Amount (RM)", color = Color.Gray, style = MaterialTheme.typography.labelLarge)
 
-            TextField(
-                value = amountInput,
-                onValueChange = { if (it.isEmpty() || it.matches(Regex("^\\d*\\.?\\d*$"))) amountInput = it },
-                textStyle = TextStyle(fontSize = 56.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color(0xFF0F172A)),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
-                placeholder = { Text("0.00", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 56.sp, color = Color.LightGray) },
-                modifier = Modifier.fillMaxWidth()
+            // 🟢 2. CATEGORY SELECTION
+            Text("Category", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+
+            OutlinedTextField(
+                value = categoryInput,
+                onValueChange = { categoryInput = it },
+                placeholder = { Text("e.g. Starbucks, Uber, Rent") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
 
-            Spacer(modifier = Modifier.height(48.dp))
-            Text("SELECT CATEGORY", color = Color.Gray, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 24.dp).align(Alignment.Start))
-            Spacer(modifier = Modifier.height(12.dp))
-
-            LazyRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(horizontal = 24.dp)) {
-                items(categories) { (name, emoji) ->
-                    val isSelected = selectedCategory == name
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                commonCategories.forEach { category ->
+                    val isSelected = categoryInput == category
                     FilterChip(
                         selected = isSelected,
-                        onClick = { selectedCategory = name },
-                        label = { Text("$emoji  $name", fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, fontSize = 16.sp) },
-                        shape = RoundedCornerShape(24.dp),
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFFD1FAE5), selectedLabelColor = Color(0xFF064E3B), containerColor = Color.White),
-                        border = FilterChipDefaults.filterChipBorder(enabled = true, selected = isSelected, borderColor = if (isSelected) ThemePrimary else Color(0xFFE2E8F0), borderWidth = if (isSelected) 2.dp else 1.dp),
-                        modifier = Modifier.height(48.dp)
+                        onClick = { categoryInput = category },
+                        label = { Text(category) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = primaryColor.copy(alpha = 0.1f),
+                            selectedLabelColor = primaryColor
+                        ),
+                        shape = RoundedCornerShape(16.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Check if UI is loading
-            if (uiState is GamificationUiState.Loading) {
-                CircularProgressIndicator(color = ThemePrimary)
+            // 🟢 3. ERROR MESSAGE (If AWS API fails)
+            if (uiState is GamificationUiState.Error) {
+                Text(
+                    text = uiState.exception,
+                    color = Color.Red,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+            }
+
+            // 🟢 4. THE SMART AI BUTTON
+            Button(
+                onClick = {
+                    if (isValid) {
+                        keyboardController?.hide()
+                        onLogExpense(amountInput.toFloat(), categoryInput) // Send to AWS!
+                    }
+                },
+                enabled = isValid && !isLoading,
+                modifier = Modifier.fillMaxWidth().height(60.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                shape = RoundedCornerShape(30.dp)
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("AI Calculating...", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                } else {
+                    Text("Log Expense", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+
+        // 🎮 5. THE GAMIFICATION ENGINE (The Interventions!)
+        if (uiState is GamificationUiState.Success) {
+
+            // Check what the AWS Bandit chose:
+            if (uiState.action == "Log_Only") {
+                // No game required! Instantly return to Dashboard.
+                LaunchedEffect(Unit) {
+                    onDismissState()
+                }
             } else {
-                Button(
-                    onClick = {
-                        val amount = amountInput.toDoubleOrNull()
-                        if (amount != null && amount > 0) {
-                            onLogExpense(amount, selectedCategory)
-                            amountInput = ""
+                // 🚨 THE BANDIT TRIGGERED A GAME! Show the pop-up.
+                val themeColor = if (uiState.visualTheme == "Strict") Color.Red else Color(0xFF10B981)
+
+                AlertDialog(
+                    onDismissRequest = { /* Force them to pick an option! */ },
+                    title = {
+                        Text("🎮 ${uiState.strategy}", fontWeight = FontWeight.Bold, color = themeColor)
+                    },
+                    text = {
+                        Text(uiState.message, fontSize = 16.sp)
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                // User plays the game -> Reward = 1 (Positive Feedback)
+                                onFeedback(uiState.predictionId, 1)
+                                onDismissState()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = themeColor)
+                        ) {
+                            Text("Accept Challenge")
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().padding(24.dp).height(60.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = ThemePrimary),
-                    shape = RoundedCornerShape(50),
-                    enabled = amountInput.isNotBlank() && (amountInput.toDoubleOrNull()
-                        ?: 0.0) > 0.0
-                ) {
-                    Text("Log & Analyze 🚀", color = Color(0xFF022C22), fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                }
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                // User ignores the game -> Reward = 0 (Negative Feedback)
+                                onFeedback(uiState.predictionId, 0)
+                                onDismissState()
+                            }
+                        ) {
+                            Text("Decline", color = Color.Gray)
+                        }
+                    }
+                )
             }
         }
     }

@@ -7,6 +7,7 @@ import com.finadapt.adaptivefinance.data.repository.FinanceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import androidx.core.content.edit
 
 //1 . Define the exact states the UI can be in
 
@@ -25,14 +26,17 @@ sealed class  GamificationUiState {
 }
 
 //Requires the repository via constructor
-class ExpenseViewModel (private  val repository: FinanceRepository): ViewModel(){
+class ExpenseViewModel (
+    private  val repository: FinanceRepository,
+    private val prefs: android.content.SharedPreferences,
+): ViewModel(){
     //2 The reactive state flow that compose will listen to
     private  val  _uiState = MutableStateFlow<GamificationUiState>(GamificationUiState.Idle)
     val uiState: StateFlow<GamificationUiState> = _uiState
 
 
     //Now accepts both the Double amount and the String category
-    fun submitExpense(amount: Double, category: String,userId: String){
+    fun submitExpense(amount: Float, category: String, userId: String){
         if (amount <= 0.0){
             _uiState.value = GamificationUiState.Error("Please enter a valid number.")
             return
@@ -44,17 +48,25 @@ class ExpenseViewModel (private  val repository: FinanceRepository): ViewModel()
             // The viewModel calls the Repository and waits
             val result = repository.logExpenseAndGetStrategy(
                 userId = userId,
-                amount = amount.toFloat(),
+                amount = amount,
                 category = category       // 🟢 NEW: Pass the category to the repository
             )
 
             result.fold(
                 onSuccess = { response ->
+                    // 🟢 1. Extract the action from AWS
+                    val aiAction = response.action ?: "Log_Only"
+
+                    // 🟢 2. SAVE IT TO MEMORY!
+                    // This is the bridge. Now the Dashboard can read what the AI decided.
+                    prefs.edit { putString("LAST_AI_ACTION", aiAction) }
+
+                    // 3. Update the UI state to show the game pop-up
                     _uiState.value = GamificationUiState.Success(
                         predictionId = response.predictionId ?: "unknown_id",
                         message = response.gamificationMessage ?: "Expense logged!",
                         strategy = response.recommendedStrategy ?: "Standard",
-                        action = response.action ?: "Log_Only",
+                        action = aiAction,
                         visualTheme = response.visualTheme ?: "Neutral"
                     )
                 },
@@ -67,7 +79,7 @@ class ExpenseViewModel (private  val repository: FinanceRepository): ViewModel()
         }
     }
     //Tells the Repository to send the +1 Reward
-    fun submitFeedback(predictionId: String, reward: Float) {
+    fun submitFeedback(predictionId: String, reward: Int) {
         viewModelScope.launch {
             repository.submitUserFeedback(predictionId, reward)
         }
@@ -81,11 +93,14 @@ class ExpenseViewModel (private  val repository: FinanceRepository): ViewModel()
 }
 
 //Tells android how to build viewModel with database
-class ExpenseViewModelFactory(private val repository: FinanceRepository): ViewModelProvider.Factory{
+class ExpenseViewModelFactory(
+    private val repository: FinanceRepository,
+    private val prefs: android.content.SharedPreferences
+): ViewModelProvider.Factory{
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ExpenseViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ExpenseViewModel(repository) as T
+            return ExpenseViewModel(repository, prefs) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
