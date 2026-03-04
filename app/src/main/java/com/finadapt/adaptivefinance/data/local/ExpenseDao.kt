@@ -37,4 +37,24 @@ interface  ExpenseDao{
     // 7 Find all pending feedback (For Phase 2: WorkManager Sync)
     @Query("SELECT * FROM ai_interactions WHERE isFeedbackSent = 0")
     suspend fun getPendingFeedback(): List<AiInteractionEntity>
+
+    //Get raw expenses from the last 7 days for the Bar Chart
+    @Query("SELECT * FROM expenses WHERE timestamp >= :timeLimit ORDER BY timestamp ASC")
+    suspend fun getExpensesSince(timeLimit: Long): List<ExpenseEntity>
+
+    //Get exactly the 3 newest expenses for the Ledger Preview
+    @Query("SELECT * FROM expenses ORDER BY timestamp DESC LIMIT 3")
+    suspend fun getRecentLedger(): List<ExpenseEntity>
+
+    //Get absolutely every expense for the History Tab
+    @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
+    suspend fun getAllExpenses(): List<ExpenseEntity>
+    //Sum all expenses from the start of the day
+    @Query("SELECT SUM(amount) FROM expenses WHERE timestamp >= :startOfDay")
+    suspend fun getTodaySpend(startOfDay: Long): Float?
+    //The Factory Reset (Deletes all expenses)
+    @Query("DELETE FROM expenses")
+    suspend fun deleteAllExpenses()
+
+
 }

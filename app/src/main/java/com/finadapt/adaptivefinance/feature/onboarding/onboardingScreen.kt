@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
@@ -34,21 +35,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-// 1. CUSTOM PALETTE
+// 1. CUSTOM PREMIUM DARK PALETTE
 val ThemePrimary = Color(0xFF30E87A)
-val ThemeBgLight = Color(0xFFF6F8F7)
-val ThemeBgDark = Color(0xFF112117)
+val ThemeBgDark = Color(0xFF0F172A)
 val ThemeEmeraldAccent = Color(0xFF10B981)
-val Slate900 = Color(0xFF0F172A)
 val Slate100 = Color(0xFFF1F5F9)
 val Slate500 = Color(0xFF64748B)
-val BorderLight = Color(0xFFE2E8F0)
 val BorderDark = Color(0x66064E3B)
-
 
 @Composable
 fun OnboardingScreen(onFinish: () -> Unit) {
     var currentStep by rememberSaveable { mutableIntStateOf(1) }
+    var nameInput by rememberSaveable { mutableStateOf("") }
     var selectedGoal by rememberSaveable { mutableStateOf("") }
     var budgetInput by rememberSaveable { mutableStateOf("") }
 
@@ -56,15 +54,17 @@ fun OnboardingScreen(onFinish: () -> Unit) {
     val coroutineScope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
 
-    val isDark = isSystemInDarkTheme()
-    val bgColor = if (isDark) ThemeBgDark else ThemeBgLight
-    val textColor = if (isDark) Slate100 else Slate900
+    val bgColor = Color(0xFFF8FAFC) // The off-white Dashboard color
+    val textColor = Color(0xFF0F172A) // Dark slate for readability
 
-    //Highly efficient validation logic
-    val isStepValid by remember(currentStep, selectedGoal, budgetInput) {
+    val isStepValid by remember(currentStep, nameInput, selectedGoal, budgetInput) {
         derivedStateOf {
-            if (currentStep == 1) selectedGoal.isNotBlank()
-            else budgetInput.isNotBlank()
+            when (currentStep) {
+                1 -> nameInput.isNotBlank()
+                2 -> selectedGoal.isNotBlank()
+                3 -> budgetInput.isNotBlank()
+                else -> false
+            }
         }
     }
 
@@ -82,16 +82,21 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 8.dp)
             ) {
-                if (currentStep == 2) {
+                if (currentStep > 1) {
                     IconButton(
-                        onClick = { currentStep = 1 },
+                        onClick = { currentStep -= 1 },
                         modifier = Modifier.align(Alignment.CenterStart)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = textColor)
                     }
                 }
+                val headerText = when (currentStep) {
+                    1 -> "Identity"
+                    2 -> "Goal Selection"
+                    else -> "Set Baseline"
+                }
                 Text(
-                    text = if (currentStep == 1) "Goal Selection" else "Set Baseline",
+                    text = headerText,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = textColor,
@@ -99,7 +104,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 )
             }
 
-            OnboardingProgressBar(currentStep, isDark)
+            OnboardingProgressBar(currentStep)
 
             Crossfade(
                 targetState = currentStep,
@@ -107,41 +112,43 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 label = "StepTransition"
             ) { step ->
                 when (step) {
-                    1 -> GoalSelectionStep(
+                    1 -> NameInputStep(
+                        name = nameInput,
+                        onNameChange = { nameInput = it },
+                        textColor = textColor
+                    )
+                    2 -> GoalSelectionStep(
                         selectedGoal = selectedGoal,
                         onGoalSelected = {
                             selectedGoal = it
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         },
-                        textColor = textColor,
-                        isDark = isDark
+                        textColor = textColor
                     )
-                    2 -> BudgetInputStep(
+                    3 -> BudgetInputStep(
                         budget = budgetInput,
                         onBudgetChange = { budgetInput = it },
                         onDone = {
                             if (budgetInput.isNotBlank()) {
                                 coroutineScope.launch {
-                                    saveUserBaseline(context, selectedGoal, budgetInput)
+                                    saveUserBaseline(context, nameInput, selectedGoal, budgetInput)
                                     onFinish()
                                 }
                             }
                         },
-                        textColor = textColor,
-                        isDark = isDark
+                        textColor = textColor
                     )
                 }
             }
 
-            //Pass the highly efficient boolean here
             OnboardingFooter(
                 currentStep = currentStep,
                 isValid = isStepValid,
                 onContinue = {
-                    if (currentStep == 1) currentStep = 2
+                    if (currentStep < 3) currentStep += 1
                     else {
                         coroutineScope.launch {
-                            saveUserBaseline(context, selectedGoal, budgetInput)
+                            saveUserBaseline(context, nameInput, selectedGoal, budgetInput)
                             onFinish()
                         }
                     }
@@ -172,36 +179,55 @@ fun AmbientGlow() {
 }
 
 @Composable
-fun OnboardingProgressBar(step: Int, isDark: Boolean) {
+fun OnboardingProgressBar(step: Int) {
     Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                "STEP $step OF 2",
-                color = if (isDark) ThemePrimary else ThemeEmeraldAccent,
+                "STEP $step OF 3",
+                color = ThemePrimary,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold
-            )
-            Text(
-                if (step == 1) "50% Complete" else "100% Complete",
-                color = Slate500,
-                style = MaterialTheme.typography.labelSmall
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
         LinearProgressIndicator(
-            progress = { if (step == 1) 0.5f else 1.0f },
+            progress = { step / 3f },
             modifier = Modifier.fillMaxWidth().height(8.dp),
             color = ThemePrimary,
-            trackColor = if (isDark) Color(0x4D064E3B) else BorderLight,
+            trackColor = Color(0x4D064E3B),
             strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
         )
     }
 }
 
 @Composable
-fun GoalSelectionStep(selectedGoal: String, onGoalSelected: (String) -> Unit, textColor: Color, isDark: Boolean) {
+fun NameInputStep(name: String, onNameChange: (String) -> Unit, textColor: Color) {
+    Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+        Text("Let's get to know you.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("What should your AI guardian call you?", color = Slate500, style = MaterialTheme.typography.bodyMedium)
+        Spacer(modifier = Modifier.height(32.dp))
 
+        OutlinedTextField(
+            value = name,
+            onValueChange = onNameChange,
+            label = { Text("Your First Name") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
+            shape = RoundedCornerShape(16.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = ThemePrimary,
+                unfocusedBorderColor = Color(0xFFE2E8F0),// Light gray border
+                focusedTextColor = textColor,
+                unfocusedTextColor = textColor
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
 
+@Composable
+fun GoalSelectionStep(selectedGoal: String, onGoalSelected: (String) -> Unit, textColor: Color) {
     Column(modifier = Modifier.padding(horizontal = 24.dp).verticalScroll(rememberScrollState())) {
         Text("What's your primary goal?", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
         Spacer(modifier = Modifier.height(8.dp))
@@ -214,7 +240,6 @@ fun GoalSelectionStep(selectedGoal: String, onGoalSelected: (String) -> Unit, te
                 description = goal.desc,
                 icon = goal.icon,
                 isSelected = selectedGoal == goal.title,
-                isDark = isDark,
                 textColor = textColor,
                 onClick = { onGoalSelected(goal.title) }
             )
@@ -222,21 +247,19 @@ fun GoalSelectionStep(selectedGoal: String, onGoalSelected: (String) -> Unit, te
     }
 }
 
-//GoalCard back
 @Composable
 fun GoalCard(
     title: String,
     description: String,
     icon: ImageVector,
     isSelected: Boolean,
-    isDark: Boolean,
     textColor: Color,
     onClick: () -> Unit
 ) {
-    val borderColor = if (isSelected) ThemePrimary else if (isDark) Color.Transparent else BorderLight
-    val cardBgColor = if (isDark) Color(0x660F1C14) else Color.White
-    val iconBgColor = if (isDark) Color(0x33064E3B) else Color(0xFFD1FAE5)
-    val iconColor = if (isDark) ThemePrimary else Color(0xFF059669)
+    val borderColor = if (isSelected) ThemePrimary else Color.Transparent
+    val cardBgColor = Color.White
+    val iconBgColor = Color(0xFFD1FAE5) // Soft mint green
+    val iconColor = ThemePrimary
 
     Card(
         modifier = Modifier
@@ -274,7 +297,7 @@ fun GoalCard(
 }
 
 @Composable
-fun BudgetInputStep(budget: String, onBudgetChange: (String) -> Unit, onDone: () -> Unit, textColor: Color, isDark: Boolean) {
+fun BudgetInputStep(budget: String, onBudgetChange: (String) -> Unit, onDone: () -> Unit, textColor: Color) {
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
         Text("Set your baseline.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
         Spacer(modifier = Modifier.height(8.dp))
@@ -284,7 +307,7 @@ fun BudgetInputStep(budget: String, onBudgetChange: (String) -> Unit, onDone: ()
         OutlinedTextField(
             value = budget,
             onValueChange = onBudgetChange,
-            label = { Text("Monthly Budget (RM)") },
+            label = { Text("Monthly Budget (RM)") }, // Adjusted to KES for your thesis context!
             prefix = { Text("RM ", fontWeight = FontWeight.Bold) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
@@ -292,7 +315,7 @@ fun BudgetInputStep(budget: String, onBudgetChange: (String) -> Unit, onDone: ()
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = ThemePrimary,
-                unfocusedBorderColor = if (isDark) BorderDark else BorderLight,
+                unfocusedBorderColor = BorderDark,
                 focusedTextColor = textColor,
                 unfocusedTextColor = textColor
             ),
@@ -312,11 +335,11 @@ fun OnboardingFooter(currentStep: Int, isValid: Boolean, onContinue: () -> Unit)
             shape = RoundedCornerShape(50)
         ) {
             Text(
-                if (currentStep == 1) "Continue" else "Complete Setup",
+                if (currentStep < 3) "Continue" else "Complete Setup",
                 color = Color(0xFF022C22),
                 fontWeight = FontWeight.Bold
             )
-            if (currentStep == 1) {
+            if (currentStep < 3) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color(0xFF022C22))
             }
@@ -324,31 +347,27 @@ fun OnboardingFooter(currentStep: Int, isValid: Boolean, onContinue: () -> Unit)
     }
 }
 
-// 4. DATA MODELS & UTILS
 data class GoalData(val title: String, val desc: String, val icon: ImageVector)
 
-//created exactly ONCE in memory.
 private val ONBOARDING_GOALS = listOf(
     GoalData("Save Money", "Secure your future and build an emergency fund.", Icons.Default.Star),
     GoalData("Stop Overspending", "Identify hidden leaks and cut unnecessary costs.", Icons.Default.ShoppingCart),
     GoalData("Track Daily Habits", "See exactly where your money goes every day.", Icons.AutoMirrored.Filled.TrendingUp)
 )
 
-suspend fun saveUserBaseline(context: Context, goal: String, budget: String) {
+suspend fun saveUserBaseline(context: Context, name: String, goal: String, budget: String) {
     withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences("AdaptiveFinancePrefs", Context.MODE_PRIVATE)
-        // FIX: Read from prefs directly before opening the edit block
         val currentUserId = prefs.getString("SILENT_USER_ID", null)
 
         prefs.edit {
             if (currentUserId == null) {
                 putString("SILENT_USER_ID", UUID.randomUUID().toString())
             }
+            putString("USER_NAME", name)
             putString("USER_GOAL", goal)
             putFloat("MONTHLY_BUDGET", budget.toFloatOrNull() ?: 0f)
-            // the AI Gamified group for testing
             putString("TEST_GROUP", "adaptive")
-            //Save the exact moment they started the app
             putLong("INSTALL_TIMESTAMP", System.currentTimeMillis())
         }
     }

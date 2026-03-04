@@ -10,6 +10,7 @@ import com.finadapt.adaptivefinance.data.remote.FeedbackRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 class FinanceRepository(
     private val expenseDao: ExpenseDao,
@@ -25,6 +26,14 @@ class FinanceRepository(
     ): Result<AiResponse> {
         return withContext(Dispatchers.IO) {
             try {
+                // 1. SAVE TO DEVICE BRAIN (Room SQLite)
+                //We must save the expense to the database BEFORE we do the math
+                val newExpense = ExpenseEntity(
+                    amount = amount,
+                    category = category,
+                    timestamp = System.currentTimeMillis() // 🟢 FIX: Stamps it with today's date!
+                )
+                expenseDao.insertExpense(newExpense)
                 // 2. EDGE FEATURE ENGINEERING (With Projected Run Rate!)
 
                 // Fetch the 30-Day Bounded Spend (from your DAO)
@@ -93,15 +102,21 @@ class FinanceRepository(
         }
     }
 
-    suspend fun submitUserFeedback(predictionId: String, reward: Float) {
+    suspend fun submitUserFeedback(predictionId: String, reward: Int) {
         withContext(Dispatchers.IO) {
             try {
-                // 1. Send to AWS
+                // 1. Send to AWS for the bandit feedback(0 or 1)
                 val feedback = FeedbackRequest(predictionId, reward)
                 apiService.sendFeedback(ApiClient.API_TOKEN, feedback)
 
                 // 2. If successful, update the local database so we never send it again!
                 expenseDao.markFeedbackAsSent(predictionId)
+                //3 XP reward the user for playing the game
+                if(reward > 0f){
+                    // reward > 0 users clicked yes or accepted challenge
+                    val currentXp = prefs.getInt("USER_XP", 0)
+                    prefs.edit { putInt("USER_XP", currentXp + 50) }
+                }
 
             } catch (e: Exception) {
                 // If the network fails, we do nothing!
