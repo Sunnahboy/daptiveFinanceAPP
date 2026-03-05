@@ -1,6 +1,5 @@
 package com.finadapt.adaptivefinance.feature.expense
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -17,11 +16,13 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+// 🟢 Ensure this import matches your project structure!
+import com.finadapt.adaptivefinance.feature.gamification.GamificationDialog
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddExpenseScreen(
-    uiState: GamificationUiState, // 🟢 Correctly uses your AI state!
+    uiState: GamificationUiState,
     onLogExpense: (Float, String) -> Unit,
     onFeedback: (String, Int) -> Unit,
     onDismissState: () -> Unit
@@ -157,49 +158,24 @@ fun AddExpenseScreen(
             }
         }
 
-        // 🎮 5. THE GAMIFICATION ENGINE (The Interventions!)
+        // 🎮 5. THE GAMIFICATION ENGINE (Clean and Modular!)
         if (uiState is GamificationUiState.Success) {
-
-            // Check what the AWS Bandit chose:
             if (uiState.action == "Log_Only") {
                 // No game required! Instantly return to Dashboard.
                 LaunchedEffect(Unit) {
                     onDismissState()
                 }
             } else {
-                // 🚨 THE BANDIT TRIGGERED A GAME! Show the pop-up.
-                val themeColor = if (uiState.visualTheme == "Strict") Color.Red else Color(0xFF10B981)
-
-                AlertDialog(
-                    onDismissRequest = { /* Force them to pick an option! */ },
-                    title = {
-                        Text("🎮 ${uiState.strategy}", fontWeight = FontWeight.Bold, color = themeColor)
+                // 🚨 Trigger the Master Game Router!
+                GamificationDialog(
+                    action = uiState.action,
+                    message = uiState.message,
+                    predictionId = uiState.predictionId,
+                    onFeedback = { predId, reward ->
+                        onFeedback(predId, reward)
                     },
-                    text = {
-                        Text(uiState.message, fontSize = 16.sp)
-                    },
-                    confirmButton = {
-                        Button(
-                            onClick = {
-                                // User plays the game -> Reward = 1 (Positive Feedback)
-                                onFeedback(uiState.predictionId, 1)
-                                onDismissState()
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = themeColor)
-                        ) {
-                            Text("Accept Challenge")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(
-                            onClick = {
-                                // User ignores the game -> Reward = 0 (Negative Feedback)
-                                onFeedback(uiState.predictionId, 0)
-                                onDismissState()
-                            }
-                        ) {
-                            Text("Decline", color = Color.Gray)
-                        }
+                    onDismiss = {
+                        onDismissState()
                     }
                 )
             }
