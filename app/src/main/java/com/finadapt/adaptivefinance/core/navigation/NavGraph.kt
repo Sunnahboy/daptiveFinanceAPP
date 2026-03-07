@@ -118,6 +118,9 @@ fun NavGraph(
 
                 //Collect the Chart and Ledger Data
                 val recentExpenses by dashboardViewModel.recentExpenses.collectAsState()
+                //collect the streak state from the viewModel
+                val currentStreak by dashboardViewModel.currentStreak.collectAsState()
+
 
                 DashboardScreen(
                     userName = userName, //Pass it to the screen!
@@ -126,7 +129,8 @@ fun NavGraph(
                     monthlyBudget = monthlyBudget,
                     currentAiAction = currentAiAction,
                     userXp = userXp,
-                    recentExpenses = recentExpenses,   // 🟢 Pass it!
+                    currentStreak = currentStreak,
+                    recentExpenses = recentExpenses,
                     onNavigateToLogExpense = { navController.navigate(Screen.AddExpense.route) },
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route)}
                 )

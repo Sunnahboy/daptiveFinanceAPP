@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finadapt.adaptivefinance.data.local.ExpenseEntity
+import com.finadapt.adaptivefinance.ui.components.GamifiedDashboardHeader
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -37,16 +38,20 @@ fun DashboardScreen(
     todaySpend: Float,
     currentAiAction: String,
     userXp: Int,
+    currentStreak: Int,
     recentExpenses: List<ExpenseEntity>,
     onNavigateToLogExpense: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+
+
+
 ) {
-    // 🟢 FIGMA COLORS
+    //FIGMA COLORS
     val gradientStart = Color(0xFF0284C7) // Ocean Blue
     val gradientEnd = Color(0xFF10B981)   // Emerald Green
     val bgColor = Color(0xFFF8FAFC)       // Off-White background
 
-    // 🟢 FULLY EXPANDED AI CARD LOGIC (Moved to the very top where it belongs!)
+    //FULLY EXPANDED AI CARD LOGIC (Moved to the very top where it belongs!)
     val isOverBudget = totalSpend > monthlyBudget
 
     val (insightColor, insightTitle, insightBody, insightIcon) = when {
@@ -62,6 +67,7 @@ fun DashboardScreen(
             "High volatility detected! The AI recommends pausing non-essential spending.",
             Icons.Default.Warning
         )
+
         currentAiAction == "quiz" -> listOf(
             Color(0xFF8B5CF6),
             "🧠 Financial IQ Test",
@@ -118,7 +124,7 @@ fun DashboardScreen(
                     )
             )
 
-            // 🟢 2. THE SCROLLABLE CONTENT
+            //2. THE SCROLLABLE CONTENT
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -150,6 +156,13 @@ fun DashboardScreen(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(24.dp))
+                //--- 2. THE NEW RPG PLAYER PROFILE (Replacing the old XP bar) ---
+                    GamifiedDashboardHeader(
+                        totalXp = userXp,
+                        currentStreak = currentStreak,
+                        userName = userName
+                    )
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // --- THE OVERLAPPING AI INSIGHT CARD ---
