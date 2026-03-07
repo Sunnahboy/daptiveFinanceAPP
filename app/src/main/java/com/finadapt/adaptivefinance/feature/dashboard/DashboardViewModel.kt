@@ -11,14 +11,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import androidx.core.content.edit
+import  com.finadapt.adaptivefinance.data.repository.FinanceRepository
+
 
 class DashboardViewModel(
     private val expenseDao: ExpenseDao,
-    private val prefs: SharedPreferences
+    private val prefs: SharedPreferences,
+    private val financeRepository: FinanceRepository
 ) : ViewModel() {
 
-    // --- 🟢 ALL APP STATES ---
-
+    // ALL APP STATES
+    private val _currentStreak = MutableStateFlow(0)
+    val currentStreak: StateFlow<Int> = _currentStreak.asStateFlow()
     private val _totalSpend = MutableStateFlow(0f)
     val totalSpend: StateFlow<Float> = _totalSpend.asStateFlow()
 
@@ -50,7 +54,7 @@ class DashboardViewModel(
         loadDashboardData()
     }
 
-    // --- 🟢 DATA FETCHING ---
+    // DATA FETCHING
 
     fun loadDashboardData() {
         viewModelScope.launch {
@@ -59,6 +63,8 @@ class DashboardViewModel(
             _currentAiAction.value = prefs.getString("LAST_AI_ACTION", "zen") ?: "zen"
             _userXp.value = prefs.getInt("USER_XP", 0)
             _userName.value = prefs.getString("USER_NAME", "User") ?: "User"
+            // 🟢 Fetch the dynamic streak!
+            _currentStreak.value = financeRepository.getLiveStreak()
 
             // 2. Fetch Total Monthly Spend (30-day window)
             val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
@@ -94,7 +100,7 @@ class DashboardViewModel(
         }
     }
 
-    // --- 🟢 SETTINGS CONTROLS ---
+    // SETTINGS CONTROLS
 
     fun updateUserName(newName: String) {
         prefs.edit { putString("USER_NAME", newName) }

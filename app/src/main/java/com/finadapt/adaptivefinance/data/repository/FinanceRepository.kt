@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import java.util.Calendar
+import java.util.Calendar.getInstance
 
 class FinanceRepository(
     private val expenseDao: ExpenseDao,
@@ -26,17 +28,36 @@ class FinanceRepository(
     ): Result<AiResponse> {
         return withContext(Dispatchers.IO) {
             try {
-                // 1. SAVE TO DEVICE BRAIN (Room SQLite)
+                //1.SAVE TO DEVICE BRAIN (Room )
                 //We must save the expense to the database BEFORE we do the math
                 val newExpense = ExpenseEntity(
                     amount = amount,
                     category = category,
-                    timestamp = System.currentTimeMillis() // 🟢 FIX: Stamps it with today's date!
+                    timestamp = System.currentTimeMillis() //Stamps it with today's date!
                 )
                 expenseDao.insertExpense(newExpense)
-                // 2. EDGE FEATURE ENGINEERING (With Projected Run Rate!)
+                // 2.EDGE FEATURE ENGINEERING (With Projected Run Rate)
 
-                // Fetch the 30-Day Bounded Spend (from your DAO)
+
+                //STREAK
+                val todayMidnight = getMidnightTimestamp()
+                val lastLoggedMidnight = prefs.getLong("LAST_LOGGED_MIDNIGHT", 0L)
+                var currentStreak = prefs.getInt("CURRENT_STREAK", 0)
+
+                val daysDifference = (todayMidnight - lastLoggedMidnight) / (1000 * 60 * 60 * 24)
+
+                when (daysDifference) {
+                    0L -> { /* Already logged today, streak stays the same */ }
+                    1L -> { currentStreak += 1 } // Logged yesterday! Increment streak!
+                    else -> { currentStreak = 1 } // Streak broken, start fresh at 1!
+                }
+
+                prefs.edit {
+                    putLong("LAST_LOGGED_MIDNIGHT", todayMidnight)
+                    putInt("CURRENT_STREAK", currentStreak)
+                }
+
+                // Fetch the 30-Day Bounded Spend (from  DAO)
                 val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
                 val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
                 val totalSpend = expenseDao.getTotalSpendTimeBounded(timeLimit) ?: 0f
@@ -51,7 +72,7 @@ class FinanceRepository(
                 val millisActive = System.currentTimeMillis() - installTimestamp
                 val daysActive = maxOf(1f, millisActive / (1000f * 60f * 60f * 24f))
 
-                // 🟢 THE FIX: Calculate the Projected 30-Day Spend
+                //Calculate the Projected 30-Day Spend
                 val projectedSpend = if (daysActive < 30f) {
                     // New User: Extrapolate their current pace to a full month
                     (totalSpend / daysActive) * 30f
@@ -84,7 +105,7 @@ class FinanceRepository(
                 )
 
                 val response = apiService.getAiGamification(ApiClient.API_TOKEN, request)
-                //If AWS doesn't send an ID, we generate a safe local fallback UUID
+                //If server doesn't send an ID, we generate a safe local fallback UUID
                 val currentPredictionId = response.predictionId ?: "fallback_${java.util.UUID.randomUUID()}"
                 val aiMemory = AiInteractionEntity(
                     predictionId = currentPredictionId,
@@ -124,6 +145,35 @@ class FinanceRepository(
                 println("⚠️ Feedback Sync Paused. Reason: ${e.localizedMessage}")
                 println("Network failed. Feedback saved locally for eventual sync.")
             }
+        }
+    }
+
+
+    //Helper: Gets the exact millisecond a day started
+    private fun getMidnightTimestamp(timeInMillis: Long = System.currentTimeMillis()): Long {
+        val cal = getInstance().apply { this.timeInMillis = timeInMillis }
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
+    }
+
+    //Read the Streak safely for the UI
+    fun getLiveStreak(): Int {
+        val todayMidnight = getMidnightTimestamp()
+        val lastLoggedMidnight = prefs.getLong("LAST_LOGGED_MIDNIGHT", 0L)
+        val currentStreak = prefs.getInt("CURRENT_STREAK", 0)
+
+        // Calculate how many days it has been since their last log
+        val daysDifference = (todayMidnight - lastLoggedMidnight) / (1000 * 60 * 60 * 24)
+
+        return if (daysDifference <= 1L) {
+            //They logged today (0) or yesterday (1). The streak is alive!
+            currentStreak
+        } else {
+            // It has been 2 or more days. The streak is broken!
+            0
         }
     }
 }
