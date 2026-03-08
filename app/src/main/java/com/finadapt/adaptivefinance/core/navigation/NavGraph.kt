@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -11,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -21,7 +23,9 @@ import com.finadapt.adaptivefinance.feature.expense.AddExpenseScreen
 import com.finadapt.adaptivefinance.feature.expense.ExpenseViewModel
 import com.finadapt.adaptivefinance.feature.expense.history.HistoryScreen
 import com.finadapt.adaptivefinance.feature.expense.settings.SettingsScreen
+import com.finadapt.adaptivefinance.feature.gamification.RewardsScreen
 import com.finadapt.adaptivefinance.feature.onboarding.OnboardingScreen
+
 
 
 @Composable
@@ -40,6 +44,8 @@ fun NavGraph(
     val showBottomBar = currentRoute in listOf(
         Screen.Dashboard.route,
         Screen.History.route,
+        Screen.Rewards.route,
+        Screen.AddExpense.route,
         Screen.Settings.route
     )
 
@@ -74,6 +80,19 @@ fun NavGraph(
                         label = { Text("History") },
                         selected = currentRoute == Screen.History.route,
                         onClick = { navController.navigate(Screen.History.route) }
+                    )
+
+                    // 🟢 2. REWARDS BUTTON (The Trophy!)
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.EmojiEvents, contentDescription = "Rewards") },
+                        label = { Text("Rewards") },
+                        selected = currentRoute == Screen.Rewards.route,
+                        onClick = { navController.navigate(Screen.Rewards.route) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color(0xFFF59E0B), // Gold color for the trophy
+                            selectedTextColor = Color(0xFFF59E0B),
+                            indicatorColor = Color(0xFFFEF3C7)     // Light gold background when selected
+                        )
                     )
 
                     // SETTINGS BUTTON
@@ -120,6 +139,7 @@ fun NavGraph(
                 val recentExpenses by dashboardViewModel.recentExpenses.collectAsState()
                 //collect the streak state from the viewModel
                 val currentStreak by dashboardViewModel.currentStreak.collectAsState()
+                val levelUpTier by dashboardViewModel.showLevelUpCelebration.collectAsState()
 
 
                 DashboardScreen(
@@ -131,6 +151,8 @@ fun NavGraph(
                     userXp = userXp,
                     currentStreak = currentStreak,
                     recentExpenses = recentExpenses,
+                    levelUpTier = levelUpTier,
+                    onDismissLevelUp = { dashboardViewModel.dismissLevelUpCelebration() },
                     onNavigateToLogExpense = { navController.navigate(Screen.AddExpense.route) },
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route)}
                 )
@@ -167,6 +189,24 @@ fun NavGraph(
                 HistoryScreen(
                     weeklyChartData = weeklyChartData,
                     allExpenses = allExpenses
+                )
+            }
+
+            // 🟢 3. THE NEW REWARDS ROUTE
+            composable(route = Screen.Rewards.route) {
+                // Force a data refresh so XP is always perfectly accurate when they open the store
+                dashboardViewModel.loadDashboardData()
+
+                // Collect the state needed for the economy
+                val userXp by dashboardViewModel.userXp.collectAsState()
+                val shieldCount by dashboardViewModel.shieldCount.collectAsState()
+                val liveBadges by dashboardViewModel.badges.collectAsState()
+
+                RewardsScreen(
+                    userXp = userXp,
+                    shieldCount = shieldCount,
+                    badges = liveBadges,
+                    onBuyShield = { dashboardViewModel.onBuyStreakShield() } // Triggers the math!
                 )
             }
 

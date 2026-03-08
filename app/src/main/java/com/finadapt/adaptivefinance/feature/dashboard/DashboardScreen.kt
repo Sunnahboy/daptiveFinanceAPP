@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finadapt.adaptivefinance.data.local.ExpenseEntity
 import com.finadapt.adaptivefinance.ui.components.GamifiedDashboardHeader
+import com.finadapt.adaptivefinance.ui.components.LevelUpOverlay
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -40,8 +41,12 @@ fun DashboardScreen(
     userXp: Int,
     currentStreak: Int,
     recentExpenses: List<ExpenseEntity>,
+    levelUpTier: String?,
+    onDismissLevelUp: () -> Unit,
     onNavigateToLogExpense: () -> Unit,
     onNavigateToSettings: () -> Unit,
+
+
 
 
 
@@ -51,7 +56,7 @@ fun DashboardScreen(
     val gradientEnd = Color(0xFF10B981)   // Emerald Green
     val bgColor = Color(0xFFF8FAFC)       // Off-White background
 
-    //FULLY EXPANDED AI CARD LOGIC (Moved to the very top where it belongs!)
+    //FULLY EXPANDED AI CARD LOGIC
     val isOverBudget = totalSpend > monthlyBudget
 
     val (insightColor, insightTitle, insightBody, insightIcon) = when {
@@ -149,6 +154,7 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(currentDate, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
                         }
+
                     }
 
                     IconButton(onClick = onNavigateToSettings) {
@@ -338,6 +344,13 @@ fun DashboardScreen(
                 }
 
                 Spacer(modifier = Modifier.height(100.dp))
+            }
+            //THE CELEBRATION TRAP
+            if (levelUpTier != null) {
+                LevelUpOverlay(
+                    newTierName = levelUpTier,
+                    onDismiss = onDismissLevelUp
+                )
             }
         }
     }
