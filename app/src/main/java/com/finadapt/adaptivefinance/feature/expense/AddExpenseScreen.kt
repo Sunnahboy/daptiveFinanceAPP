@@ -16,7 +16,6 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-// 🟢 Ensure this import matches your project structure!
 import com.finadapt.adaptivefinance.feature.gamification.GamificationDialog
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -25,7 +24,8 @@ fun AddExpenseScreen(
     uiState: GamificationUiState,
     onLogExpense: (Float, String) -> Unit,
     onFeedback: (String, Int) -> Unit,
-    onDismissState: () -> Unit
+    onDismissState: () -> Unit,
+
 ) {
     var amountInput by remember { mutableStateOf("") }
     var categoryInput by remember { mutableStateOf("") }

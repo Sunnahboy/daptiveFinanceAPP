@@ -176,4 +176,56 @@ class FinanceRepository(
             0
         }
     }
+
+//---safely subtract XP without crashing or going into negative numbers.-----
+
+    //1. read the current shield count
+    fun getShieldCount(): Int{
+        return prefs.getInt("STREAK_SHIELDS", 0)
+
+    }
+
+    //2. The Transaction Logic (Buy a shield)
+    fun buyStreakShield():Boolean {
+        val currentXp = prefs.getInt("USER_XP", 0)
+        val currentShields = getShieldCount()
+
+        // double check they can afford it
+        if (currentXp >= 500){
+            prefs.edit {
+                putInt("USER_XP", currentXp - 500)
+                putInt("STREAK_SHIELDS", currentShields + 1)
+            }
+            return true
+        }
+        return false
+            }
+
+    //Reads the current XP from the device memory
+    fun getUserXp(): Int {
+        return prefs.getInt("USER_XP", 0)
+    }
+
+    //1. increment a specific gamification stat
+    fun incrementGameStat(gameType: String){
+        val currentCount = prefs.getInt(gameType, 0)
+        prefs.edit { putInt("STAT_$gameType", currentCount + 1) }
+
+    }
+
+    // Read a specific gamification stat
+    fun getGameStat(gameType: String): Int {
+        return prefs.getInt("STAT_$gameType", 0)
+    }
+
+    //Read the last seen tier
+    fun getLastSeenTier(): String {
+        return prefs.getString("LAST_SEEN_TIER", "Bronze Novice") ?: "Bronze Novice"
+    }
+
+    //Save the new tier
+    fun saveLastSeenTier(tierName: String) {
+        prefs.edit { putString("LAST_SEEN_TIER", tierName) }
+    }
+
 }
