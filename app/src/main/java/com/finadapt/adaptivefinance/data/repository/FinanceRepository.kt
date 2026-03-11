@@ -228,4 +228,14 @@ class FinanceRepository(
         prefs.edit { putString("LAST_SEEN_TIER", tierName) }
     }
 
+    //Save the Dark Mode choice
+    fun saveThemePreference(isDark: Boolean) {
+        prefs.edit { putBoolean("IS_DARK_MODE", isDark) }
+    }
+
+    //Read the Dark Mode choice (defaults to false/Light Mode)
+    fun isDarkMode(): Boolean {
+        return prefs.getBoolean("IS_DARK_MODE", false)
+    }
+
 }

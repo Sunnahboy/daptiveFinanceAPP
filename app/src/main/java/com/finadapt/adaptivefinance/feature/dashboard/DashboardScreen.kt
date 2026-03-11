@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.finadapt.adaptivefinance.data.local.ExpenseEntity
 import com.finadapt.adaptivefinance.ui.components.GamifiedDashboardHeader
 import com.finadapt.adaptivefinance.ui.components.LevelUpOverlay
+import com.finadapt.adaptivefinance.ui.components.NotificationPermissionHandler
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -51,6 +52,8 @@ fun DashboardScreen(
 
 
 ) {
+    //check silently in the background
+    NotificationPermissionHandler()
     //FIGMA COLORS
     val gradientStart = Color(0xFF0284C7) // Ocean Blue
     val gradientEnd = Color(0xFF10B981)   // Emerald Green
@@ -161,6 +164,8 @@ fun DashboardScreen(
                         Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
                     }
                 }
+
+
 
                 Spacer(modifier = Modifier.height(24.dp))
                 //--- 2. THE NEW RPG PLAYER PROFILE (Replacing the old XP bar) ---
