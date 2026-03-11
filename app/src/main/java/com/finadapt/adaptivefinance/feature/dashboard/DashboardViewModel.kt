@@ -22,6 +22,8 @@ class DashboardViewModel(
 ) : ViewModel() {
 
     // ALL APP STATES
+    private val _isDarkMode = MutableStateFlow(false)
+    val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
     private val _currentStreak = MutableStateFlow(0)
     val currentStreak: StateFlow<Int> = _currentStreak.asStateFlow()
     private val _totalSpend = MutableStateFlow(0f)
@@ -49,7 +51,7 @@ class DashboardViewModel(
     val allExpenses: StateFlow<List<ExpenseEntity>> = _allExpenses.asStateFlow()
 
     private val _weeklyChartData = MutableStateFlow(List(7) { 0f })
-    val weeklyChartData: StateFlow<List<Float>> = _weeklyChartData.asStateFlow()
+    //val weeklyChartData: StateFlow<List<Float>> = _weeklyChartData.asStateFlow()
     //Track the Shields in the UI State
     private val _shieldCount = MutableStateFlow(0)
     val shieldCount: StateFlow<Int> = _shieldCount.asStateFlow()
@@ -72,6 +74,7 @@ class DashboardViewModel(
 
     fun loadDashboardData() {
         viewModelScope.launch {
+            _isDarkMode.value = financeRepository.isDarkMode()
             // 1. Fetch Preferences
             _monthlyBudget.value = prefs.getFloat("MONTHLY_BUDGET", 1000f)
             _currentAiAction.value = prefs.getString("LAST_AI_ACTION", "zen") ?: "zen"
@@ -234,6 +237,15 @@ class DashboardViewModel(
     //The Dismiss Function
     fun dismissLevelUpCelebration() {
         _showLevelUpCelebration.value = null
+    }
+
+
+    //The function the switch will call
+    fun toggleTheme(isDark: Boolean) {
+        viewModelScope.launch {
+            financeRepository.saveThemePreference(isDark) // Save to device memory
+            _isDarkMode.value = isDark // Instantly update the UI
+        }
     }
 
 
