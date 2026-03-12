@@ -256,10 +256,10 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     currentName: String,
     currentBudget: Float,
-    isDarkMode: Boolean = false, // 🟢 NEW: Dark mode state passed in
+    isDarkMode: Boolean = false, //Dark mode state passed in
     onNameChanged: (String) -> Unit,
     onBudgetChanged: (Float) -> Unit,
-    onThemeToggled: (Boolean) -> Unit, // 🟢 NEW: Callback for theme change
+    onThemeToggled: (Boolean) -> Unit, //Callback for theme change
     onResetGamification: () -> Unit,
     onWipeData: () -> Unit,
     onNavigateBack: () -> Unit
@@ -272,7 +272,7 @@ fun SettingsScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
 
-    // 🟢 Dynamic Colors based on Dark Mode state
+    //Dynamic Colors based on Dark Mode state
     val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
     val cardColor = if (isDarkMode) Color(0xFF1E293B) else Color.White
     val textColor = if (isDarkMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
@@ -492,7 +492,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(80.dp)) // Bottom padding
         }
 
-        // 🟢 CONFIRMATION DIALOG
+        //CONFIRMATION DIALOG
         if (showWipeDialog) {
             AlertDialog(
                 onDismissRequest = { showWipeDialog = false },
@@ -517,7 +517,7 @@ fun SettingsScreen(
     }
 }
 
-// --- HELPER COMPOSABLES ---
+// --- HELPER COMPOSABLE ---
 
 @Composable
 fun SettingsSectionHeader(title: String, color: Color) {
