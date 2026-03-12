@@ -66,9 +66,9 @@ class DashboardViewModel(
     //private val _showLevelUpCelebration = MutableStateFlow<String?>("Silver Guardian 🛡️")
     val showLevelUpCelebration: StateFlow<String?> = _showLevelUpCelebration.asStateFlow()
 
-    init {
-        loadDashboardData()
-    }
+//    init {
+//        loadDashboardData()
+//    }
 
     // DATA FETCHING
 
@@ -84,6 +84,11 @@ class DashboardViewModel(
             _shieldCount.value = financeRepository.getShieldCount()
             //Fetch the dynamic streak!
             _currentStreak.value = financeRepository.getLiveStreak()
+
+
+            // Store XP in a local variable so we can use it for syncing
+            val currentXp = prefs.getInt("USER_XP", 0)
+            _userXp.value = currentXp
 
             // 2. Fetch Total Monthly Spend (30-day window)
             val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
@@ -119,6 +124,23 @@ class DashboardViewModel(
                 }
             }
             _weeklyChartData.value = dailyTotals.toList()
+
+            // 🟢 NEW: 6. SYNC TO CLOUD LEADERBOARD
+            // This is the part that was missing!
+            val currentTier = when {
+                currentXp < 500 -> "Bronze Novice"
+                currentXp < 2000 -> "Silver Guardian"
+                else -> "Gold Master"
+            }
+
+            // Fire and forget: Sync latest XP to your Python server
+            try {
+                financeRepository.syncLeaderboard(xp = currentXp, tier = currentTier)
+            } catch (e: Exception) {
+                e.printStackTrace()
+
+
+            }
         }
     }
 

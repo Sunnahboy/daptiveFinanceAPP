@@ -7,7 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -17,6 +17,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.finadapt.adaptivefinance.feature.community.CommunityScreen
+import com.finadapt.adaptivefinance.feature.community.CommunityViewModel
 import com.finadapt.adaptivefinance.feature.dashboard.DashboardScreen
 import com.finadapt.adaptivefinance.feature.dashboard.DashboardViewModel
 import com.finadapt.adaptivefinance.feature.expense.AddExpenseScreen
@@ -32,6 +34,7 @@ fun NavGraph(
     startDestination: String,
     dashboardViewModel: DashboardViewModel,
     expenseViewModel: ExpenseViewModel,
+    communityViewModel: CommunityViewModel,
     prefs: SharedPreferences
 ) {
     // 1. Observe the current route to know which tab is active
@@ -42,9 +45,10 @@ fun NavGraph(
     val showBottomBar = currentRoute in listOf(
         Screen.Dashboard.route,
         Screen.History.route,
+        Screen.Community.route,
         Screen.Rewards.route,
         Screen.AddExpense.route,
-        Screen.Settings.route
+
     )
     val isDark  by dashboardViewModel.isDarkMode.collectAsState()
     val navBarBgColor = if (isDark) Color(0xFF1E293B) else Color.White
@@ -82,6 +86,18 @@ fun NavGraph(
                         selected = currentRoute == Screen.History.route,
                         onClick = { navController.navigate(Screen.History.route) }
                     )
+                    // COMMUNITY BUTTON
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.Public, contentDescription = "Community") },
+                        label = { Text("Community") },
+                        selected = currentRoute == Screen.Community.route,
+                        onClick = { navController.navigate(Screen.Community.route) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color(0xFF0284C7),
+                            selectedTextColor = Color(0xFF0284C7),
+                            indicatorColor = Color(0xFFE0F2FE)
+                        )
+                    )
 
                     // REWARDS BUTTON (The Trophy!)
                     NavigationBarItem(
@@ -96,13 +112,6 @@ fun NavGraph(
                         )
                     )
 
-                    // SETTINGS BUTTON
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") },
-                        selected = currentRoute == Screen.Settings.route,
-                        onClick = { navController.navigate(Screen.Settings.route) }
-                    )
                 }
             }
         }
@@ -189,6 +198,24 @@ fun NavGraph(
                 val isDark by dashboardViewModel.isDarkMode.collectAsState()
                 HistoryScreen(
                     allExpenses = allExpenses,
+                    isDarkMode = isDark
+                )
+            }
+
+            composable(route = Screen.Community.route) {
+                // Refresh leaderboard when arriving
+                LaunchedEffect(Unit) {
+                    communityViewModel.fetchLeaderboard()
+                }
+
+                val leaderboardData by communityViewModel.leaderboardData.collectAsState()
+                val isLoading by communityViewModel.isLoading.collectAsState()
+                val isDark by dashboardViewModel.isDarkMode.collectAsState()
+
+                CommunityScreen(
+                    leaderboardData = leaderboardData,
+                    currentAnonName = communityViewModel.currentAnonName,
+                    isLoading = isLoading,
                     isDarkMode = isDark
                 )
             }

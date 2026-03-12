@@ -10,7 +10,10 @@ import com.finadapt.adaptivefinance.data.remote.FeedbackRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.core.content.edit
+import com.finadapt.adaptivefinance.data.remote.LeaderboardEntry
+import com.finadapt.adaptivefinance.data.remote.LeaderboardUpdateRequest
 import java.util.Calendar
 import java.util.Calendar.getInstance
 
@@ -236,6 +239,56 @@ class FinanceRepository(
     //Read the Dark Mode choice (defaults to false/Light Mode)
     fun isDarkMode(): Boolean {
         return prefs.getBoolean("IS_DARK_MODE", false)
+    }
+
+    //Generate and stores a secure anonymous Name
+    fun getAnonymousName(): String {
+        var name = prefs.getString("ANONYMOUS_NAME", null)
+        if (name == null) {
+            name = "Saver_${(1000..9999).random()}"
+            prefs.edit { putString("ANONYMOUS_NAME", name) }
+
+        }
+        return name
+
+    }
+
+    //silently sync users Xp to the supabase
+    suspend fun syncLeaderboard(xp: Int, tier: String){
+        try{
+            val currentUserId = prefs.getString("SILENT_USER_ID", "fallback_id") ?: "fallback_id"
+            val anonName = getAnonymousName()
+
+            val request = LeaderboardUpdateRequest(
+                userId = currentUserId,
+                anonymousName = anonName,
+                xp = xp,
+                tier = tier
+            )
+            ApiClient.fastApiService.syncLeaderboardXp(request)
+
+        }catch (e: Exception){
+            Log.e("TAG", "Failed to process data", e)
+        }
+
+
+    }
+
+
+    // fetches the top 50 users
+    suspend fun getTopLeaderboard(): List<LeaderboardEntry> {
+
+        return try {
+            val response = ApiClient.fastApiService.getLeaderboardTop()
+            if (response.isSuccessful) {
+                response.body()?.data ?: emptyList()
+            } else {
+                emptyList()
+            }
+        }catch (e: Exception){
+            Log.e("Leaderboard", "Fetch failed", e)
+            emptyList()
+        }
     }
 
 }

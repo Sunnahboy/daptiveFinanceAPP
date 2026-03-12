@@ -16,6 +16,7 @@ import com.finadapt.adaptivefinance.core.navigation.NavGraph
 import com.finadapt.adaptivefinance.core.navigation.Screen
 import com.finadapt.adaptivefinance.data.local.AppDatabase
 import com.finadapt.adaptivefinance.data.repository.FinanceRepository
+import com.finadapt.adaptivefinance.feature.community.CommunityViewModel
 import com.finadapt.adaptivefinance.feature.dashboard.DashboardViewModel
 import com.finadapt.adaptivefinance.feature.dashboard.DashboardViewModelFactory
 import com.finadapt.adaptivefinance.feature.expense.ExpenseViewModel
@@ -23,6 +24,8 @@ import com.finadapt.adaptivefinance.feature.expense.ExpenseViewModelFactory
 import com.finadapt.adaptivefinance.worker.StreakReminderWorker
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
+import com.finadapt.adaptivefinance.feature.community.CommunityViewModelFactory
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +60,10 @@ class MainActivity : ComponentActivity() {
                     val dashboardFactory = DashboardViewModelFactory(database.expenseDao(), prefs)
                     val dashboardViewModel: DashboardViewModel = viewModel(factory = dashboardFactory)
 
+                    //Build the Community ViewModel
+                    val communityFactory = CommunityViewModelFactory(repository)
+                    val communityViewModel: CommunityViewModel = viewModel(factory = communityFactory)
+
                     // 4. SMART ROUTING: Check if they are a returning user
                     val hasCompletedOnboarding = prefs.getString("SILENT_USER_ID", null) != null
                     val startDestination = if (hasCompletedOnboarding) {
@@ -71,6 +78,7 @@ class MainActivity : ComponentActivity() {
                         startDestination = startDestination,
                         dashboardViewModel = dashboardViewModel,
                         expenseViewModel = expenseViewModel,
+                        communityViewModel = communityViewModel,
                         prefs = prefs // Pass prefs to fetch the UUID in the graph
                     )
                 }
