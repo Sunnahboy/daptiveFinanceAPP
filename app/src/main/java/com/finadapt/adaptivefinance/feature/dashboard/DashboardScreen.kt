@@ -43,23 +43,24 @@ fun DashboardScreen(
     currentStreak: Int,
     recentExpenses: List<ExpenseEntity>,
     levelUpTier: String?,
+    isDarkMode: Boolean = false, // 🟢 NEW: Dark mode state passed in
     onDismissLevelUp: () -> Unit,
     onNavigateToLogExpense: () -> Unit,
-    onNavigateToSettings: () -> Unit,
-
-
-
-
-
+    onNavigateToSettings: () -> Unit
 ) {
-    //check silently in the background
+    // Check silently in the background
     NotificationPermissionHandler()
-    //FIGMA COLORS
-    val gradientStart = Color(0xFF0284C7) // Ocean Blue
-    val gradientEnd = Color(0xFF10B981)   // Emerald Green
-    val bgColor = Color(0xFFF8FAFC)       // Off-White background
 
-    //FULLY EXPANDED AI CARD LOGIC
+    // 🟢 DYNAMIC THEME COLORS
+    val gradientStart = Color(0xFF0284C7) // Ocean Blue stays vibrant
+    val gradientEnd = Color(0xFF10B981)   // Emerald Green stays vibrant
+    val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val cardColor = if (isDarkMode) Color(0xFF1E293B) else Color.White
+    val textColor = if (isDarkMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
+    val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color.Gray
+    val strokeBgColor = if (isDarkMode) Color(0xFF334155) else Color(0xFFF1F5F9) // For chart backgrounds
+
+    // FULLY EXPANDED AI CARD LOGIC
     val isOverBudget = totalSpend > monthlyBudget
 
     val (insightColor, insightTitle, insightBody, insightIcon) = when {
@@ -75,7 +76,6 @@ fun DashboardScreen(
             "High volatility detected! The AI recommends pausing non-essential spending.",
             Icons.Default.Warning
         )
-
         currentAiAction == "quiz" -> listOf(
             Color(0xFF8B5CF6),
             "🧠 Financial IQ Test",
@@ -105,11 +105,11 @@ fun DashboardScreen(
     val currentDate = SimpleDateFormat("EEEE, MMMM dd, yyyy", Locale.getDefault()).format(Date())
 
     Scaffold(
-        containerColor = bgColor,
+        containerColor = bgColor, // 🟢 Applies Dark Mode to background
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onNavigateToLogExpense,
-                containerColor = Color(0xFF007AFF),
+                containerColor = Color(0xFF007AFF), // Apple Blue looks great in both themes
                 contentColor = Color.White,
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(8.dp)
@@ -118,10 +118,9 @@ fun DashboardScreen(
             }
         }
     ) { innerPadding ->
-
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
 
-            // 🟢 1. THE GRADIENT HEADER BACKGROUND
+            // THE GRADIENT HEADER BACKGROUND (Always dark text on top, so colors remain white)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -132,7 +131,7 @@ fun DashboardScreen(
                     )
             )
 
-            //2. THE SCROLLABLE CONTENT
+            // THE SCROLLABLE CONTENT
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -157,7 +156,6 @@ fun DashboardScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(currentDate, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelMedium)
                         }
-
                     }
 
                     IconButton(onClick = onNavigateToSettings) {
@@ -165,15 +163,15 @@ fun DashboardScreen(
                     }
                 }
 
-
-
                 Spacer(modifier = Modifier.height(24.dp))
-                //--- 2. THE NEW RPG PLAYER PROFILE (Replacing the old XP bar) ---
-                    GamifiedDashboardHeader(
-                        totalXp = userXp,
-                        currentStreak = currentStreak,
-                        userName = userName
-                    )
+
+                // THE RPG PLAYER PROFILE
+                GamifiedDashboardHeader(
+                    totalXp = userXp,
+                    currentStreak = currentStreak,
+                    userName = userName
+                )
+
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // --- THE OVERLAPPING AI INSIGHT CARD ---
@@ -181,7 +179,7 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = insightColor as Color),
                     shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 8.dp)
                 ) {
                     Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.Top) {
                         Box(
@@ -205,16 +203,16 @@ fun DashboardScreen(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Card(
                         modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = cardColor), // 🟢 Dynamic
                         shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(2.dp)
+                        elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Box(modifier = Modifier.size(32.dp).background(Color(0xFFE0F2FE), CircleShape), contentAlignment = Alignment.Center) {
+                            Box(modifier = Modifier.size(32.dp).background(if (isDarkMode) Color(0xFF0284C7).copy(alpha=0.2f) else Color(0xFFE0F2FE), CircleShape), contentAlignment = Alignment.Center) {
                                 Text("RM", color = Color(0xFF0284C7), fontWeight = FontWeight.Bold)
                             }
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text("Today's Spend", color = Color.Gray, style = MaterialTheme.typography.labelMedium)
+                            Text("Today's Spend", color = subTextColor, style = MaterialTheme.typography.labelMedium)
                             val formattedTodaySpend = String.format(Locale.getDefault(), "%.2f", todaySpend)
                             Text("RM $formattedTodaySpend", fontWeight = FontWeight.Bold, color = Color(0xFF0284C7), fontSize = 18.sp)
                         }
@@ -222,29 +220,29 @@ fun DashboardScreen(
 
                     Card(
                         modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = cardColor), // 🟢 Dynamic
                         shape = RoundedCornerShape(16.dp),
-                        elevation = CardDefaults.cardElevation(2.dp)
+                        elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Box(modifier = Modifier.size(32.dp).background(Color(0xFFD1FAE5), CircleShape), contentAlignment = Alignment.Center) {
+                            Box(modifier = Modifier.size(32.dp).background(if (isDarkMode) Color(0xFF10B981).copy(alpha=0.2f) else Color(0xFFD1FAE5), CircleShape), contentAlignment = Alignment.Center) {
                                 Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp))
                             }
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text("This Month", color = Color.Gray, style = MaterialTheme.typography.labelMedium)
-                            Text("RM ${totalSpend.toInt()}", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 18.sp)
+                            Text("This Month", color = subTextColor, style = MaterialTheme.typography.labelMedium)
+                            Text("RM ${totalSpend.toInt()}", fontWeight = FontWeight.Bold, color = textColor, fontSize = 18.sp) // 🟢 Dynamic
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- THE MINI DONUT CHART (Restored!) ---
+                // --- THE MINI DONUT CHART ---
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = cardColor), // 🟢 Dynamic
                     shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(20.dp).fillMaxWidth(),
@@ -252,28 +250,26 @@ fun DashboardScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("Budget Progress", color = Color.Gray, style = MaterialTheme.typography.labelMedium)
+                            Text("Budget Progress", color = subTextColor, style = MaterialTheme.typography.labelMedium)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("RM ${totalSpend.toInt()} / RM ${monthlyBudget.toInt()}", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 18.sp)
+                            Text("RM ${totalSpend.toInt()} / RM ${monthlyBudget.toInt()}", fontWeight = FontWeight.Bold, color = textColor, fontSize = 18.sp) // 🟢 Dynamic
                         }
 
                         // Donut Logic
                         val rawPercentage = if (monthlyBudget > 0f) totalSpend / monthlyBudget else 0f
                         val clampedPercentage = rawPercentage.coerceIn(0f, 1f)
                         val animatedSweep by animateFloatAsState(targetValue = clampedPercentage * 360f, animationSpec = tween(1500), label = "donut")
-
-                        // Turns red if over budget!
                         val progressColor = if (isOverBudget) Color.Red else Color(0xFF10B981)
 
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
                             Canvas(modifier = Modifier.fillMaxSize()) {
-                                drawArc(color = Color(0xFFF1F5F9), startAngle = 0f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 16f, cap = StrokeCap.Round))
+                                drawArc(color = strokeBgColor, startAngle = 0f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 16f, cap = StrokeCap.Round)) // 🟢 Dynamic
                                 drawArc(color = progressColor, startAngle = -90f, sweepAngle = animatedSweep, useCenter = false, style = Stroke(width = 16f, cap = StrokeCap.Round))
                             }
                             if (isOverBudget) {
                                 Text("⚠️", fontSize = 18.sp)
                             } else {
-                                Text("${(clampedPercentage * 100).toInt()}%", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
+                                Text("${(clampedPercentage * 100).toInt()}%", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = textColor) // 🟢 Dynamic
                             }
                         }
                     }
@@ -288,23 +284,23 @@ fun DashboardScreen(
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = cardColor), // 🟢 Dynamic
                     shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                    elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp)
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Gamification Status", color = Color.Gray, style = MaterialTheme.typography.labelMedium)
+                            Text("Gamification Status", color = subTextColor, style = MaterialTheme.typography.labelMedium)
                             Text("$userXp XP", fontWeight = FontWeight.Bold, color = Color(0xFFF59E0B), style = MaterialTheme.typography.labelMedium)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(levelName, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 16.sp)
+                            Text(levelName, fontWeight = FontWeight.Bold, color = textColor, fontSize = 16.sp) // 🟢 Dynamic
                             LinearProgressIndicator(
                                 progress = { animatedXpProgress },
                                 modifier = Modifier.width(120.dp).height(8.dp),
                                 color = Color(0xFFF59E0B),
-                                trackColor = Color(0xFFE2E8F0),
+                                trackColor = strokeBgColor, // 🟢 Dynamic
                                 strokeCap = StrokeCap.Round
                             )
                         }
@@ -314,16 +310,16 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(32.dp))
 
                 // --- RECENT TRANSACTIONS ---
-                Text("Recent Transactions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                Text("Recent Transactions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor) // 🟢 Dynamic
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (recentExpenses.isEmpty()) {
-                    Text("No expenses yet.", color = Color.Gray, modifier = Modifier.padding(vertical = 16.dp))
+                    Text("No expenses yet.", color = subTextColor, modifier = Modifier.padding(vertical = 16.dp))
                 } else {
                     recentExpenses.forEach { expense ->
                         Card(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = cardColor), // 🟢 Dynamic
                             shape = RoundedCornerShape(16.dp)
                         ) {
                             Row(
@@ -332,17 +328,17 @@ fun DashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(40.dp).background(Color(0xFFF1F5F9), CircleShape), contentAlignment = Alignment.Center) {
+                                    Box(modifier = Modifier.size(40.dp).background(strokeBgColor, CircleShape), contentAlignment = Alignment.Center) {
                                         Text("🏷️", fontSize = 16.sp)
                                     }
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
-                                        Text(expense.category, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                        Text(expense.category, fontWeight = FontWeight.Bold, color = textColor) // 🟢 Dynamic
                                         val dateStr = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(Date(expense.timestamp))
-                                        Text(dateStr, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                        Text(dateStr, style = MaterialTheme.typography.labelSmall, color = subTextColor)
                                     }
                                 }
-                                Text("- RM ${expense.amount}", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                Text("- RM ${expense.amount}", fontWeight = FontWeight.Bold, color = textColor) // 🟢 Dynamic
                             }
                         }
                     }
@@ -350,7 +346,8 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(100.dp))
             }
-            //THE CELEBRATION TRAP
+
+            // THE CELEBRATION TRAP
             if (levelUpTier != null) {
                 LevelUpOverlay(
                     newTierName = levelUpTier,

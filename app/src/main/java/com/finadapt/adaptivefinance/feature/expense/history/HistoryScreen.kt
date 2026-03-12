@@ -1,4 +1,3 @@
-
 package com.finadapt.adaptivefinance.feature.expense.history
 
 import android.annotation.SuppressLint
@@ -31,7 +30,7 @@ import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
 import com.patrykandpatrick.vico.compose.chart.column.columnChart
 import com.patrykandpatrick.vico.compose.component.lineComponent
-import com.patrykandpatrick.vico.compose.component.textComponent // 🟢 Required for fixing label colors
+import com.patrykandpatrick.vico.compose.component.textComponent
 import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
 import com.patrykandpatrick.vico.core.entry.entryModelOf
 import java.text.SimpleDateFormat
@@ -53,14 +52,17 @@ enum class TimeFilter { DAILY, WEEKLY, MONTHLY }
 
 @SuppressLint("DefaultLocale")
 @Composable
-fun HistoryScreen(allExpenses: List<ExpenseEntity>) {
-    // 🟢 LOCKED TO LIGHT THEME
-    val bgColor = Color(0xFFF8FAFC)
-    val cardBg = Color.White
-    val textColor = Color(0xFF0F172A)
-    val subTextColor = Color(0xFF64748B) // Slate Gray for high readability
-    val tabTrackColor = Color(0xFFE2E8F0)
-    val tabActiveColor = Color.White
+fun HistoryScreen(
+    allExpenses: List<ExpenseEntity>,
+    isDarkMode: Boolean = false // 🟢 NEW: Dark mode state passed in
+) {
+    // 🟢 DYNAMIC THEME COLORS
+    val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val cardBg = if (isDarkMode) Color(0xFF1E293B) else Color.White
+    val textColor = if (isDarkMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
+    val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val tabTrackColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFE2E8F0)
+    val tabActiveColor = if (isDarkMode) Color(0xFF334155) else Color.White
 
     var selectedFilter by remember { mutableStateOf(TimeFilter.DAILY) }
     var searchQuery by remember { mutableStateOf("") }
@@ -184,11 +186,11 @@ fun HistoryScreen(allExpenses: List<ExpenseEntity>) {
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 🟢 THE BAR CHART (Volume over Time)
+            // THE BAR CHART (Volume over Time)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = cardBg),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 2.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Box(modifier = Modifier.padding(16.dp)) {
@@ -204,17 +206,17 @@ fun HistoryScreen(allExpenses: List<ExpenseEntity>) {
                         ),
                         model = entryModelOf(*safeChartData.toTypedArray()),
                         startAxis = rememberStartAxis(
-                            // 🟢 FIX: Force Axis Labels to be visible (Slate Gray)
+                            // 🟢 FIX: Axis Labels use dynamic subTextColor
                             label = textComponent(
-                                color = Color(0xFF64748B),
+                                color = subTextColor,
                                 textSize = 10.sp
                             ),
                             valueFormatter = AxisValueFormatter { value, _ -> "RM ${value.toInt()}" }
                         ),
                         bottomAxis = rememberBottomAxis(
-                            // 🟢 FIX: Force Axis Labels to be visible (Slate Gray)
+                            // 🟢 FIX: Axis Labels use dynamic subTextColor
                             label = textComponent(
-                                color = Color(0xFF64748B),
+                                color = subTextColor,
                                 textSize = 10.sp
                             ),
                             valueFormatter = AxisValueFormatter { value, _ -> chartLabels.getOrNull(value.toInt()) ?: "" },
@@ -232,7 +234,7 @@ fun HistoryScreen(allExpenses: List<ExpenseEntity>) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = cardBg),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 2.dp),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -286,7 +288,7 @@ fun HistoryScreen(allExpenses: List<ExpenseEntity>) {
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     colors = CardDefaults.cardColors(containerColor = cardBg),
                     shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 1.dp)
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -304,7 +306,7 @@ fun HistoryScreen(allExpenses: List<ExpenseEntity>) {
                         }
 
                         Text(
-                            "- RM ${String.format("%.2f", expense.amount)}",
+                            "- RM ${String.format(Locale.US, "%.2f", expense.amount)}",
                             fontWeight = FontWeight.Bold,
                             color = categoryColor,
                             fontSize = 14.sp
@@ -367,7 +369,6 @@ fun CategoryDonutChart(expenses: List<ExpenseEntity>, textColor: Color) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Total", color = Color.Gray, fontSize = 12.sp)
                 Text(
-                    //text = "RM ${String.format("%.0f", totalSpend)}",
                     text = "RM ${String.format(Locale.US, "%.0f", totalSpend)}",
                     fontWeight = FontWeight.Black,
                     fontSize = 18.sp,
