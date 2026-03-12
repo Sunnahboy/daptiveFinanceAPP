@@ -1,6 +1,8 @@
 package com.finadapt.adaptivefinance.data.remote
 import com.google.gson.annotations.SerializedName
+import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 
@@ -47,6 +49,36 @@ data class FeedbackRequest(
     val reward: Int
 )
 
+// LeaderBoard data models
+data class LeaderboardUpdateRequest(
+    @SerializedName("user_id")
+    val userId: String,
+    @SerializedName("anonymous_name")
+    val anonymousName: String,
+    @SerializedName("xp")
+    val xp: Int,
+    @SerializedName("tier")
+    val tier: String
+)
+
+data class LeaderboardEntry(
+    @SerializedName("anonymous_name")
+    val anonymousName: String,
+    @SerializedName("xp")
+    val xp: Int,
+    @SerializedName("tier")
+    val tier: String
+)
+
+data class LeaderboardTopResponse(
+    @SerializedName("status")
+    val status: String,
+    @SerializedName("data")
+    val data: List<LeaderboardEntry>
+)
+
+
+
 //4. The exact FastAPI Endpoint
 interface FastApiInterface{
     @POST("predict/v1/context")
@@ -60,4 +92,10 @@ interface FastApiInterface{
         @Header("X-API-Token") token: String,
         @Body request: FeedbackRequest
     )
+
+    @POST("gamification/v1/leaderboard/update")
+    suspend fun syncLeaderboardXp(@Body request: LeaderboardUpdateRequest): Response<Unit>
+    //Fetch the Top 50 Users
+    @GET("gamification/v1/leaderboard/top")
+    suspend fun getLeaderboardTop(): Response<LeaderboardTopResponse>
 }

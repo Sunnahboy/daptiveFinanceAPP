@@ -6,7 +6,7 @@ import  com.finadapt.adaptivefinance.BuildConfig
 
 
 object ApiClient{
-    //Point this to your actual aws Nginx domain
+    //actual aws Nginx domain
     private const val BASE_URL = "https://adaptivefinance.duckdns.org/"
 
     // Safely pulled from local.properties at compile time!
