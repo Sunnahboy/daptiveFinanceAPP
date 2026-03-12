@@ -1,6 +1,7 @@
-
 package com.finadapt.adaptivefinance.feature.expense.settings
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,19 +28,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import android.content.Intent
-import android.net.Uri
-import android.provider.Settings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     currentName: String,
     currentBudget: Float,
-    isDarkMode: Boolean = false, //Dark mode state passed in
+    isDarkMode: Boolean = false,
     onNameChanged: (String) -> Unit,
     onBudgetChanged: (Float) -> Unit,
-    onThemeToggled: (Boolean) -> Unit, //Callback for theme change
+    onThemeToggled: (Boolean) -> Unit,
     onResetGamification: () -> Unit,
     onWipeData: () -> Unit,
     onNavigateBack: () -> Unit
@@ -47,17 +45,21 @@ fun SettingsScreen(
     val context = LocalContext.current
     var nameInput by remember { mutableStateOf(currentName) }
     var budgetInput by remember { mutableStateOf(currentBudget.toInt().toString()) }
+
+    // 🟢 DIALOG STATES
     var showWipeDialog by remember { mutableStateOf(false) }
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+    var showHelpDialog by remember { mutableStateOf(false) }
 
     val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
 
-    //Dynamic Colors based on Dark Mode state
+    // Dynamic Colors based on Dark Mode state
     val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
     val cardColor = if (isDarkMode) Color(0xFF1E293B) else Color.White
     val textColor = if (isDarkMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
     val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color.Gray
-    val primaryColor = Color(0xFF0284C7) // Ocean Blue stays consistent
+    val primaryColor = Color(0xFF0284C7)
     val successColor = Color(0xFF10B981)
 
     // Animation States
@@ -193,7 +195,13 @@ fun SettingsScreen(
                         subtitle = "Manage streak and budget alerts",
                         textColor = textColor,
                         subTextColor = subTextColor,
-                        onClick = { /* Navigate to notification settings or OS settings */ }
+                        onClick = {
+                            // 🟢 WIRED: Opens Android System Notification Settings for this app!
+                            val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            }
+                            context.startActivity(intent)
+                        }
                     )
                 }
             }
@@ -214,7 +222,7 @@ fun SettingsScreen(
                         subtitle = "FAQs and contact support",
                         textColor = textColor,
                         subTextColor = subTextColor,
-                        onClick = { /* Open web link */ }
+                        onClick = { showHelpDialog = true } // 🟢 WIRED
                     )
                     HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
                     SettingsRowAction(
@@ -223,7 +231,7 @@ fun SettingsScreen(
                         subtitle = "How we protect your data",
                         textColor = textColor,
                         subTextColor = subTextColor,
-                        onClick = { /* Open privacy link */ }
+                        onClick = { showPrivacyDialog = true } // 🟢 WIRED
                     )
                     HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
                     Row(
@@ -272,7 +280,94 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(80.dp)) // Bottom padding
         }
 
-        //CONFIRMATION DIALOG
+        // 🟢 HELP CENTER DIALOG
+        if (showHelpDialog) {
+            AlertDialog(
+                onDismissRequest = { showHelpDialog = false },
+                containerColor = cardColor,
+                title = { Text("Help Center", fontWeight = FontWeight.Bold, color = textColor) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = """
+                                Q: How does the AI Bandit work?
+                                A: It uses Reinforcement Learning to suggest personalized financial interventions (like Zen, Strict Budget, or Quizzes) based on your recent spending habits.
+                                
+                                Q: What happens if I lose my streak?
+                                A: If you forget to log an expense for a day, your streak will reset to zero unless you have an active Streak Shield (purchased with XP in the Rewards tab).
+                                
+                                Q: How do I earn Badges and XP?
+                                A: You earn XP and unlock badges by consistently logging daily expenses, passing AI financial quizzes, and successfully completing budget lock challenges.
+                                
+                                Q: What is the Community Leaderboard?
+                                A: It is an anonymous ranking system where you can compare your gamification progress (XP and Level) with other users. Your real name, balances, and expenses are NEVER shown.
+                                
+                                Q: Is my financial data safe?
+                                A: Yes! Your data is synced securely to our cloud database using enterprise-grade Row Level Security (RLS), ensuring only your authenticated device can read your personal financial records.
+                            """.trimIndent(),
+                            color = subTextColor,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { showHelpDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                    ) { Text("Close") }
+                }
+            )
+        }
+
+        // 🟢 PRIVACY POLICY DIALOG
+        if (showPrivacyDialog) {
+            AlertDialog(
+                onDismissRequest = { showPrivacyDialog = false },
+                containerColor = cardColor,
+                title = { Text("Privacy Policy", fontWeight = FontWeight.Bold, color = textColor) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = """
+                                1. Data Collection & Cloud Sync
+                                To ensure you never lose your financial history, your expense logs and gamification progress are securely synchronized to our cloud database (powered by Supabase). 
+
+                                2. Gamification & Leaderboard
+                                To foster healthy financial habits, we feature an Anonymous Community Leaderboard. If you participate, only your current Gamification XP, Tier Rank, and a randomized username are visible to other users. Your actual financial balances and transactions are strictly hidden.
+
+                                3. Security & Access
+                                Your data is protected using enterprise-grade Row Level Security (RLS). This guarantees that your raw financial data is cryptographically isolated and can only be accessed by your authenticated device.
+                                
+                                4. Third-Party Sharing
+                                We do not sell your personal data, email, or transaction history to advertisers or third-party brokers.
+                            """.trimIndent(),
+                            color = subTextColor,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { showPrivacyDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                    ) { Text("I Understand") }
+                }
+            )
+        }
+
+        // 🟢 WIPE DATA CONFIRMATION DIALOG
         if (showWipeDialog) {
             AlertDialog(
                 onDismissRequest = { showWipeDialog = false },
@@ -283,9 +378,7 @@ fun SettingsScreen(
                     Button(
                         onClick = { onWipeData(); showWipeDialog = false },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                    ) {
-                        Text("Yes, Wipe Data")
-                    }
+                    ) { Text("Yes, Wipe Data") }
                 },
                 dismissButton = {
                     TextButton(onClick = { showWipeDialog = false }) {
@@ -297,7 +390,7 @@ fun SettingsScreen(
     }
 }
 
-// --- HELPER COMPOSABLE ---
+// --- HELPER COMPOSABLES ---
 
 @Composable
 fun SettingsSectionHeader(title: String, color: Color) {
