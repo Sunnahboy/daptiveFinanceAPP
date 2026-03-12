@@ -78,17 +78,15 @@ class DashboardViewModel(
             // 1. Fetch Preferences
             _monthlyBudget.value = prefs.getFloat("MONTHLY_BUDGET", 1000f)
             _currentAiAction.value = prefs.getString("LAST_AI_ACTION", "zen") ?: "zen"
-            _userXp.value = prefs.getInt("USER_XP", 0)
-            checkForLevelUp(_userXp.value)
-            _userName.value = prefs.getString("USER_NAME", "User") ?: "User"
-            _shieldCount.value = financeRepository.getShieldCount()
-            //Fetch the dynamic streak!
-            _currentStreak.value = financeRepository.getLiveStreak()
 
-
-            // Store XP in a local variable so we can use it for syncing
+            // 🟢 Clean, single XP fetch
             val currentXp = prefs.getInt("USER_XP", 0)
             _userXp.value = currentXp
+            checkForLevelUp(currentXp)
+
+            _userName.value = prefs.getString("USER_NAME", "User") ?: "User"
+            _shieldCount.value = financeRepository.getShieldCount()
+            _currentStreak.value = financeRepository.getLiveStreak()
 
             // 2. Fetch Total Monthly Spend (30-day window)
             val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
