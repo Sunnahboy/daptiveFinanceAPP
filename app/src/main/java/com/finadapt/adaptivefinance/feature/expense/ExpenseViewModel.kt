@@ -54,14 +54,21 @@ class ExpenseViewModel (
 
             result.fold(
                 onSuccess = { response ->
-                    //1 Extract the action from AWS
+                    //1 Extract the action from bandit
                     val aiAction = response.action ?: "Log_Only"
+                    val currentXp = prefs.getInt("USER_XP", 0)
+                    val earnedXp = 50 // Base XP for logging an expense
+                    val newXp = currentXp + earnedXp
 
                     //2 SAVE IT TO MEMORY!
-                    // This is the bridge. Now the Dashboard can read what the AI decided.
+                    //Dashboard can read what the AI decided.
                     prefs.edit { putString("LAST_AI_ACTION", aiAction)
                         //gamification tell the dashboard to play the coins drop
                         putBoolean("PENDING_COIN_DROP",true)
+                        putBoolean("PENDING_COIN_DROP", true)
+                        putInt("USER_XP", newXp) // 🟢 Save the new XP so the Piggy Bank grows!
+
+
                     }
 
                     // 3. Update the UI state to show the game pop-up

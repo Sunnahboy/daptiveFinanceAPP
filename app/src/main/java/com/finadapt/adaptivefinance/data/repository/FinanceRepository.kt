@@ -86,7 +86,7 @@ class FinanceRepository(
 
                 // Final Volatility Math using the PROJECTED spend
                 val spendingVolatility = if (monthlyBudget > 0f) {
-                    (projectedSpend / monthlyBudget).coerceIn(0.0f, 2.0f)
+                    (projectedSpend / monthlyBudget).coerceIn(0.0f, 5.0f)
                 } else {
                     0.5f
                 }
