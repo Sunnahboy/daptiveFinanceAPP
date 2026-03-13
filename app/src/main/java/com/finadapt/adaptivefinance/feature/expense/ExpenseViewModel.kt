@@ -35,7 +35,7 @@ class ExpenseViewModel (
     val uiState: StateFlow<GamificationUiState> = _uiState
 
 
-    //Now accepts both the Double amount and the String category
+    //accepts both the Double amount and the String category
     fun submitExpense(amount: Float, category: String, userId: String){
         if (amount <= 0.0){
             _uiState.value = GamificationUiState.Error("Please enter a valid number.")
@@ -54,12 +54,15 @@ class ExpenseViewModel (
 
             result.fold(
                 onSuccess = { response ->
-                    // 🟢 1. Extract the action from AWS
+                    //1 Extract the action from AWS
                     val aiAction = response.action ?: "Log_Only"
 
-                    // 🟢 2. SAVE IT TO MEMORY!
+                    //2 SAVE IT TO MEMORY!
                     // This is the bridge. Now the Dashboard can read what the AI decided.
-                    prefs.edit { putString("LAST_AI_ACTION", aiAction) }
+                    prefs.edit { putString("LAST_AI_ACTION", aiAction)
+                        //gamification tell the dashboard to play the coins drop
+                        putBoolean("PENDING_COIN_DROP",true)
+                    }
 
                     // 3. Update the UI state to show the game pop-up
                     _uiState.value = GamificationUiState.Success(

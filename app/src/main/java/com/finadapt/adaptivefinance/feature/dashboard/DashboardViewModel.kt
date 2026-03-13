@@ -22,6 +22,11 @@ class DashboardViewModel(
 ) : ViewModel() {
 
     // ALL APP STATES
+    // Gamification the coin drop trigger
+    private val _playCoinDropAnimation = MutableStateFlow(false)
+    val playCoinDropAnimation: StateFlow<Boolean> = _playCoinDropAnimation.asStateFlow()
+
+
     private val _isDarkMode = MutableStateFlow(false)
     val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
     private val _currentStreak = MutableStateFlow(0)
@@ -62,15 +67,7 @@ class DashboardViewModel(
 
     //The Celebration Trigger State
      private val _showLevelUpCelebration = MutableStateFlow<String?>(null)
-    //HARDCODED FOR TESTING
-    //private val _showLevelUpCelebration = MutableStateFlow<String?>("Silver Guardian 🛡️")
     val showLevelUpCelebration: StateFlow<String?> = _showLevelUpCelebration.asStateFlow()
-
-//    init {
-//        loadDashboardData()
-//    }
-
-    // DATA FETCHING
 
     fun loadDashboardData() {
         viewModelScope.launch {
@@ -79,7 +76,7 @@ class DashboardViewModel(
             _monthlyBudget.value = prefs.getFloat("MONTHLY_BUDGET", 1000f)
             _currentAiAction.value = prefs.getString("LAST_AI_ACTION", "zen") ?: "zen"
 
-            // 🟢 Clean, single XP fetch
+            //single XP fetch
             val currentXp = prefs.getInt("USER_XP", 0)
             _userXp.value = currentXp
             checkForLevelUp(currentXp)
@@ -87,6 +84,13 @@ class DashboardViewModel(
             _userName.value = prefs.getString("USER_NAME", "User") ?: "User"
             _shieldCount.value = financeRepository.getShieldCount()
             _currentStreak.value = financeRepository.getLiveStreak()
+
+            //check for pending coin drop
+            val shouldDropCoin = prefs.getBoolean("PENDING_COIN_DROP", false)
+            if (shouldDropCoin){
+                _playCoinDropAnimation.value = true
+                prefs.edit { putBoolean("PENDING_COIN_DROP", false) }
+            }
 
             // 2. Fetch Total Monthly Spend (30-day window)
             val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
@@ -123,8 +127,7 @@ class DashboardViewModel(
             }
             _weeklyChartData.value = dailyTotals.toList()
 
-            // 🟢 NEW: 6. SYNC TO CLOUD LEADERBOARD
-            // This is the part that was missing!
+            //6. SYNC TO CLOUD LEADERBOARD
             val currentTier = when {
                 currentXp < 500 -> "Bronze Novice"
                 currentXp < 2000 -> "Silver Guardian"
@@ -211,15 +214,6 @@ class DashboardViewModel(
         }
     }
 
-    // Save an expense and immediately refresh the UI
-    fun saveExpense(expense: ExpenseEntity) {
-        viewModelScope.launch {
-            expenseDao.insertExpense(expense)
-            loadDashboardData() // This forces the Donut Chart and XP to update instantly!
-        }
-    }
-
-
     //The Buy Action triggered by the UI button
     fun onBuyStreakShield() {
         viewModelScope.launch {
@@ -242,14 +236,14 @@ class DashboardViewModel(
             else -> "Platinum Legend"
         }
 
-        // 🟢 FIX: Ask the repository for the data safely
+        //Ask the repository for the data safely
         val lastSeenTier = financeRepository.getLastSeenTier()
 
         // If the names don't match, THEY LEVELED UP!
         if (currentTierName != lastSeenTier) {
             _showLevelUpCelebration.value = currentTierName // Trigger the UI
 
-            // 🟢 FIX: Ask the repository to save the data safely
+            //Ask the repository to save the data safely
             financeRepository.saveLastSeenTier(currentTierName)
         }
     }
@@ -268,6 +262,9 @@ class DashboardViewModel(
         }
     }
 
-
+    //call this from the UI after the animation finishes so it resets
+    fun resetCoinDropAnimation(){
+        _playCoinDropAnimation.value = false
+    }
 
 }
