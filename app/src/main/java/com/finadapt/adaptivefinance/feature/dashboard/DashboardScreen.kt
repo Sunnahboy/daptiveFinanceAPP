@@ -31,6 +31,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.airbnb.lottie.compose.*
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.finadapt.adaptivefinance.R
 
@@ -214,39 +215,97 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- THE MINI DONUT CHART ---
+                // --- THE MOOD RING BUDGET CARD ---
+                val rawPercentage = if (monthlyBudget > 0f) totalSpend / monthlyBudget else 0f
+                val clampedPercentage = rawPercentage.coerceIn(0f, 1f)
+                val animatedSweep by animateFloatAsState(
+                    targetValue = clampedPercentage,
+                    animationSpec = tween(1500, delayMillis = 300),
+                    label = "donut_sweep"
+                )
+
+                // 1. Determine the Mood & Colors based on spend
+                val (ringColor, centerLottieRes, statusText) = when {
+                    rawPercentage >= 1f -> Triple(Color(0xFFEF4444), R.raw.status_danger, "☠️ Budget Blown")
+                    rawPercentage > 0.6f -> Triple(Color(0xFFF59E0B), R.raw.status_warning, "⚠️ Nearing Limit")
+                    else -> Triple(Color(0xFF10B981), R.raw.status_safe, "🛡️ On Track")
+                }
+
+                // 2. Load the Lottie for the center
+                val centerComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(centerLottieRes))
+                val centerProgress by animateLottieCompositionAsState(
+                    composition = centerComposition,
+                    iterations = LottieConstants.IterateForever // Keeps the mood alive!
+                )
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = cardColor),
                     shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp)
+                    elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp),
+                    border = if (isOverBudget) androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFEF4444).copy(alpha = 0.5f)) else null
                 ) {
                     Row(
-                        modifier = Modifier.padding(20.dp).fillMaxWidth(),
+                        modifier = Modifier
+                            .padding(20.dp)
+                            .fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text("Budget Progress", color = subTextColor, style = MaterialTheme.typography.labelMedium)
+                        // Left Side: The Numbers
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = statusText,
+                                color = ringColor,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("RM ${totalSpend.toInt()} / RM ${monthlyBudget.toInt()}", fontWeight = FontWeight.Bold, color = textColor, fontSize = 18.sp)
+                            Text(
+                                text = "RM ${totalSpend.toInt()} / RM ${monthlyBudget.toInt()}",
+                                fontWeight = FontWeight.Black,
+                                color = textColor,
+                                fontSize = 18.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isOverBudget) "0% Remaining" else "${((1f - clampedPercentage) * 100).toInt()}% Left",
+                                fontWeight = FontWeight.Bold,
+                                color = subTextColor,
+                                fontSize = 14.sp
+                            )
                         }
 
-                        val rawPercentage = if (monthlyBudget > 0f) totalSpend / monthlyBudget else 0f
-                        val clampedPercentage = rawPercentage.coerceIn(0f, 1f)
-                        val animatedSweep by animateFloatAsState(targetValue = clampedPercentage * 360f, animationSpec = tween(1500), label = "donut")
-                        val progressColor = if (isOverBudget) Color.Red else Color(0xFF10B981)
-
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
+                        // Right Side: The Mood Ring
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.size(90.dp)
+                        ) {
+                            // The Compose Background Track
                             Canvas(modifier = Modifier.fillMaxSize()) {
-                                drawArc(color = strokeBgColor, startAngle = 0f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 16f, cap = StrokeCap.Round))
-                                drawArc(color = progressColor, startAngle = -90f, sweepAngle = animatedSweep, useCenter = false, style = Stroke(width = 16f, cap = StrokeCap.Round))
+                                drawArc(
+                                    color = strokeBgColor,
+                                    startAngle = -90f,
+                                    sweepAngle = 360f,
+                                    useCenter = false,
+                                    style = Stroke(width = 24f, cap = StrokeCap.Round)
+                                )
+                                // The Compose Colored Progress Fill
+                                drawArc(
+                                    color = ringColor,
+                                    startAngle = -90f,
+                                    sweepAngle = 360f * animatedSweep,
+                                    useCenter = false,
+                                    style = Stroke(width = 24f, cap = StrokeCap.Round)
+                                )
                             }
-                            if (isOverBudget) {
-                                Text("⚠️", fontSize = 18.sp)
-                            } else {
-                                Text("${(clampedPercentage * 100).toInt()}%", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = textColor)
-                            }
+
+                            // The Dynamic Center Lottie
+                            LottieAnimation(
+                                composition = centerComposition,
+                                progress = { centerProgress },
+                                modifier = Modifier.size(45.dp) // Fits perfectly inside the 90dp donut
+                            )
                         }
                     }
                 }
@@ -300,6 +359,8 @@ fun DashboardScreen(
         }
     }
 }
+
+
 @Composable
 fun UnifiedMascotCard(
     userName: String,
@@ -310,36 +371,86 @@ fun UnifiedMascotCard(
 ) {
     val haptic = LocalHapticFeedback.current
 
-    // Lottie Loaders
-    val piggyComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.piggy_bank))
+    // 🟢 1. THE STATE MACHINE: Decide WHICH single animation to play
+    val currentLottieRes = when {
+        playCoinDrop -> R.raw.piggy_feed       // Priority 1: The pig is eating a coin!
+        currentStreak == 0 -> R.raw.piggy_broken // Priority 2: Streak broken (Sad pig)
+        else -> R.raw.piggy_idle               // Priority 3: Normal breathing pig
+    }
+
+    // 🟢 2. Load the chosen animation
+    val piggyComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(currentLottieRes))
+
+    // 🟢 3. Control the looping (Feed plays ONCE, others loop forever)
+    val shouldLoop = if (playCoinDrop) 1 else LottieConstants.IterateForever
+
     val piggyProgress by animateLottieCompositionAsState(
         composition = piggyComposition,
-        iterations = LottieConstants.IterateForever
+        iterations = shouldLoop,
+        isPlaying = true
     )
 
-    val coinComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.coin_drop))
-    val coinProgress by animateLottieCompositionAsState(
-        composition = coinComposition,
-        isPlaying = playCoinDrop,
-        iterations = 1
-    )
-
+    // Trigger Vibration on feed
     LaunchedEffect(playCoinDrop) {
         if (playCoinDrop) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
-    LaunchedEffect(coinProgress) {
-        if (coinProgress == 1f && playCoinDrop) onAnimationFinished()
+
+    // Reset the state when the Piggy finishes its "Feed" animation!
+    LaunchedEffect(piggyProgress) {
+        if (playCoinDrop && piggyProgress == 1f) {
+            onAnimationFinished()
+        }
     }
 
-    // XP Math
-    val levelName = if (userXp >= 500) "Gold Master" else if (userXp >= 200) "Silver Guardian" else "Bronze Novice"
-    val tierColor = if (userXp >= 500) Color(0xFFF59E0B) else if (userXp >= 200) Color(0xFF94A3B8) else Color(0xFFD97706)
+    // DYNAMIC XP MATH
+    val levelName: String
+    val tierColor: Color
+    val currentLevelMin: Int
+    val nextLevelMax: Int
 
-    val currentLevelMin = (userXp / 500) * 500
-    val rawFillPercentage = ((userXp - currentLevelMin).toFloat() / 500f).coerceIn(0f, 1f)
-    val animatedFill by animateFloatAsState(targetValue = rawFillPercentage, animationSpec = tween(1500, delayMillis = 300), label = "XP")
+    when {
+        userXp < 500 -> {
+            levelName = "Bronze Novice"
+            tierColor = Color(0xFFD97706)
+            currentLevelMin = 0
+            nextLevelMax = 500
+        }
+        userXp < 2000 -> {
+            levelName = "Silver Guardian"
+            tierColor = Color(0xFF94A3B8)
+            currentLevelMin = 500
+            nextLevelMax = 2000
+        }
+        userXp < 5000 -> {
+            levelName = "Gold Master"
+            tierColor = Color(0xFFF59E0B)
+            currentLevelMin = 2000
+            nextLevelMax = 5000
+        }
+        else -> {
+            levelName = "Platinum Legend"
+            tierColor = Color(0xFF34D399) // Platinum glowing cyan
+            currentLevelMin = 5000
+            nextLevelMax = userXp // Ring stays permanently full
+        }
+    }
 
-    // The Unified Card (Always uses the premium dark look for contrast!)
+    // Calculate how full the ring should be for the CURRENT tier
+    val rawFillPercentage = if (nextLevelMax > currentLevelMin) {
+        (userXp - currentLevelMin).toFloat() / (nextLevelMax - currentLevelMin).toFloat()
+    } else {
+        1f // If max level, ring is 100% full
+    }
+
+    val animatedFill by animateFloatAsState(
+        targetValue = rawFillPercentage.coerceIn(0f, 1f),
+        animationSpec = tween(1500, delayMillis = 300),
+        label = "XP"
+    )
+
+    val xpText = if (userXp >= 5000) "$userXp XP (MAX LEVEL)" else "$userXp / $nextLevelMax XP"
+
+    // The Unified Card
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -372,20 +483,44 @@ fun UnifiedMascotCard(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Fire Streak Pill
+                // 🟢 DYNAMIC STREAK PILL (NOW WITH LOTTIE!)
+                val isStreakBroken = currentStreak == 0
+                val pillBgColor = if (isStreakBroken) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.1f)
+                val streakTextColor = if (isStreakBroken) Color(0xFFFCA5A5) else Color.White
+
+                // Load the Animated Flame or Broken Heart
+                val streakLottieRes = if (isStreakBroken) R.raw.streak_broken else R.raw.streak_fire
+                val streakComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(streakLottieRes))
+                val streakAnimProgress by animateLottieCompositionAsState(
+                    composition = streakComposition,
+                    iterations = LottieConstants.IterateForever // Keeps it burning!
+                )
+
                 Surface(
-                    color = Color.White.copy(alpha = 0.1f),
+                    color = pillBgColor,
                     shape = RoundedCornerShape(50)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("🔥", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.width(6.dp))
+                        // 🟢 The Lottie Animation replacing the text emoji!
+                        LottieAnimation(
+                            composition = streakComposition,
+                            progress = { streakAnimProgress },
+                            // 1. Force the Lottie to scale up and ignore its internal blank space
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(37.dp) // 2. Cranked up the size!
+                                .offset(x = (-4).dp) // 3. Nudges it slightly left so it hugs the text better
+                        )
+
+                        // Reduced the spacer from 6.dp to 2.dp because the bigger Lottie takes up more room
+                        Spacer(modifier = Modifier.width(2.dp))
+
                         Text(
                             text = "$currentStreak Days",
-                            color = Color.White,
+                            color = streakTextColor,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp
                         )
@@ -394,7 +529,7 @@ fun UnifiedMascotCard(
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "$userXp / 500 XP",
+                    text = xpText,
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -414,27 +549,18 @@ fun UnifiedMascotCard(
                         style = Stroke(width = 18f, cap = StrokeCap.Round)
                     )
                     drawArc(
-                        brush = Brush.linearGradient(listOf(Color(0xFF10B981), Color(0xFF34D399))), // Glowing Green XP
+                        brush = Brush.linearGradient(listOf(Color(0xFF10B981), tierColor)), // Glowing XP matching the Tier Color!
                         startAngle = 135f, sweepAngle = 270f * animatedFill, useCenter = false,
                         style = Stroke(width = 18f, cap = StrokeCap.Round)
                     )
                 }
 
-                // The Piggy
+                // 🟢 The ONE Smart Piggy! No more double layering!
                 LottieAnimation(
                     composition = piggyComposition,
                     progress = { piggyProgress },
-                    modifier = Modifier.size(75.dp) // Sized perfectly inside the ring
+                    modifier = Modifier.size(85.dp) // Adjusted slightly larger to look great in the ring
                 )
-
-                // The Coin Drop (Fixed overlay)
-                if (playCoinDrop && coinProgress < 1f) {
-                    LottieAnimation(
-                        composition = coinComposition,
-                        progress = { coinProgress },
-                        modifier = Modifier.size(120.dp).offset(y = (-30).dp)
-                    )
-                }
             }
         }
     }
