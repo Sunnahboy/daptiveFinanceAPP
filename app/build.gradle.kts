@@ -98,6 +98,8 @@ dependencies {
     implementation("com.patrykandpatrick.vico:compose-m3:1.14.0")
 
     implementation("androidx.work:work-runtime-ktx:2.9.0")//background work manager
+    implementation("com.airbnb.android:lottie-compose:6.3.0")//for lottie files
+
 
 
 

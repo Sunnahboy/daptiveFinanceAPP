@@ -149,6 +149,7 @@ fun NavGraph(
                 val currentStreak by dashboardViewModel.currentStreak.collectAsState()
                 val levelUpTier by dashboardViewModel.showLevelUpCelebration.collectAsState()
                 val isDark by dashboardViewModel.isDarkMode.collectAsState()
+                val playCoinDrop by dashboardViewModel.playCoinDropAnimation.collectAsState()
 
                 DashboardScreen(
                     userName = userName,
@@ -161,6 +162,8 @@ fun NavGraph(
                     recentExpenses = recentExpenses,
                     levelUpTier = levelUpTier,
                     isDarkMode = isDark,
+                    playCoinDrop = playCoinDrop,
+                    onAnimationFinished = { dashboardViewModel.resetCoinDropAnimation() },
                     onDismissLevelUp = { dashboardViewModel.dismissLevelUpCelebration() },
                     onNavigateToLogExpense = { navController.navigate(Screen.AddExpense.route) },
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route)}

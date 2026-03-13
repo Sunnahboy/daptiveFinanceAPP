@@ -62,7 +62,7 @@ fun AddExpenseScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
 
-            // 🟢 1. AMOUNT INPUT
+            //1. AMOUNT INPUT
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = cardColor),
@@ -91,7 +91,7 @@ fun AddExpenseScreen(
                 }
             }
 
-            // 🟢 2. CATEGORY SELECTION
+            //2. CATEGORY SELECTION
             Text("Category", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
 
             OutlinedTextField(
@@ -126,7 +126,7 @@ fun AddExpenseScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 🟢 3. ERROR MESSAGE (If AWS API fails)
+            //3. ERROR MESSAGE (If AWS API fails)
             if (uiState is GamificationUiState.Error) {
                 Text(
                     text = uiState.exception,
@@ -135,7 +135,7 @@ fun AddExpenseScreen(
                 )
             }
 
-            // 🟢 4. THE SMART AI BUTTON
+            //4. THE SMART AI BUTTON
             Button(
                 onClick = {
                     if (isValid) {
@@ -158,7 +158,7 @@ fun AddExpenseScreen(
             }
         }
 
-        // 🎮 5. THE GAMIFICATION ENGINE (Clean and Modular!)
+        //5. THE GAMIFICATION ENGINE (Clean and Modular!)
         if (uiState is GamificationUiState.Success) {
             if (uiState.action == "Log_Only") {
                 // No game required! Instantly return to Dashboard.
@@ -166,7 +166,7 @@ fun AddExpenseScreen(
                     onDismissState()
                 }
             } else {
-                // 🚨 Trigger the Master Game Router!
+                //Trigger the Master Game Router!
                 GamificationDialog(
                     action = uiState.action,
                     message = uiState.message,
