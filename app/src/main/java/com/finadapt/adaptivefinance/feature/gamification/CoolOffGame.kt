@@ -56,7 +56,7 @@ fun CoolOffGame(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
-    // 🟢 1. HARDWARE VIBRATOR FOR REAL HEARTBEAT
+    //hardware vibrator for the phone
     val vibrator = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -78,7 +78,7 @@ fun CoolOffGame(
     var isHolding by remember { mutableStateOf(false) }
     var hasStarted by remember { mutableStateOf(false) }
 
-    // Load Lotties
+    // Load Lotties files
     val zenCompositionResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.zen_meditate))
     val zenComposition by zenCompositionResult
     val zenProgress by animateLottieCompositionAsState(
@@ -87,7 +87,7 @@ fun CoolOffGame(
         isPlaying = isHolding
     )
 
-    // 🟢 2. LOAD CONFETTI FOR VICTORY
+    //LOAD CONFETTI FOR VICTORY
     val confettiCompositionResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.success_confetti))
     val confettiComposition by confettiCompositionResult
     val confettiProgress by animateLottieCompositionAsState(
@@ -105,7 +105,7 @@ fun CoolOffGame(
             soundEngine.play("click")
 
             while (timeLeft > 0) {
-                // 🟢 3. TRIGGER REAL HARDWARE HEARTBEAT (Ba-Bum)
+                //Trigger the real hardware vibrator
                 if (vibrator.hasVibrator()) {
                     vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
                     delay(150)
@@ -113,7 +113,7 @@ fun CoolOffGame(
                 }
 
                 soundEngine.play("tick2")
-                delay(850) // Adjusted delay to account for the double heartbeat
+                delay(850) //delay to account for the double heartbeat for the vibrator
                 timeLeft--
             }
 
@@ -144,19 +144,19 @@ fun CoolOffGame(
                 val skipInteraction = remember { MutableInteractionSource() }
                 val isSkipPressed by skipInteraction.collectIsPressedAsState()
 
-                // 🟢 1. THE AUTOPILOT BRAIN (Taking Turns)
-                var isSmiling by remember { mutableStateOf(true) } // Starts with a smile!
+                //Taking turns between the lottie files
+                var isSmiling by remember { mutableStateOf(true) } //Starts with a smile!
 
                 LaunchedEffect(Unit) {
                     while (true) {
                         isSmiling = true
-                        delay(3500) // Smiles for 3.5 seconds
+                        delay(3500) //Smiles for 3.5 seconds
                         isSmiling = false
-                        delay(4500) // Rubs chin and thinks for 4.5 seconds
+                        delay(4500) //Rubs chin and thinks for 4.5 seconds
                     }
                 }
 
-                // Swaps the Lottie file automatically based on the timer above!
+                //Swaps the Lottie file automatically based on the timer above
                 val mascotRes = if (isSmiling) R.raw.mascot_smile else R.raw.mascot_thinking
                 val introMascotResult = rememberLottieComposition(LottieCompositionSpec.RawRes(mascotRes))
                 val introMascot by introMascotResult
@@ -166,11 +166,11 @@ fun CoolOffGame(
                     isPlaying = true
                 )
 
-                // 🟢 2. THE GENTLE FLOATING PHYSICS
+                //make the lottie float gently
                 val floatTransition = rememberInfiniteTransition(label = "float")
                 val floatY by floatTransition.animateFloat(
-                    initialValue = -10f, // Floats 10 pixels up
-                    targetValue = 10f,   // Floats 10 pixels down
+                    initialValue = -10f, //Floats 10 pixels up
+                    targetValue = 10f,   //Floats 10 pixels down
                     animationSpec = infiniteRepeatable(
                         animation = tween(2000, easing = EaseInOutSine), // Smooth 2-second bob
                         repeatMode = RepeatMode.Reverse
@@ -178,19 +178,19 @@ fun CoolOffGame(
                     label = "float_anim"
                 )
 
-                // 🟢 3. THE BOUNCY ENTRANCE
+                //The bouncy entrance
                 var isMascotVisible by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) {
                     delay(150)
                     isMascotVisible = true
                 }
 
-                // --- UI LAYOUT ---
+                //UI layout
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // THE MASCOT
+                    //The mascot
                     AnimatedVisibility(
                         visible = isMascotVisible,
                         enter = androidx.compose.animation.scaleIn(
@@ -203,13 +203,13 @@ fun CoolOffGame(
                             progress = { mascotProgress },
                             modifier = Modifier
                                 .size(110.dp)
-                                .offset(y = floatY.dp) // 👈 Applying the continuous float here!
+                                .offset(y = floatY.dp) //continuous float
                         )
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // THE TEXT
+                    //The text
                     Text(
                         text = awsMessage,
                         textAlign = TextAlign.Center,
@@ -219,7 +219,7 @@ fun CoolOffGame(
                     )
                     Spacer(modifier = Modifier.height(40.dp))
 
-                    // THE BREATHING HERO ACCEPT BUTTON
+                    //Breathing accept button
                     val infiniteTransition = rememberInfiniteTransition(label = "button_pulse")
                     val heroScale by infiniteTransition.animateFloat(
                         initialValue = 1f, targetValue = 1.06f,
@@ -249,7 +249,7 @@ fun CoolOffGame(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // THE SASSY COWARDLY SKIP BUTTON
+                    //Skip button
                     val skipScale by animateFloatAsState(targetValue = if (isSkipPressed) 0.8f else 1f, animationSpec = tween(150))
 
                     TextButton(
@@ -271,7 +271,6 @@ fun CoolOffGame(
             }
 
             CoolOffPhase.ACTION -> {
-                // ... (Leave your exact ACTION phase code here, it is perfectly fine!)
                 val instructionText = when {
                     !hasStarted -> "Press and hold to breathe."
                     isHolding -> "Keep holding. Clearing mind..."
@@ -340,10 +339,10 @@ fun CoolOffGame(
                 )
             }
 
-            // 🟢 6. THE NEW FUN VICTORY SCREEN
+            //VICTORY SCREEN
             CoolOffPhase.RESULT -> {
                 Box(contentAlignment = Alignment.Center) {
-                    // Confetti explosion behind the victory screen
+                    //Confetti explosion behind the victory screen
                     this@Column.AnimatedVisibility(
                         visible = confettiCompositionResult.isComplete,
                         enter = fadeIn(animationSpec = tween(300))
