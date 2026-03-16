@@ -610,7 +610,7 @@ fun FlipAnswerCard(
                 // Front of Card
                 Text(text, color = Color.White, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.padding(8.dp))
             } else {
-                // Back of Card (Needs to be flipped -180 degrees so the text isn't backwards!)
+                // Back of Card (Needs to be flipped -180 degrees so the text isn't backwards)
                 Box(modifier = Modifier.graphicsLayer { rotationY = 180f }) {
                     Text(
                         text = if (isCorrect) "✨ Correct!" else "❌ Wrong!",
