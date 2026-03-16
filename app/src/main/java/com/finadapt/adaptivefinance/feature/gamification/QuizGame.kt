@@ -9,6 +9,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -24,6 +25,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -156,7 +158,7 @@ fun QuizGame(
                 val skipInteraction = remember { MutableInteractionSource() }
                 val isSkipPressed by skipInteraction.collectIsPressedAsState()
 
-                //1. The Autopilot Brain! (Swaps every 3 seconds)
+                //1. The Brain! (Swaps every 3 seconds)
                 var isThinking by remember { mutableStateOf(true) }
                 LaunchedEffect(Unit) {
                     while (true) {
@@ -385,8 +387,8 @@ fun QuizGame(
                                 //MASCOT WRAPPER
                                 Box(
                                     modifier = Modifier
-                                        .size(76.dp) // Generous size to ensure it isn't crushed
-                                        // A subtle glowing background ensures DARK Lotties don't blend into the navy background!
+                                        .size(76.dp) //ensure it isn't crushed
+                                        //ensures DARK Lotties don't blend into the navy background!
                                         .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(100)),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -394,8 +396,8 @@ fun QuizGame(
                                         LottieAnimation(
                                             composition = playingLottie,
                                             progress = { playingProgress },
-                                            modifier = Modifier.fillMaxSize().padding(4.dp), // Fills the box perfectly
-                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop // Ignores massive blank canvas space!
+                                            modifier = Modifier.fillMaxSize().padding(4.dp), //Fills the box perfectly
+                                            contentScale = ContentScale.Crop //Ignores massive blank canvas space
                                         )
                                     } else {
                                         //IF  SPINNING FOREVER,  FILE IS MISSING,
@@ -430,7 +432,7 @@ fun QuizGame(
 
                             AnimatedVisibility(
                                 visible = isCardVisible,
-                                enter = androidx.compose.animation.slideInVertically(
+                                enter = slideInVertically(
                                     initialOffsetY = { 100 },
                                     animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
                                 ) + fadeIn()
@@ -504,7 +506,7 @@ fun QuizGame(
                     // 3. THE DETAILS (Slides up smoothly)
                     AnimatedVisibility(
                         visible = showDetails,
-                        enter = androidx.compose.animation.slideInVertically(initialOffsetY = { 50 }) + fadeIn()
+                        enter = slideInVertically(initialOffsetY = { 50 }) + fadeIn()
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
 
