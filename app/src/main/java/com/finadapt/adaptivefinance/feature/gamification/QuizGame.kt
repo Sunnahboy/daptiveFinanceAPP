@@ -42,7 +42,7 @@ val financialTrivia = listOf(
     Pair("What is an emergency fund typically supposed to cover?", listOf("3-6 months of expenses", "1 month of expenses", "A down payment"))
 )
 
-private const val QUIZ_TIME_LIMIT = 10 // 🟢 REDUCED TO 10 SECONDS FOR HIGH STAKES!
+private const val QUIZ_TIME_LIMIT = 10 //10 SECONDS FOR HIGH STAKES!
 
 @Composable
 fun QuizGame(
@@ -51,9 +51,9 @@ fun QuizGame(
     onGameComplete: (Int) -> Unit
 ) {
     val context = LocalContext.current
-    //val haptic = LocalHapticFeedback.current
 
-    // 🟢 1. HARDWARE VIBRATOR
+
+    //HARDWARE VIBRATOR
     val vibrator = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -88,10 +88,9 @@ fun QuizGame(
     )
 
     // Lottie Loaders for Result Phase
-
     DisposableEffect(Unit) { onDispose { soundEngine.stopAllTicking() } }
 
-    // 🟢 2. THE TIMER LOOP
+    //THE TIMER LOOP
     LaunchedEffect(currentPhase) {
         if (currentPhase == QuizPhase.PLAYING) {
             timeLeft = QUIZ_TIME_LIMIT
@@ -120,8 +119,8 @@ fun QuizGame(
         }
     }
 
-    // 🟢 3. THE 3D FLIP DELAY MANAGER
-    // When they click an answer, we wait 1.2 seconds to let the card physically flip before changing screens!
+    //3.THE 3D FLIP DELAY MANAGER
+    //When they click an answer, we wait 1.2 seconds to let the card physically flip before changing screens!
     LaunchedEffect(selectedAnswer) {
         if (selectedAnswer != null) {
             soundEngine.stopAllTicking()
@@ -149,9 +148,7 @@ fun QuizGame(
         Spacer(modifier = Modifier.height(16.dp))
 
         when (currentPhase) {
-            // 🟢 PHASE 1: SASSY INTRO
-            // 🟢 PHASE 1: SASSY & ANIMATED INTRO
-            // 🟢 PHASE 1: SASSY, ALIVE & GLOWING INTRO
+            //ALIVE & GLOWING INTRO
             QuizPhase.INTRO -> {
                 val startInteraction = remember { MutableInteractionSource() }
                 val isStartPressed by startInteraction.collectIsPressedAsState()
@@ -159,7 +156,7 @@ fun QuizGame(
                 val skipInteraction = remember { MutableInteractionSource() }
                 val isSkipPressed by skipInteraction.collectIsPressedAsState()
 
-                // 🟢 1. The Autopilot Brain! (Swaps every 3 seconds)
+                //1. The Autopilot Brain! (Swaps every 3 seconds)
                 var isThinking by remember { mutableStateOf(true) }
                 LaunchedEffect(Unit) {
                     while (true) {
@@ -179,7 +176,7 @@ fun QuizGame(
                     isPlaying = true
                 )
 
-                // 2. The Gentle Floating Physics
+                //2. The Gentle Floating Physics
                 val floatTransition = rememberInfiniteTransition(label = "float")
                 val floatY by floatTransition.animateFloat(
                     initialValue = -15f,
@@ -188,7 +185,7 @@ fun QuizGame(
                     label = "float_anim"
                 )
 
-                // 3. The Hologram Breathing Glow
+                //3. The Hologram Breathing Glow
                 val glowAlpha by floatTransition.animateFloat(
                     initialValue = 0.1f,
                     targetValue = 0.3f,
@@ -208,14 +205,13 @@ fun QuizGame(
                     modifier = Modifier.fillMaxWidth()
                 ) {
 
-                    // 🟢 THE HOLOGRAPHIC MASCOT (Fixed Scope!)
-                    // We moved AnimatedVisibility to the OUTSIDE of the Box so it's a direct child of the Column!
+                    //THE HOLOGRAPHIC MASCOT
                     AnimatedVisibility(
                         visible = isMascotVisible,
                         enter = scaleIn(initialScale = 0.3f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)) + fadeIn()
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            // The ambient glow behind the brain
+                            //The ambient glow behind the brain
                             Box(
                                 modifier = Modifier
                                     .size(140.dp)
@@ -226,7 +222,7 @@ fun QuizGame(
                                     )
                             )
 
-                            // The Brain Lottie
+                            //The Brain Lottie
                             LottieAnimation(
                                 composition = introLottie,
                                 progress = { mascotProgress },
@@ -237,13 +233,12 @@ fun QuizGame(
                         }
                     }
 
-                    // 🟢 BETTER TYPOGRAPHY
                     Text(
                         text = awsMessage,
                         textAlign = TextAlign.Center,
                         color = Color.White, // High contrast
                         fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold // Bolder, more confident text
+                        fontWeight = FontWeight.Bold //Bolder, more confident text
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -269,7 +264,7 @@ fun QuizGame(
                         Text("I'm a Financial Genius 🤓", fontWeight = FontWeight.ExtraBold, color = Color.White, fontSize = 16.sp)
                     }
 
-                    // 🟢 FIXED COWARDLY SKIP BUTTON (Better contrast!)
+                    //SKIP BUTTON
                     val skipScale by animateFloatAsState(targetValue = if (isSkipPressed) 0.8f else 1f)
 
                     Surface(
@@ -286,7 +281,7 @@ fun QuizGame(
                         ) {
                             Text(
                                 text = "I want to stay broke 💸",
-                                color = Color(0xFFFCA5A5), // Brighter pastel red for dark mode!
+                                color = Color(0xFFFCA5A5), //Brighter pastel red for dark mode!
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -294,11 +289,7 @@ fun QuizGame(
                 }
             }
 
-            // 🟢 PHASE 2: HIGH-STAKES PLAYING
-            // 🟢 PHASE 2: IMMERSIVE HIGH-STAKES PLAYING
-            // 🟢 PHASE 2: IMMERSIVE HIGH-STAKES PLAYING
-            // 🟢 PHASE 2: IMMERSIVE HIGH-STAKES PLAYING (VR Background!)
-            // 🟢 PHASE 2: IMMERSIVE HIGH-STAKES PLAYING (Lottie Inside Question Card!)
+            //IMMERSIVE HIGH-STAKES PLAYING (Lottie Inside Question Card!)
             QuizPhase.PLAYING -> {
                 val infiniteTransition = rememberInfiniteTransition(label = "playing_pulse")
                 val bgGlow by infiniteTransition.animateFloat(
@@ -316,7 +307,7 @@ fun QuizGame(
                 )
                 val currentShakeX = if (isPanicMode) rawShake.dp else 0.dp
 
-                // Load the loading/thinking mascot
+                //Load the loading/thinking mascot
                 val playingLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.quiz_loading))
                 val playingLottie by playingLottieResult
                 val playingProgress by animateLottieCompositionAsState(
@@ -327,7 +318,7 @@ fun QuizGame(
 
                 Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
 
-                    // 1. THE HOLOGRAPHIC BACKGROUND LAYER
+                    //1. THE HOLOGRAPHIC BACKGROUND LAYER
                     Box(
                         modifier = Modifier
                             .matchParentSize()
@@ -344,10 +335,10 @@ fun QuizGame(
                             )
                     )
 
-                    // 2. THE FOREGROUND UI
+                    //2. THE FOREGROUND UI
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
 
-                        // THE BURNING FUSE
+                        //THE BURNING FUSE
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -380,7 +371,7 @@ fun QuizGame(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // 🟢 THE NEW QUESTION CARD (With Foolproof Lottie Debugger!)
+                        //QUESTION CARD
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.8f)), // Made slightly darker for contrast
@@ -391,7 +382,7 @@ fun QuizGame(
                                 modifier = Modifier.padding(16.dp).fillMaxWidth(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                // 🟢 THE DEBUGGER & MASCOT WRAPPER
+                                //MASCOT WRAPPER
                                 Box(
                                     modifier = Modifier
                                         .size(76.dp) // Generous size to ensure it isn't crushed
@@ -407,7 +398,7 @@ fun QuizGame(
                                             contentScale = androidx.compose.ui.layout.ContentScale.Crop // Ignores massive blank canvas space!
                                         )
                                     } else {
-                                        // 🛑 IF YOU SEE THIS SPINNING FOREVER, YOUR FILE IS MISSING, NAMED WRONG, OR BROKEN!
+                                        //IF  SPINNING FOREVER,  FILE IS MISSING,
                                         CircularProgressIndicator(
                                             color = brandPurple,
                                             modifier = Modifier.size(36.dp)
@@ -429,7 +420,7 @@ fun QuizGame(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // THE "CASINO DEALER" STAGGERED CARDS
+                        //THE "CASINO DEALER" STAGGERED CARDS
                         shuffledOptions.forEachIndexed { index, option ->
                             var isCardVisible by remember { mutableStateOf(false) }
                             LaunchedEffect(Unit) {
@@ -459,25 +450,22 @@ fun QuizGame(
             }
 
 
-            // 🟢 PHASE 3: EXPLOSIVE RESULT
-            // 🟢 PHASE 3: EXPLOSIVE RESULT (Fixed Lottie Swapping!)
-            // 🟢 PHASE 3: EXPLOSIVE RESULT (Fixed Layout & Animated Text!)
-            // 🟢 PHASE 3: EXPLOSIVE RESULT (Now with 3 Emotional Mascot States!)
+            //EXPLOSIVE RESULT (Now with 3 Emotional Mascot States!)
             QuizPhase.RESULT -> {
                 val isCorrect = selectedAnswer == correctAnswer
 
-                // 🟢 1. The 3-Way Emotion Brain!
+                // 1. The 3-Way Emotion Brain!
                 val targetLottieRes = when {
-                    isTimeUp -> R.raw.quiz_timeout   // 🐢 Ran out of time
-                    isCorrect -> R.raw.quiz_success  // 😁 Got it right
-                    else -> R.raw.quiz_fail          // 😭 Got it wrong
+                    isTimeUp -> R.raw.quiz_timeout   //Ran out of time
+                    isCorrect -> R.raw.quiz_success  //Got it right
+                    else -> R.raw.quiz_fail          //Got it wrong
                 }
 
-                // Load ONLY the correct emotion dynamically
+                //Load ONLY the correct emotion dynamically
                 val resultLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(targetLottieRes))
                 val resultComposition by resultLottieResult
 
-                // I set this to IterateForever so the mascot keeps smiling or crying while the user reads the text!
+                //I set this to IterateForever so the mascot keeps smiling or crying while the user reads the text!
                 val resultProgress by animateLottieCompositionAsState(
                     composition = resultComposition,
                     isPlaying = true,
@@ -551,7 +539,7 @@ fun QuizGame(
 
                             Spacer(modifier = Modifier.height(32.dp))
 
-                            // 🟢 The Bouncy Return Button
+                            //The Bouncy Return Button
                             val btnInteraction = remember { MutableInteractionSource() }
                             val isBtnPressed by btnInteraction.collectIsPressedAsState()
                             val btnScale by animateFloatAsState(targetValue = if (isBtnPressed) 0.95f else 1f, animationSpec = tween(100))
@@ -580,7 +568,7 @@ fun QuizGame(
     }
 }
 
-// 🟢 4. THE CUSTOM 3D FLIP CARD
+//4. THE CUSTOM 3D FLIP CARD
 @Composable
 fun FlipAnswerCard(
     text: String,
@@ -589,14 +577,14 @@ fun FlipAnswerCard(
     isEnabled: Boolean,
     onClick: () -> Unit
 ) {
-    // Math for the 3D Rotation
+    //Math for the 3D Rotation
     val rotation by animateFloatAsState(
         targetValue = if (isRevealed) 180f else 0f,
         animationSpec = tween(600, easing = FastOutSlowInEasing),
         label = "flip"
     )
 
-    // If it has rotated past 90 degrees, we are looking at the "back" of the card
+    // If it has rotated past 90 degrees,  looking at the "back" of the card
     val isBackVisible = rotation > 90f
 
     val cardBgColor = if (!isBackVisible) Color(0xFF334155) else if (isCorrect) Color(0xFF10B981) else Color(0xFFEF4444)
