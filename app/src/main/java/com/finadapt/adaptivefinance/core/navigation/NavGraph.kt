@@ -179,8 +179,9 @@ fun NavGraph(
                     onLogExpense = { amount, category ->
                         expenseViewModel.submitExpense(amount, category, realUserId)
                     },
-                    onFeedback = { predictionId, reward ->
-                        expenseViewModel.submitFeedback(predictionId, reward)
+                    // 🟢 THE FIX: Update the lambda to accept the 3 new parameters!
+                    onFeedback = { predictionId, strategyName, userAccepted ->
+                        expenseViewModel.submitFeedback(predictionId, strategyName, userAccepted)
                     },
                     onDismissState = {
                         expenseViewModel.resetState()

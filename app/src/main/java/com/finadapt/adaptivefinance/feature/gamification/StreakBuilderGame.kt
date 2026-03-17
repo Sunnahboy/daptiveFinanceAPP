@@ -118,6 +118,21 @@ fun StreakBuilderGame(
                         Text("INITIATE CHARGE SEQUENCE", fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 1.sp)
                     }
                 }
+                // 🟢 ADDED: THE DECLINE BUTTON FOR THE BANDIT (Sends 0)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        soundEngine.play("lose") // A subtle negative sound
+                        onGameComplete(0) // 🟢 Crucial for the Contextual Bandit!
+                    },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Gray),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)) // Dark metal border
+                ) {
+                    Text("DECLINE DAILY FORGE", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                }
             }
 
             // 🟢 PHASE 2: THE REACTIVE RAPID TAP MINIGAME

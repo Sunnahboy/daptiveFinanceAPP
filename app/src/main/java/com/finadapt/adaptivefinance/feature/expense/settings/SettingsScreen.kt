@@ -2,7 +2,6 @@ package com.finadapt.adaptivefinance.feature.expense.settings
 
 import android.content.Intent
 import android.provider.Settings
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -24,8 +23,11 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.*
+import com.finadapt.adaptivefinance.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -46,6 +48,15 @@ fun SettingsScreen(
     var nameInput by remember { mutableStateOf(currentName) }
     var budgetInput by remember { mutableStateOf(currentBudget.toInt().toString()) }
 
+    // 🟢 INDIVIDUAL BUTTON STATES (IDLE, SUCCESS, NO_CHANGE)
+    var nameActionState by remember { mutableStateOf("IDLE") }
+    var budgetActionState by remember { mutableStateOf("IDLE") }
+
+    // 🟢 VALIDATION STATES
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var budgetError by remember { mutableStateOf<String?>(null) }
+    var showValidationErrorDialog by remember { mutableStateOf(false) }
+
     // 🟢 DIALOG STATES
     var showWipeDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
@@ -54,6 +65,10 @@ fun SettingsScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
 
+    // 🟢 LOTTIE COMPOSITIONS
+    val successComp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.success_check))
+    val infoComp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.nothing_changed))
+
     // Dynamic Colors based on Dark Mode state
     val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
     val cardColor = if (isDarkMode) Color(0xFF1E293B) else Color.White
@@ -61,13 +76,8 @@ fun SettingsScreen(
     val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color.Gray
     val primaryColor = Color(0xFF0284C7)
     val successColor = Color(0xFF10B981)
-
-    // Animation States
-    var nameSaved by remember { mutableStateOf(false) }
-    val nameBtnColor by animateColorAsState(targetValue = if (nameSaved) successColor else primaryColor, label = "nameColor")
-
-    var budgetSaved by remember { mutableStateOf(false) }
-    val budgetBtnColor by animateColorAsState(targetValue = if (budgetSaved) successColor else primaryColor, label = "budgetColor")
+    val infoColor = Color(0xFF64748B)
+    val errorColor = Color(0xFFEF4444)
 
     // Get App Version from Package Manager
     val appVersion = remember {
@@ -102,7 +112,9 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
 
-            // --- 1. PROFILE & FINANCIAL BASELINE ---
+            // ─────────────────────────────────────────
+            // 1. ACCOUNT & PROFILE
+            // ─────────────────────────────────────────
             SettingsSectionHeader("Account & Profile", textColor)
 
             Card(
@@ -112,11 +124,19 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
+
+                    // --- NAME INPUT ---
                     OutlinedTextField(
                         value = nameInput,
-                        onValueChange = { nameInput = it },
+                        onValueChange = {
+                            nameInput = it
+                            nameError = null
+                            nameActionState = "IDLE"
+                        },
                         label = { Text("Preferred Name") },
                         singleLine = true,
+                        isError = nameError != null,
+                        supportingText = { if (nameError != null) Text(nameError!!, color = errorColor) },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
@@ -124,30 +144,83 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = {
-                            onNameChanged(nameInput)
+                            val cleanName = nameInput.trim()
                             keyboardController?.hide()
-                            coroutineScope.launch {
-                                nameSaved = true; delay(2000); nameSaved = false
+                            when {
+                                cleanName.isEmpty() -> {
+                                    nameError = "Name cannot be empty."
+                                    showValidationErrorDialog = true
+                                }
+                                cleanName.length > 20 -> {
+                                    nameError = "Name is too long (max 20 chars)."
+                                    showValidationErrorDialog = true
+                                }
+                                cleanName == currentName -> {
+                                    // No change detected
+                                    coroutineScope.launch {
+                                        nameActionState = "NO_CHANGE"
+                                        delay(2000)
+                                        nameActionState = "IDLE"
+                                    }
+                                }
+                                else -> {
+                                    onNameChanged(cleanName)
+                                    coroutineScope.launch {
+                                        nameActionState = "SUCCESS"
+                                        delay(2000)
+                                        nameActionState = "IDLE"
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier.align(Alignment.End),
-                        colors = ButtonDefaults.buttonColors(containerColor = nameBtnColor)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = when (nameActionState) {
+                                "SUCCESS" -> successColor
+                                "NO_CHANGE" -> infoColor
+                                else -> primaryColor
+                            }
+                        )
                     ) {
-                        Text(if (nameSaved) "Saved! ✅" else "Save Name")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            when (nameActionState) {
+                                "SUCCESS" -> {
+                                    LottieAnimation(successComp, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Saved!", color = Color.White)
+                                }
+                                "NO_CHANGE" -> {
+                                    LottieAnimation(infoComp, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Already set", color = Color.White)
+                                }
+                                else -> Text("Save Name", color = Color.White)
+                            }
+                        }
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = subTextColor.copy(alpha = 0.2f))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 16.dp),
+                        color = subTextColor.copy(alpha = 0.2f)
+                    )
 
+                    // --- BUDGET INPUT ---
                     Text("Monthly Budget Baseline", fontWeight = FontWeight.SemiBold, color = textColor)
                     Text("Used by the AI to calculate spending volatility.", color = subTextColor, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedTextField(
                         value = budgetInput,
-                        onValueChange = { budgetInput = it },
+                        onValueChange = {
+                            budgetInput = it
+                            budgetError = null
+                            budgetActionState = "IDLE"
+                        },
                         label = { Text("Budget Limit (RM)") },
-                        prefix = { Text("RM ") },
+                        prefix = { Text("RM ", color = textColor) },
                         singleLine = true,
+                        isError = budgetError != null,
+                        supportingText = { if (budgetError != null) Text(budgetError!!, color = errorColor) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
@@ -155,21 +228,66 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = {
-                            onBudgetChanged(budgetInput.toFloatOrNull() ?: currentBudget)
+                            val budgetVal = budgetInput.toFloatOrNull()
                             keyboardController?.hide()
-                            coroutineScope.launch {
-                                budgetSaved = true; delay(2000); budgetSaved = false
+                            when {
+                                budgetVal == null || budgetVal <= 0 -> {
+                                    budgetError = "Enter a valid amount greater than RM 0."
+                                    showValidationErrorDialog = true
+                                }
+                                budgetVal > 1_000_000 -> {
+                                    budgetError = "Budget exceeds maximum allowed limit."
+                                    showValidationErrorDialog = true
+                                }
+                                budgetVal == currentBudget -> {
+                                    // No change detected
+                                    coroutineScope.launch {
+                                        budgetActionState = "NO_CHANGE"
+                                        delay(2000)
+                                        budgetActionState = "IDLE"
+                                    }
+                                }
+                                else -> {
+                                    onBudgetChanged(budgetVal)
+                                    coroutineScope.launch {
+                                        budgetActionState = "SUCCESS"
+                                        delay(2000)
+                                        budgetActionState = "IDLE"
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier.align(Alignment.End),
-                        colors = ButtonDefaults.buttonColors(containerColor = budgetBtnColor)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = when (budgetActionState) {
+                                "SUCCESS" -> successColor
+                                "NO_CHANGE" -> infoColor
+                                else -> primaryColor
+                            }
+                        )
                     ) {
-                        Text(if (budgetSaved) "Updated! ✨" else "Update Budget")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            when (budgetActionState) {
+                                "SUCCESS" -> {
+                                    LottieAnimation(successComp, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Updated!", color = Color.White)
+                                }
+                                "NO_CHANGE" -> {
+                                    LottieAnimation(infoComp, modifier = Modifier.size(24.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("No change", color = Color.White)
+                                }
+                                else -> Text("Update Budget", color = Color.White)
+                            }
+                        }
                     }
                 }
             }
 
-            // --- 2. CUSTOMIZATION & PREFERENCES ---
+            // ─────────────────────────────────────────
+            // 2. PREFERENCES
+            // ─────────────────────────────────────────
             SettingsSectionHeader("Preferences", textColor)
 
             Card(
@@ -196,7 +314,6 @@ fun SettingsScreen(
                         textColor = textColor,
                         subTextColor = subTextColor,
                         onClick = {
-                            // 🟢 WIRED: Opens Android System Notification Settings for this app!
                             val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
                                 putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
                             }
@@ -206,7 +323,9 @@ fun SettingsScreen(
                 }
             }
 
-            // --- 3. SUPPORT & ABOUT ---
+            // ─────────────────────────────────────────
+            // 3. SUPPORT & ABOUT
+            // ─────────────────────────────────────────
             SettingsSectionHeader("Support & About", textColor)
 
             Card(
@@ -222,7 +341,7 @@ fun SettingsScreen(
                         subtitle = "FAQs and contact support",
                         textColor = textColor,
                         subTextColor = subTextColor,
-                        onClick = { showHelpDialog = true } // 🟢 WIRED
+                        onClick = { showHelpDialog = true }
                     )
                     HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
                     SettingsRowAction(
@@ -231,11 +350,13 @@ fun SettingsScreen(
                         subtitle = "How we protect your data",
                         textColor = textColor,
                         subTextColor = subTextColor,
-                        onClick = { showPrivacyDialog = true } // 🟢 WIRED
+                        onClick = { showPrivacyDialog = true }
                     )
                     HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -249,12 +370,16 @@ fun SettingsScreen(
                 }
             }
 
-            // --- 4. THE DANGER ZONE ---
+            // ─────────────────────────────────────────
+            // 4. DANGER ZONE
+            // ─────────────────────────────────────────
             SettingsSectionHeader("Danger Zone", Color.Red)
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = if (isDarkMode) Color(0xFF450a0a) else Color(0xFFFEF2F2)),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isDarkMode) Color(0xFF450a0a) else Color(0xFFFEF2F2)
+                ),
                 elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -272,15 +397,65 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                     ) {
-                        Text("Wipe All Financial Data")
+                        Text("Wipe All Financial Data", color = Color.White)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(80.dp)) // Bottom padding
+            Spacer(modifier = Modifier.height(80.dp))
         }
 
-        // 🟢 HELP CENTER DIALOG
+        // ─────────────────────────────────────────
+        // DIALOGS
+        // ─────────────────────────────────────────
+
+        // Validation Error Dialog (with Lottie)
+        if (showValidationErrorDialog) {
+            val errorLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.error_alert))
+            val errorLottie by errorLottieResult
+            val lottieProgress by animateLottieCompositionAsState(
+                composition = errorLottie,
+                isPlaying = true,
+                iterations = 1
+            )
+            AlertDialog(
+                onDismissRequest = { showValidationErrorDialog = false },
+                containerColor = cardColor,
+                icon = {
+                    if (errorLottie != null) {
+                        LottieAnimation(
+                            composition = errorLottie,
+                            progress = { lottieProgress },
+                            modifier = Modifier.size(72.dp)
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.Warning,
+                            contentDescription = "Error",
+                            tint = errorColor,
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+                },
+                title = { Text("Invalid Input", fontWeight = FontWeight.Bold, color = textColor) },
+                text = {
+                    Text(
+                        "Please check the highlighted fields and fix the errors before saving.",
+                        color = subTextColor,
+                        textAlign = TextAlign.Center
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { showValidationErrorDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Got it", color = Color.White) }
+                }
+            )
+        }
+
+        // Help Center Dialog
         if (showHelpDialog) {
             AlertDialog(
                 onDismissRequest = { showHelpDialog = false },
@@ -320,12 +495,12 @@ fun SettingsScreen(
                     Button(
                         onClick = { showHelpDialog = false },
                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
-                    ) { Text("Close") }
+                    ) { Text("Close", color = Color.White) }
                 }
             )
         }
 
-        // 🟢 PRIVACY POLICY DIALOG
+        // Privacy Policy Dialog
         if (showPrivacyDialog) {
             AlertDialog(
                 onDismissRequest = { showPrivacyDialog = false },
@@ -362,23 +537,28 @@ fun SettingsScreen(
                     Button(
                         onClick = { showPrivacyDialog = false },
                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
-                    ) { Text("I Understand") }
+                    ) { Text("I Understand", color = Color.White) }
                 }
             )
         }
 
-        // 🟢 WIPE DATA CONFIRMATION DIALOG
+        // Wipe Data Confirmation Dialog
         if (showWipeDialog) {
             AlertDialog(
                 onDismissRequest = { showWipeDialog = false },
                 containerColor = cardColor,
                 title = { Text("Erase Everything?", color = textColor) },
-                text = { Text("This will permanently delete all logged expenses from your local database. This action cannot be undone.", color = subTextColor) },
+                text = {
+                    Text(
+                        "This will permanently delete all logged expenses from your local database. This action cannot be undone.",
+                        color = subTextColor
+                    )
+                },
                 confirmButton = {
                     Button(
                         onClick = { onWipeData(); showWipeDialog = false },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                    ) { Text("Yes, Wipe Data") }
+                    ) { Text("Yes, Wipe Data", color = Color.White) }
                 },
                 dismissButton = {
                     TextButton(onClick = { showWipeDialog = false }) {
@@ -390,7 +570,9 @@ fun SettingsScreen(
     }
 }
 
-// --- HELPER COMPOSABLES ---
+// ─────────────────────────────────────────
+// HELPER COMPOSABLES
+// ─────────────────────────────────────────
 
 @Composable
 fun SettingsSectionHeader(title: String, color: Color) {
@@ -432,7 +614,10 @@ fun SettingsRowToggle(
         Switch(
             checked = isChecked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF0284C7), checkedTrackColor = Color(0xFFE0F2FE))
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color(0xFF0284C7),
+                checkedTrackColor = Color(0xFFE0F2FE)
+            )
         )
     }
 }
