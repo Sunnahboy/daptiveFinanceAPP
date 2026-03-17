@@ -89,9 +89,11 @@ class ExpenseViewModel (
         }
     }
     //Tells the Repository to send the +1 Reward
-    fun submitFeedback(predictionId: String, reward: Int) {
+    // 🟢 UPDATED: Now requires the strategy name and a boolean!
+    // Replace your old submitFeedback function with this:
+    fun submitFeedback(predictionId: String, strategyName: String, userAccepted: Boolean) {
         viewModelScope.launch {
-            repository.submitUserFeedback(predictionId, reward)
+            repository.submitUserFeedback(predictionId, strategyName, userAccepted)
         }
     }
 

@@ -23,7 +23,7 @@ import com.finadapt.adaptivefinance.feature.gamification.GamificationDialog
 fun AddExpenseScreen(
     uiState: GamificationUiState,
     onLogExpense: (Float, String) -> Unit,
-    onFeedback: (String, Int) -> Unit,
+    onFeedback: (String, String, Boolean) -> Unit,
     onDismissState: () -> Unit,
 
 ) {
@@ -167,12 +167,17 @@ fun AddExpenseScreen(
                 }
             } else {
                 //Trigger the Master Game Router!
+                //Trigger the Master Game Router!
                 GamificationDialog(
                     action = uiState.action,
                     message = uiState.message,
                     predictionId = uiState.predictionId,
-                    onFeedback = { predId, reward ->
-                        onFeedback(predId, reward)
+                    // 🟢 THE FIX: Translate the Int into a Boolean and pass the strategy name!
+                    onFeedback = { predId, rewardInt ->
+                        val userAccepted = rewardInt == 1
+                        val strategyName = uiState.action // Grab the name of the game being played
+
+                        onFeedback(predId, strategyName, userAccepted)
                     },
                     onDismiss = {
                         onDismissState()
