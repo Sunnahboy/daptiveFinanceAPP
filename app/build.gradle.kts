@@ -99,6 +99,12 @@ dependencies {
 
     implementation("androidx.work:work-runtime-ktx:2.9.0")//background work manager
     implementation("com.airbnb.android:lottie-compose:6.3.0")//for lottie files
+    // Standard ML Kit Text Recognition
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    // The New ML Kit Document Scanner UI
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
+    // Allows Kotlin Coroutines to 'await()' Google Play Services Tasks
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
 
 
