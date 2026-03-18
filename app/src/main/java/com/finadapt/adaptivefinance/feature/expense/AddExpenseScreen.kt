@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finadapt.adaptivefinance.feature.gamification.GamificationDialog
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -69,38 +70,38 @@ fun AddExpenseScreen(
         }
     }
 
-    // 🟢 4. DOCUMENT SCANNER LAUNCHER
+    val coroutineScope = rememberCoroutineScope() // Add this at the top of your screen!
+
     val scannerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val scanningResult = com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult.fromActivityResultIntent(result.data)
 
-            isScanning = true
-            voiceFeedbackMsg = "Analyzing receipt..."
+            val uri = scanningResult?.pages?.firstOrNull()?.imageUri
+            if (uri != null) {
+                isScanning = true
+                voiceFeedbackMsg = "Analyzing receipt..."
 
-            ReceiptScanner.processScanResult(
-                context = context,
-                result = scanningResult,
-                onSuccess = { parsedItems, _ -> // We calculate the final total in the Bottom Sheet
-                    scannedItems = parsedItems
-                    showReceiptSheet = true
+                // 🟢 Launch safely in the Compose scope!
+                coroutineScope.launch {
+                    try {
+                        val (parsedItems, maxPrice) = ReceiptScanner.analyzeReceipt(context, uri)
 
-                    voiceFeedbackMsg = "Found ${parsedItems.size} items."
-                    isScanning = false
+                        scannedItems = parsedItems
+                        showReceiptSheet = true
+                        voiceFeedbackMsg = "Found ${parsedItems.size} items."
+                        isScanning = false
 
-                    if (isTtsReady) {
-                        tts?.speak("I found ${parsedItems.size} items. Please review the receipt.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
-                    }
-                },
-                onError = { error ->
-                    voiceFeedbackMsg = error
-                    isScanning = false
-                    if (isTtsReady) {
-                        tts?.speak("Sorry, I couldn't read that receipt clearly.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
+                        if (isTtsReady) {
+                            tts?.speak("I found ${parsedItems.size} items. Please review the receipt.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
+                        }
+                    } catch (e: Exception) {
+                        voiceFeedbackMsg = e.message ?: "OCR Error"
+                        isScanning = false
                     }
                 }
-            )
+            }
         }
     }
 
