@@ -1,6 +1,7 @@
 package com.finadapt.adaptivefinance.feature.expense
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
@@ -25,14 +28,19 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
 import com.finadapt.adaptivefinance.feature.gamification.GamificationDialog
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddExpenseScreen(
     uiState: GamificationUiState,
     onLogExpense: (Float, String) -> Unit,
+    // 🟢 FIX 1: Updated to match your ViewModel's 3 parameters!
     onFeedback: (String, String, Boolean) -> Unit,
     onDismissState: () -> Unit,
 ) {
@@ -45,12 +53,11 @@ fun AddExpenseScreen(
     var voiceFeedbackMsg by remember { mutableStateOf("") }
     var isScanning by remember { mutableStateOf(false) }
 
-    // 🟢 2. BOTTOM SHEET STATES (For Receipt Review)
+    // 🟢 2. DIGITAL RECEIPT STATES
     var showReceiptSheet by remember { mutableStateOf(false) }
-    var scannedItems by remember { mutableStateOf<List<ReceiptItem>>(emptyList()) }
+    var scannedReceipt by remember { mutableStateOf<ParsedReceipt?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Using our centralized dictionary for the quick-chips!
     val commonCategories = listOf("Food", "Transport", "Groceries", "Shopping", "Entertainment")
 
     // 🟢 3. TTS (VOICE) ENGINE LIFECYCLE
@@ -70,8 +77,9 @@ fun AddExpenseScreen(
         }
     }
 
-    val coroutineScope = rememberCoroutineScope() // Add this at the top of your screen!
+    val coroutineScope = rememberCoroutineScope()
 
+    // 🟢 4. RECEIPT SCANNER LAUNCHER (Zero-Error Architecture)
     val scannerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -81,23 +89,25 @@ fun AddExpenseScreen(
             val uri = scanningResult?.pages?.firstOrNull()?.imageUri
             if (uri != null) {
                 isScanning = true
-                voiceFeedbackMsg = "Analyzing receipt..."
+                voiceFeedbackMsg = "Analyzing receipt securely..."
 
-                // 🟢 Launch safely in the Compose scope!
                 coroutineScope.launch {
                     try {
-                        val (parsedItems, maxPrice) = ReceiptScanner.analyzeReceipt(context, uri)
-
-                        scannedItems = parsedItems
+                        // The analyzeReceipt function now handles API crashes gracefully!
+                        val receipt = ReceiptScanner.analyzeReceipt(context, uri)
+                        scannedReceipt = receipt
                         showReceiptSheet = true
-                        voiceFeedbackMsg = "Found ${parsedItems.size} items."
-                        isScanning = false
 
-                        if (isTtsReady) {
-                            tts?.speak("I found ${parsedItems.size} items. Please review the receipt.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
+                        if (receipt.items.isNotEmpty()) {
+                            voiceFeedbackMsg = "Found ${receipt.items.size} items from ${receipt.merchantName}."
+                            if (isTtsReady) tts?.speak("Receipt analyzed. Please review.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
+                        } else {
+                            voiceFeedbackMsg = "Digital receipt saved. Please enter details manually."
+                            if (isTtsReady) tts?.speak("Receipt saved. Please enter the amount.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
                         }
+                        isScanning = false
                     } catch (e: Exception) {
-                        voiceFeedbackMsg = e.message ?: "OCR Error"
+                        voiceFeedbackMsg = "Error processing image."
                         isScanning = false
                     }
                 }
@@ -105,7 +115,6 @@ fun AddExpenseScreen(
         }
     }
 
-    // Colors
     val bgColor = Color(0xFFF8FAFC)
     val cardColor = Color.White
     val primaryColor = Color(0xFF0284C7)
@@ -127,20 +136,21 @@ fun AddExpenseScreen(
         },
         containerColor = bgColor
     ) { innerPadding ->
+
+        // --- MAIN SCROLLABLE CONTENT ---
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(20.dp)
         ) {
-            // --- SCROLLABLE MAIN CONTENT ---
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // 1. AMOUNT INPUT & MULTIMODAL CONTROLS
+                // 1. AMOUNT INPUT & MULTI-MODAL BUTTONS
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = cardColor),
@@ -154,7 +164,6 @@ fun AddExpenseScreen(
                         Text("How much did you spend?", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // --- MULTIMODAL BUTTONS (VOICE & VISION) ---
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -164,68 +173,41 @@ fun AddExpenseScreen(
                             VoiceInputButton(
                                 onResult = { spokenString ->
                                     val parsedData = VoiceExpenseParser.parse(spokenString)
-                                    val parsedAmount = parsedData.first
-                                    val parsedCategory = parsedData.second
-
-                                    if (parsedAmount != null) amountInput = parsedAmount.toString()
-                                    if (parsedCategory != null) categoryInput = parsedCategory
+                                    if (parsedData.first != null) amountInput = parsedData.first.toString()
+                                    categoryInput = parsedData.second
 
                                     if (isTtsReady) {
-                                        if (parsedAmount != null && parsedCategory != null && parsedCategory != "General") {
-                                            voiceFeedbackMsg = "Logged RM $parsedAmount for $parsedCategory."
-                                            tts?.speak("Got it. $parsedAmount Ringgit for $parsedCategory.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
-                                        } else if (parsedAmount != null) {
-                                            voiceFeedbackMsg = "Amount heard: RM $parsedAmount. Select a category."
-                                            tts?.speak("I got $parsedAmount Ringgit, what category is that?", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
+                                        if (parsedData.first != null && parsedData.second != "General") {
+                                            voiceFeedbackMsg = "Logged RM ${parsedData.first} for ${parsedData.second}."
+                                            tts?.speak("Got it. ${parsedData.first} for ${parsedData.second}.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
                                         } else {
-                                            voiceFeedbackMsg = "Couldn't find an amount in: \"$spokenString\""
-                                            tts?.speak("Sorry, I didn't catch the amount.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
+                                            voiceFeedbackMsg = "Heard: \"$spokenString\""
                                         }
-                                    } else {
-                                        voiceFeedbackMsg = "Heard: \"$spokenString\""
                                     }
                                 },
-                                onError = { errorMsg ->
-                                    voiceFeedbackMsg = errorMsg
-                                    if (isTtsReady) tts?.speak("Microphone error.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
-                                }
+                                onError = { voiceFeedbackMsg = it }
                             )
 
-                            // SCANNER BUTTON
-                            Box(
-                                modifier = Modifier.size(72.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
+                            // CAMERA BUTTON
+                            Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.Center) {
                                 IconButton(
-                                    onClick = {
-                                        // Trigger the Industrial Receipt Scanner!
-                                        ReceiptScanner.startScanUI(context as android.app.Activity, scannerLauncher)
-                                    },
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF8B5CF6)) // Purple Vision Button
+                                    onClick = { ReceiptScanner.startScanUI(context as android.app.Activity, scannerLauncher) },
+                                    modifier = Modifier.size(64.dp).clip(CircleShape).background(Color(0xFF8B5CF6))
                                 ) {
                                     if (isScanning) {
                                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
                                     } else {
-                                        Icon(
-                                            imageVector = Icons.Default.DocumentScanner,
-                                            contentDescription = "Scan Receipt",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(32.dp)
-                                        )
+                                        Icon(Icons.Default.DocumentScanner, contentDescription = "Scan", tint = Color.White, modifier = Modifier.size(32.dp))
                                     }
                                 }
                             }
                         }
 
-                        // FEEDBACK TEXT
                         if (voiceFeedbackMsg.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = voiceFeedbackMsg,
-                                color = if (voiceFeedbackMsg.contains("error", ignoreCase = true) || voiceFeedbackMsg.contains("couldn't find", ignoreCase = true)) Color.Red else Color.Gray,
+                                color = if (voiceFeedbackMsg.contains("error", true)) Color.Red else Color.Gray,
                                 fontSize = 14.sp,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
@@ -234,7 +216,6 @@ fun AddExpenseScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // AMOUNT TEXT FIELD
                         OutlinedTextField(
                             value = amountInput,
                             onValueChange = { amountInput = it },
@@ -289,7 +270,7 @@ fun AddExpenseScreen(
                 }
             }
 
-            // --- FIXED BOTTOM AREA ---
+            // 3. LOG EXPENSE BUTTON
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
@@ -314,105 +295,127 @@ fun AddExpenseScreen(
             }
         }
 
-        // --- 🟢 GAMIFICATION DIALOG ---
-        if (uiState is GamificationUiState.Success) {
-            if (uiState.action == "Log_Only") {
-                LaunchedEffect(Unit) { onDismissState() }
-            } else {
-                GamificationDialog(
-                    action = uiState.action,
-                    message = uiState.message,
-                    predictionId = uiState.predictionId,
-                    onFeedback = { predId, rewardInt ->
-                        onFeedback(predId, uiState.action, rewardInt == 1)
-                    },
-                    onDismiss = { onDismissState() }
-                )
-            }
-        }
-
-        // --- 🟢 REVIEW RECEIPT BOTTOM SHEET ---
-        if (showReceiptSheet) {
+        // --- 🟢 REVIEW DIGITAL RECEIPT BOTTOM SHEET ---
+        if (showReceiptSheet && scannedReceipt != null) {
+            val receipt = scannedReceipt!!
             ModalBottomSheet(
                 onDismissRequest = { showReceiptSheet = false },
                 sheetState = sheetState,
                 containerColor = cardColor
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp)
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)
                 ) {
-                    Text("Review Receipt", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-                    Text("Here is what the AI extracted. You can safely discard this if it's incorrect.", color = Color.Gray, fontSize = 14.sp)
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // 1. Itemized List
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f, fill = false)
-                            .heightIn(max = 300.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(scannedItems.size) { index ->
-                            val item = scannedItems[index]
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(item.name, fontWeight = FontWeight.Medium, color = Color(0xFF0F172A), maxLines = 1)
-                                    Text(item.category, fontSize = 12.sp, color = primaryColor)
-                                }
-                                Text("RM ${String.format(java.util.Locale.US, "%.2f", item.amount)}", fontWeight = FontWeight.Bold)
+                    // Header & Digital Receipt Thumbnail (Coil)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(receipt.merchantName.ifEmpty { "Receipt Saved" }, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = primaryColor)
+                            if (receipt.date.isNotEmpty()) {
+                                Text("${receipt.date} • ${receipt.paymentMethod}", color = Color.Gray, fontSize = 14.sp)
                             }
-                            HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = Color.LightGray.copy(alpha = 0.3f))
+                        }
+
+                        // Interactive Digital Receipt Thumbnail
+                        if (receipt.localImagePath.isNotEmpty()) {
+                            var showFullImage by remember { mutableStateOf(false) }
+                            AsyncImage(
+                                model = File(receipt.localImagePath),
+                                contentDescription = "Receipt Thumbnail",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showFullImage = true }
+                            )
+                            if (showFullImage) {
+                                Dialog(onDismissRequest = { showFullImage = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+                                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))) {
+                                        AsyncImage(model = File(receipt.localImagePath), contentDescription = "Full Receipt", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                                        IconButton(onClick = { showFullImage = false }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    // 2. Calculate the True Total and Dominant Category
-                    val calculatedTotal = scannedItems.sumOf { it.amount.toDouble() }.toFloat()
+                    if (receipt.items.isNotEmpty()) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 250.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(receipt.items.size) { index ->
+                                val item = receipt.items[index]
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(item.name, fontWeight = FontWeight.Medium, color = Color(0xFF0F172A), maxLines = 1)
+                                        Text(item.category, fontSize = 12.sp, color = primaryColor)
+                                    }
+                                    Text("RM ${String.format(java.util.Locale.US, "%.2f", item.amount)}", fontWeight = FontWeight.Bold)
+                                }
+                                HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = Color.LightGray.copy(alpha = 0.3f))
+                            }
+                        }
 
-                    // Finds the most frequently occurring category in the list (e.g., if 5 items are "Groceries" and 1 is "Food", it picks "Groceries")
-                    val dominantCategory = scannedItems
-                        .groupingBy { it.category }
-                        .eachCount()
-                        .maxByOrNull { it.value }?.key ?: "General"
+                        Spacer(modifier = Modifier.height(16.dp))
+                    } else {
+                        Text("No specific items extracted. Please enter the amount manually.", color = Color.Gray, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
 
-                    // 3. Footer Total
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Calculated Total", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text("RM ${String.format(java.util.Locale.US, "%.2f", calculatedTotal)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = primaryColor)
+                    val dominantCategory = receipt.items.groupingBy { it.category }.eachCount().maxByOrNull { it.value }?.key ?: "General"
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Total Amount", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text("RM ${String.format(java.util.Locale.US, "%.2f", receipt.total)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = primaryColor)
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // 4. Confirm Button
                     Button(
                         onClick = {
-                            // Apply parsed data to the main screen text fields!
-                            amountInput = calculatedTotal.toString()
-                            categoryInput = dominantCategory
+                            if (receipt.total > 0f) amountInput = receipt.total.toString()
+                            if (dominantCategory != "General") categoryInput = dominantCategory
                             showReceiptSheet = false
-                            voiceFeedbackMsg = "Receipt applied successfully."
+                            voiceFeedbackMsg = "Receipt applied securely."
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text("Apply RM ${String.format(java.util.Locale.US, "%.2f", calculatedTotal)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(if (receipt.total > 0f) "Apply RM ${String.format(java.util.Locale.US, "%.2f", receipt.total)}" else "Close & Enter Manually", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
-
                     Spacer(modifier = Modifier.height(24.dp))
                 }
+            }
+        }
+
+        // --- 🎮 GAMIFICATION ENGINE ---
+        if (uiState is GamificationUiState.Success) {
+            if (uiState.action == "Log_Only") {
+                LaunchedEffect(Unit) {
+                    onDismissState()
+                }
+            } else {
+                GamificationDialog(
+                    action = uiState.action,
+                    message = uiState.message,
+                    predictionId = uiState.predictionId,
+                    onFeedback = { predId, rewardInt ->
+                        // 🟢 FIX 2: Map the Dialog's output to your ViewModel's expected format!
+                        // rewardInt == 1 becomes 'true' (userAccepted)
+                        // uiState.action is the 'strategyName'
+                        onFeedback(predId, uiState.action, rewardInt == 1)
+                    },
+                    onDismiss = {
+                        onDismissState()
+                    }
+                )
             }
         }
     }
