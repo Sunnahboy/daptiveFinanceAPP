@@ -31,6 +31,9 @@ android {
         // Use quotes around the value for BuildConfig strings
         val token = properties.getProperty("API_TOKEN") ?: "MISSING_TOKEN"
         buildConfigField("String", "API_TOKEN", "\"$token\"")
+
+        val apiKey = properties.getProperty("OPENROUTER_API_KEY") ?: ""
+        buildConfigField("String", "OPENROUTER_API_KEY", "\"$apiKey\"")
     }
     buildFeatures {
         buildConfig = true
@@ -105,6 +108,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
     // Allows Kotlin Coroutines to 'await()' Google Play Services Tasks
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.coil-kt:coil-compose:2.6.0")
 
 
 
