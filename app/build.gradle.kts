@@ -32,8 +32,10 @@ android {
         val token = properties.getProperty("API_TOKEN") ?: "MISSING_TOKEN"
         buildConfigField("String", "API_TOKEN", "\"$token\"")
 
-        val apiKey = properties.getProperty("OPENROUTER_API_KEY") ?: ""
-        buildConfigField("String", "OPENROUTER_API_KEY", "\"$apiKey\"")
+        //val apiKey = properties.getProperty("OPENROUTER_API_KEY") ?: ""
+        //buildConfigField("String", "OPENROUTER_API_KEY", "\"$apiKey\"")
+        val groqKey = properties.getProperty("GROQ_API_KEY") ?: ""
+        buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")
     }
     buildFeatures {
         buildConfig = true
@@ -110,6 +112,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("org.apache.poi:poi:5.2.3")
+    implementation("org.apache.poi:poi-ooxml:5.2.3")
 
 
 

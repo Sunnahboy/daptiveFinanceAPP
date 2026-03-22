@@ -16,6 +16,8 @@ import com.finadapt.adaptivefinance.core.navigation.NavGraph
 import com.finadapt.adaptivefinance.core.navigation.Screen
 import com.finadapt.adaptivefinance.data.local.AppDatabase
 import com.finadapt.adaptivefinance.data.repository.FinanceRepository
+import com.finadapt.adaptivefinance.feature.chat.ChatViewModel
+import com.finadapt.adaptivefinance.feature.chat.ChatViewModelFactory
 import com.finadapt.adaptivefinance.feature.community.CommunityViewModel
 import com.finadapt.adaptivefinance.feature.dashboard.DashboardViewModel
 import com.finadapt.adaptivefinance.feature.dashboard.DashboardViewModelFactory
@@ -25,13 +27,16 @@ import com.finadapt.adaptivefinance.worker.StreakReminderWorker
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import com.finadapt.adaptivefinance.feature.community.CommunityViewModelFactory
+import com.finadapt.adaptivefinance.worker.NotificationScheduler
 
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         //The moment the app launches, schedule the background worker
-        scheduleStreakReminder()
+        // 🟢 THE FIX: Load the user's saved times and schedule them all!
+        val savedTimes = NotificationScheduler.getTimesFromPrefs(this)
+        NotificationScheduler.scheduleDailyReminders(this, savedTimes)
 
 
         // 1. Initialize the Room Database & Prefs
@@ -54,7 +59,7 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
 
                     // 3. Prepare the factories and build ViewModels
-                    val expenseFactory = ExpenseViewModelFactory(repository,prefs)
+                    val expenseFactory = ExpenseViewModelFactory(repository, database.expenseDao(), prefs)
                     val expenseViewModel: ExpenseViewModel = viewModel(factory = expenseFactory)
 
                     val dashboardFactory = DashboardViewModelFactory(database.expenseDao(), prefs)
@@ -63,9 +68,13 @@ class MainActivity : ComponentActivity() {
                     //Build the Community ViewModel
                     val communityFactory = CommunityViewModelFactory(repository)
                     val communityViewModel: CommunityViewModel = viewModel(factory = communityFactory)
+                    val chatFactory = ChatViewModelFactory(database.expenseDao(), prefs)
+                    val chatViewModel: ChatViewModel = viewModel(factory = chatFactory)
 
                     // 4. SMART ROUTING: Check if they are a returning user
                     val hasCompletedOnboarding = prefs.getString("SILENT_USER_ID", null) != null
+                    //Build the Chat ViewModel using the DAO
+
                     val startDestination = if (hasCompletedOnboarding) {
                         Screen.Dashboard.route
                     } else {
@@ -79,6 +88,7 @@ class MainActivity : ComponentActivity() {
                         dashboardViewModel = dashboardViewModel,
                         expenseViewModel = expenseViewModel,
                         communityViewModel = communityViewModel,
+                        chatViewModel = chatViewModel,
                         prefs = prefs // Pass prefs to fetch the UUID in the graph
                     )
                 }
@@ -87,31 +97,5 @@ class MainActivity : ComponentActivity() {
     }
 
  //
-    private fun scheduleStreakReminder() {
-        //1. calculate how long until 8.00 PM
-        val currentDate = Calendar.getInstance()
-        val dueDate = Calendar.getInstance().apply{
-            set(Calendar.HOUR_OF_DAY, 20)//8.00 PM
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-        }
-     //if it's already past 8.00pm schedule it for 8.00 PM tomorrow
-     if (dueDate.before(currentDate)){
-         dueDate.add(Calendar.HOUR_OF_DAY, 24)
-     }
-     val initialDelay = dueDate.timeInMillis - currentDate.timeInMillis
 
-     //2 Create a periodic work request (run every 24 hours)
-     val dailyWorkRequest = PeriodicWorkRequestBuilder<StreakReminderWorker>(24, TimeUnit.HOURS)
-         .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS) //START EXACTLY AT 8.00 PM
-         .build()
-
-     //3. Hand it to the Android os
-     WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-         "StreakReminderWork",
-         ExistingPeriodicWorkPolicy.KEEP,//don't schedule if already scheduled
-         dailyWorkRequest
-     )
-
-    }
 }

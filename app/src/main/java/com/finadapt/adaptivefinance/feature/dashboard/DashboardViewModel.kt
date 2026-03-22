@@ -13,6 +13,9 @@ import java.util.Calendar
 import androidx.core.content.edit
 import  com.finadapt.adaptivefinance.data.repository.FinanceRepository
 import com.finadapt.adaptivefinance.feature.gamification.Badge
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 
 class DashboardViewModel(
@@ -49,11 +52,11 @@ class DashboardViewModel(
     private val _userName = MutableStateFlow("User")
     val userName: StateFlow<String> = _userName.asStateFlow()
 
-    private val _recentExpenses = MutableStateFlow<List<ExpenseEntity>>(emptyList())
-    val recentExpenses: StateFlow<List<ExpenseEntity>> = _recentExpenses.asStateFlow()
+    //private val _recentExpenses = MutableStateFlow<List<ExpenseEntity>>(emptyList())
+    //val recentExpenses: StateFlow<List<ExpenseEntity>> = _recentExpenses.asStateFlow()
 
-    private val _allExpenses = MutableStateFlow<List<ExpenseEntity>>(emptyList())
-    val allExpenses: StateFlow<List<ExpenseEntity>> = _allExpenses.asStateFlow()
+    //private val _allExpenses = MutableStateFlow<List<ExpenseEntity>>(emptyList())
+    //val allExpenses: StateFlow<List<ExpenseEntity>> = _allExpenses.asStateFlow()
 
     private val _weeklyChartData = MutableStateFlow(List(7) { 0f })
     //val weeklyChartData: StateFlow<List<Float>> = _weeklyChartData.asStateFlow()
@@ -68,6 +71,32 @@ class DashboardViewModel(
     //The Celebration Trigger State
      private val _showLevelUpCelebration = MutableStateFlow<String?>(null)
     val showLevelUpCelebration: StateFlow<String?> = _showLevelUpCelebration.asStateFlow()
+    val allExpenses: StateFlow<List<ExpenseEntity>> = expenseDao.getALLExpensesFlow()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    // 🟢 2. DERIVED STATE: We don't need a separate DB call for "recent".
+    // We just take the top 3 items from our Live Stream!
+    val recentExpenses: StateFlow<List<ExpenseEntity>> = allExpenses
+        .map { it.take(3) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    init {
+        // 🟢 3. AUTO-EVALUATE BADGES:
+        // Whenever the expense list changes, re-run the badge logic automatically!
+        viewModelScope.launch {
+            allExpenses.collect { list ->
+                evaluateBadges(list.size)
+            }
+        }
+    }
 
     fun loadDashboardData() {
         viewModelScope.launch {
@@ -107,10 +136,11 @@ class DashboardViewModel(
             _todaySpend.value = expenseDao.getTodaySpend(startOfDay) ?: 0f
 
             // 4. Fetch Ledger Data
-            _recentExpenses.value = expenseDao.getRecentLedger()
-            val allExp = expenseDao.getAllExpenses()
-            _allExpenses.value = allExp
-            evaluateBadges(allExp.size)
+//            _recentExpenses.value = expenseDao.getRecentLedger()
+//            val allExp = expenseDao.getAllExpenses()
+//            _allExpenses.value = allExp
+//            evaluateBadges(allExp.size)
+
 
 
             // 5. Fetch 7-Day Chart Data for History Screen
@@ -207,10 +237,28 @@ class DashboardViewModel(
         _currentAiAction.value = "zen"
     }
 
+//    fun wipeAllData() {
+//        viewModelScope.launch {
+//            expenseDao.deleteAllExpenses()
+//            loadDashboardData() // Forces the UI to refresh back to RM 0.00
+//        }
+//    }
     fun wipeAllData() {
         viewModelScope.launch {
-            expenseDao.deleteAllExpenses()
-            loadDashboardData() // Forces the UI to refresh back to RM 0.00
+            expenseDao.deleteAllExpenses() // 1. Clear database
+
+            // 2. 🟢 NEW: Clear the gamification and streak memory!
+            prefs.edit {
+                putInt("CURRENT_STREAK", 0)
+                putLong("LAST_LOGGED_MIDNIGHT", 0L)
+                putInt("USER_XP", 0)
+                putInt("STREAK_SHIELDS", 0)
+            }
+
+            _currentStreak.value = 0
+            _userXp.value = 0
+
+            loadDashboardData() // 3. Refresh UI
         }
     }
 
