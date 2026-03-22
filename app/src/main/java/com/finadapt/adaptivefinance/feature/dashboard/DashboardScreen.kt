@@ -1,41 +1,51 @@
 package com.finadapt.adaptivefinance.feature.dashboard
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
+import com.airbnb.lottie.compose.*
+import com.finadapt.adaptivefinance.R
 import com.finadapt.adaptivefinance.data.local.ExpenseEntity
+import com.finadapt.adaptivefinance.feature.chat.DraggableAiChatFab
 import com.finadapt.adaptivefinance.ui.components.LevelUpOverlay
 import com.finadapt.adaptivefinance.ui.components.NotificationPermissionHandler
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import com.airbnb.lottie.compose.*
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import com.finadapt.adaptivefinance.R
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,12 +59,13 @@ fun DashboardScreen(
     currentStreak: Int,
     recentExpenses: List<ExpenseEntity>,
     levelUpTier: String?,
-    playCoinDrop: Boolean, // 🟢 NEW: Trigger for Lottie
-    onAnimationFinished: () -> Unit, // 🟢 NEW: Reset callback
+    playCoinDrop: Boolean,
+    onAnimationFinished: () -> Unit,
     isDarkMode: Boolean = false,
     onDismissLevelUp: () -> Unit,
     onNavigateToLogExpense: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToChat: () -> Unit
 ) {
     // Check silently in the background
     NotificationPermissionHandler()
@@ -67,6 +78,10 @@ fun DashboardScreen(
     val textColor = if (isDarkMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
     val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color.Gray
     val strokeBgColor = if (isDarkMode) Color(0xFF334155) else Color(0xFFF1F5F9)
+
+    // 🟢 RECEIPT VIEWER STATES
+    var selectedExpenseForDetails by remember { mutableStateOf<ExpenseEntity?>(null) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val isOverBudget = totalSpend > monthlyBudget
 
@@ -84,18 +99,28 @@ fun DashboardScreen(
     Scaffold(
         containerColor = bgColor,
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onNavigateToLogExpense,
-                containerColor = Color(0xFF007AFF),
-                contentColor = Color.White,
-                shape = CircleShape,
-                elevation = FloatingActionButtonDefaults.elevation(8.dp)
+            // 🟢 We wrap them in a Column to stack them vertically!
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(16.dp) // Space between the buttons
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Log Expense", modifier = Modifier.size(28.dp))
+
+
+                // ➕ YOUR EXISTING LOG EXPENSE BUTTON (Primary)
+                FloatingActionButton(
+                    onClick = onNavigateToLogExpense,
+                    containerColor = Color(0xFF007AFF),
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    elevation = FloatingActionButtonDefaults.elevation(8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Log Expense", modifier = Modifier.size(28.dp))
+                }
             }
         }
-    ) { innerPadding ->
+    )  { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+
 
             // THE GRADIENT HEADER BACKGROUND
             Box(
@@ -149,7 +174,6 @@ fun DashboardScreen(
                     currentStreak = currentStreak,
                     playCoinDrop = playCoinDrop,
                     onAnimationFinished = onAnimationFinished,
-
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -226,19 +250,14 @@ fun DashboardScreen(
                     label = "donut_sweep"
                 )
 
-                // 1. Determine the Mood & Colors based on spend
                 val (ringColor, centerLottieRes, statusText) = when {
                     rawPercentage >= 1f -> Triple(Color(0xFFEF4444), R.raw.status_danger, "☠️ Budget Blown")
                     rawPercentage > 0.6f -> Triple(Color(0xFFF59E0B), R.raw.status_warning, "⚠️ Nearing Limit")
                     else -> Triple(Color(0xFF10B981), R.raw.status_safe, "🛡️ On Track")
                 }
 
-                // 2. Load the Lottie for the center
                 val centerComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(centerLottieRes))
-                val centerProgress by animateLottieCompositionAsState(
-                    composition = centerComposition,
-                    iterations = LottieConstants.IterateForever // Keeps the mood alive!
-                )
+                val centerProgress by animateLottieCompositionAsState(composition = centerComposition, iterations = LottieConstants.IterateForever)
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -247,74 +266,28 @@ fun DashboardScreen(
                     elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp),
                     border = if (isOverBudget) androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFEF4444).copy(alpha = 0.5f)) else null
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .padding(20.dp)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Left Side: The Numbers
+                    Row(modifier = Modifier.padding(20.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = statusText,
-                                color = ringColor,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Text(text = statusText, color = ringColor, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "RM ${totalSpend.toInt()} / RM ${monthlyBudget.toInt()}",
-                                fontWeight = FontWeight.Black,
-                                color = textColor,
-                                fontSize = 18.sp
-                            )
+                            Text(text = "RM ${totalSpend.toInt()} / RM ${monthlyBudget.toInt()}", fontWeight = FontWeight.Black, color = textColor, fontSize = 18.sp)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (isOverBudget) "0% Remaining" else "${((1f - clampedPercentage) * 100).toInt()}% Left",
-                                fontWeight = FontWeight.Bold,
-                                color = subTextColor,
-                                fontSize = 14.sp
-                            )
+                            Text(text = if (isOverBudget) "0% Remaining" else "${((1f - clampedPercentage) * 100).toInt()}% Left", fontWeight = FontWeight.Bold, color = subTextColor, fontSize = 14.sp)
                         }
 
-                        // Right Side: The Mood Ring
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.size(90.dp)
-                        ) {
-                            // The Compose Background Track
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(90.dp)) {
                             Canvas(modifier = Modifier.fillMaxSize()) {
-                                drawArc(
-                                    color = strokeBgColor,
-                                    startAngle = -90f,
-                                    sweepAngle = 360f,
-                                    useCenter = false,
-                                    style = Stroke(width = 24f, cap = StrokeCap.Round)
-                                )
-                                // The Compose Colored Progress Fill
-                                drawArc(
-                                    color = ringColor,
-                                    startAngle = -90f,
-                                    sweepAngle = 360f * animatedSweep,
-                                    useCenter = false,
-                                    style = Stroke(width = 24f, cap = StrokeCap.Round)
-                                )
+                                drawArc(color = strokeBgColor, startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 24f, cap = StrokeCap.Round))
+                                drawArc(color = ringColor, startAngle = -90f, sweepAngle = 360f * animatedSweep, useCenter = false, style = Stroke(width = 24f, cap = StrokeCap.Round))
                             }
-
-                            // The Dynamic Center Lottie
-                            LottieAnimation(
-                                composition = centerComposition,
-                                progress = { centerProgress },
-                                modifier = Modifier.size(45.dp) // Fits perfectly inside the 90dp donut
-                            )
+                            LottieAnimation(composition = centerComposition, progress = { centerProgress }, modifier = Modifier.size(45.dp))
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- RECENT TRANSACTIONS ---
+                // --- 🟢 RECENT TRANSACTIONS (Upgraded with Receipt Viewer) ---
                 Text("Recent Transactions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -322,28 +295,48 @@ fun DashboardScreen(
                     Text("No expenses yet.", color = subTextColor, modifier = Modifier.padding(vertical = 16.dp))
                 } else {
                     recentExpenses.forEach { expense ->
+                        val hasReceipt = expense.receiptImagePath.isNotEmpty() || expense.items.isNotEmpty()
+
                         Card(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable(enabled = hasReceipt) {
+                                    selectedExpenseForDetails = expense
+                                },
                             colors = CardDefaults.cardColors(containerColor = cardColor),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 1.dp)
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp).fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     Box(modifier = Modifier.size(40.dp).background(strokeBgColor, CircleShape), contentAlignment = Alignment.Center) {
                                         Text("🏷️", fontSize = 16.sp)
                                     }
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
-                                        Text(expense.category, fontWeight = FontWeight.Bold, color = textColor)
+                                        Text(expense.merchantName.ifEmpty { expense.category }, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1)
                                         val dateStr = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(Date(expense.timestamp))
                                         Text(dateStr, style = MaterialTheme.typography.labelSmall, color = subTextColor)
                                     }
                                 }
-                                Text("- RM ${expense.amount}", fontWeight = FontWeight.Bold, color = textColor)
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (hasReceipt) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ReceiptLong,
+                                            contentDescription = "Has Receipt",
+                                            tint = subTextColor.copy(alpha = 0.5f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
+                                    Text("- RM ${String.format(Locale.US, "%.2f", expense.amount)}", fontWeight = FontWeight.Bold, color = textColor)
+                                }
                             }
                         }
                     }
@@ -351,12 +344,95 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(100.dp))
             }
+            //scrollable button
+            DraggableAiChatFab(
+                onClick = onNavigateToChat,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd) // Starts in the bottom right corner
+                    .padding(bottom = 80.dp, end = 16.dp) // Pushed up slightly so it doesn't cover the "+" button
+            )
 
             if (levelUpTier != null) {
                 LevelUpOverlay(
                     newTierName = levelUpTier,
                     onDismiss = onDismissLevelUp
                 )
+            }
+
+            // --- 🟢 THE BOTTOM SHEET RECEIPT VIEWER ---
+            if (selectedExpenseForDetails != null) {
+                val expense = selectedExpenseForDetails!!
+                val dateFormatter = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+
+                ModalBottomSheet(
+                    onDismissRequest = { selectedExpenseForDetails = null },
+                    sheetState = sheetState,
+                    containerColor = cardColor
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(expense.merchantName.ifEmpty { expense.category }, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = textColor)
+                                Text(expense.date.ifEmpty { dateFormatter.format(Date(expense.timestamp)) }, color = subTextColor, fontSize = 14.sp)
+                            }
+
+                            if (expense.receiptImagePath.isNotEmpty()) {
+                                var showFullImage by remember { mutableStateOf(false) }
+                                AsyncImage(
+                                    model = File(expense.receiptImagePath),
+                                    contentDescription = "Receipt Thumbnail",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { showFullImage = true }
+                                )
+                                if (showFullImage) {
+                                    Dialog(onDismissRequest = { showFullImage = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+                                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))) {
+                                            AsyncImage(model = File(expense.receiptImagePath), contentDescription = "Full Receipt", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                                            IconButton(onClick = { showFullImage = false }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                                                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        if (expense.items.isNotEmpty()) {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 300.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(expense.items) { item ->
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(item.name, fontWeight = FontWeight.Medium, color = textColor, maxLines = 1)
+                                            Text(item.category, fontSize = 12.sp, color = Color(0xFF0284C7)) // Using primary blue for category
+                                        }
+                                        Text("RM ${String.format(Locale.US, "%.2f", item.amount)}", fontWeight = FontWeight.Bold, color = textColor)
+                                    }
+                                    HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = subTextColor.copy(alpha = 0.1f))
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        } else {
+                            Text("This expense was logged manually without itemized details.", color = subTextColor, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Total Paid", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textColor)
+                            Text("RM ${String.format(Locale.US, "%.2f", expense.amount)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = gradientStart)
+                        }
+                        Spacer(modifier = Modifier.height(32.dp))
+                    }
+                }
             }
         }
     }
@@ -373,16 +449,14 @@ fun UnifiedMascotCard(
 ) {
     val haptic = LocalHapticFeedback.current
 
-    // --- 1. THE PIGGY BANK LOADER ---
     val currentLottieRes = when {
         playCoinDrop -> R.raw.piggy_feed
         currentStreak == 0 -> R.raw.piggy_broken
         else -> R.raw.piggy_idle
     }
 
-    // 🟢 NEW: We grab the "Result" object first so we can check if it's done loading!
     val piggyCompositionResult = rememberLottieComposition(LottieCompositionSpec.RawRes(currentLottieRes))
-    val piggyComposition by piggyCompositionResult // Extract the actual animation
+    val piggyComposition by piggyCompositionResult
 
     val shouldLoop = if (playCoinDrop) 1 else LottieConstants.IterateForever
     val piggyProgress by animateLottieCompositionAsState(
@@ -391,11 +465,9 @@ fun UnifiedMascotCard(
         isPlaying = true
     )
 
-    // --- 2. THE STREAK FLAME LOADER ---
     val isStreakBroken = currentStreak == 0
     val streakLottieRes = if (isStreakBroken) R.raw.streak_broken else R.raw.streak_fire
 
-    // 🟢 NEW: Grab the "Result" for the flame too!
     val streakCompositionResult = rememberLottieComposition(LottieCompositionSpec.RawRes(streakLottieRes))
     val streakComposition by streakCompositionResult
 
@@ -404,7 +476,6 @@ fun UnifiedMascotCard(
         iterations = LottieConstants.IterateForever
     )
 
-    // --- 3. TRIGGERS ---
     LaunchedEffect(playCoinDrop) {
         if (playCoinDrop) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
@@ -414,7 +485,6 @@ fun UnifiedMascotCard(
         }
     }
 
-    // --- 4. DYNAMIC XP MATH ---
     val levelName: String
     val tierColor: Color
     val currentLevelMin: Int
@@ -461,7 +531,6 @@ fun UnifiedMascotCard(
 
     val xpText = if (userXp >= 5000) "$userXp XP (MAX LEVEL)" else "$userXp / $nextLevelMax XP"
 
-    // --- 5. THE UI ---
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -477,7 +546,6 @@ fun UnifiedMascotCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // --- LEFT SIDE: RPG Stats ---
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Player: $userName",
@@ -494,7 +562,6 @@ fun UnifiedMascotCard(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // DYNAMIC STREAK PILL
                 val pillBgColor = if (isStreakBroken) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.1f)
                 val streakTextColor = if (isStreakBroken) Color(0xFFFCA5A5) else Color.White
 
@@ -506,7 +573,6 @@ fun UnifiedMascotCard(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 🟢 NEW: Fade in the Flame once it loads!
                         AnimatedVisibility(
                             visible = streakCompositionResult.isComplete,
                             enter = fadeIn(animationSpec = tween(500))
@@ -514,7 +580,7 @@ fun UnifiedMascotCard(
                             LottieAnimation(
                                 composition = streakComposition,
                                 progress = { streakAnimProgress },
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .size(32.dp)
                                     .offset(x = (-4).dp)
@@ -540,12 +606,10 @@ fun UnifiedMascotCard(
                 )
             }
 
-            // --- RIGHT SIDE: The Mascot & Tight XP Ring ---
             Box(
                 modifier = Modifier.size(110.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // The Tight XP Ring
                 Canvas(modifier = Modifier.size(110.dp)) {
                     drawArc(
                         color = Color(0xFF334155),
@@ -559,7 +623,6 @@ fun UnifiedMascotCard(
                     )
                 }
 
-                // 🟢 NEW: Fade in the Piggy Bank once it loads!
                 this@Row.AnimatedVisibility(
                     visible = piggyCompositionResult.isComplete,
                     enter = fadeIn(animationSpec = tween(500))

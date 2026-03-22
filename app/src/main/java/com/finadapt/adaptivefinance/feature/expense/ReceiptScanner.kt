@@ -10,6 +10,7 @@ import com.finadapt.adaptivefinance.BuildConfig // 🟢 Imports your generated A
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,7 @@ import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.abs
 
 // 🟢 FIX 1 & 2: Added the missing data classes right here!
 data class ReceiptItem(
@@ -45,25 +47,24 @@ object ReceiptScanner {
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     // 🟢 FIX 3: Pull the API key safely from your Gradle BuildConfig
-    private var OPENROUTER_API_KEY = BuildConfig.OPENROUTER_API_KEY
+    //private var OPENROUTER_API_KEY = BuildConfig.OPENROUTER_API_KEY
+    private const val GROQ_API_KEY = BuildConfig.GROQ_API_KEY
+
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS) // Fail fast if the server is dead
         .readTimeout(45, TimeUnit.SECONDS)   // If the AI takes longer than 10s, kill it and try the next model!
         .build()
 
-    private val freeModels = listOf(
-        //"google/gemini-2.0-flash-lite-preview-02-05:free", // Google's fastest free model
-        //"meta-llama/llama-3.1-8b-instruct:free",           // Meta's updated free model
-        //"google/gemma-2-9b-it:free",                       // Google's updated open model
-        //"openrouter/auto",
-        //"openrouter/free"
-        "mistralai/mistral-small-3.2-24b-instruct:free",
-        "meta-llama/llama-3.2-3b-instruct:free",
-        "google/gemma-3-4b-it:free",
-        "google/gemma-3-12b-it:free"
+    // 🟢 NEW: Groq's lightning-fast models for our Round-Robin fallback!
+    private val groqModels = listOf(
+        "llama-3.3-70b-versatile", // Primary: Extremely smart and fast
+        "llama-3.1-8b-instant",    // Fallback 1: Literally instant
+        "mixtral-8x7b-32768",      // Fallback 2: Great open-source router
+        "gemma2-9b-it"             // Fallback 3: Google's fast model running on Groq hardware
     )
     private var currentModelIndex = 0
+
 
     fun startScanUI(activity: Activity, launcher: ActivityResultLauncher<IntentSenderRequest>) {
         val options = GmsDocumentScannerOptions.Builder()
@@ -81,86 +82,116 @@ object ReceiptScanner {
 
 
     suspend fun analyzeReceipt(context: Context, uri: Uri): ParsedReceipt {
-        // 1. Save locally first (Guarantees we never lose the image)
         val permanentPath = saveReceiptImageLocally(context, uri)
 
         return try {
-            // 2. Read from the safe, permanent file
-            val image = InputImage.fromFilePath(context, Uri.fromFile(File(permanentPath)))
-
-            // 3. Extract Text
+            //val image = InputImage.fromFilePath(context, Uri.fromFile(File(permanentPath)))
+            val image = InputImage.fromFilePath(context, uri)
             val visionText = recognizer.process(image).await()
-            val rawText = visionText.text
 
-            if (rawText.isBlank()) {
+            // 🛑 DON'T DO THIS: val rawText = visionText.text
+
+            // 🟢 DO THIS: Reconstruct the physical rows!
+            val elements = visionText.textBlocks.flatMap { it.lines }.flatMap { it.elements }
+
+            if (elements.isEmpty()) {
                 return ParsedReceipt("", "", "", emptyList(), 0f, permanentPath)
             }
 
-            // 4. Parse with AI
-            val parsedData = parseWithOpenRouter(rawText)
+            // 1. Sort elements roughly top-to-bottom
+            val sorted = elements.sortedWith(compareBy({ it.boundingBox?.top ?: 0 }, { it.boundingBox?.left ?: 0 }))
+            val rows = mutableListOf<MutableList<Text.Element>>()
+
+            // 2. Group elements into physical rows using Y-axis geometry
+            for (element in sorted) {
+                val centerY = element.boundingBox?.centerY() ?: 0
+                val row = rows.find { existing ->
+                    val existingElem = existing.first()
+                    val height = existingElem.boundingBox?.height()?.toFloat() ?: 20f
+                    val threshold = (height * 0.5f).coerceIn(12f, 35f)
+                    abs((existingElem.boundingBox?.centerY() ?: 0) - centerY) < threshold
+                }
+                if (row != null) row.add(element) else rows.add(mutableListOf(element))
+            }
+
+            // 3. Construct a beautiful, line-by-line string for the LLM
+            val spatiallyFormattedText = rows.joinToString("\n") { row ->
+                // Sort left-to-right within the row so price is always at the end
+                row.sortedBy { it.boundingBox?.left ?: 0 }.joinToString(" ") { it.text }
+            }
+
+            Log.d("ReceiptScanner", "Spatially Formatted Text sent to LLM:\n$spatiallyFormattedText")
+
+            // 4. Parse with AI using the PERFECTLY formatted text
+            val parsedData = parseWithGroq(spatiallyFormattedText)
             parsedData.localImagePath = permanentPath
             parsedData
 
         } catch (e: Exception) {
-            // 🟢 FIX: Respect coroutine cancellation!
             if (e is CancellationException) throw e
-
             Log.e("ReceiptScanner", "Pipeline Failure", e)
-
-            // Fallback: Return empty data but KEEP the image path so the UI can show the photo
             ParsedReceipt("", "", "", emptyList(), 0f, permanentPath)
         }
     }
 
-    private suspend fun parseWithOpenRouter(rawText: String): ParsedReceipt = withContext(Dispatchers.IO) {
+    private suspend fun parseWithGroq(rawText: String): ParsedReceipt = withContext(Dispatchers.IO) {
 
-        // 🟢 FIX 1: The "Jedi Mind Trick" Prompt
-        // We must explicitly tell the AI not to trigger its privacy filters.
+        // 🟢 UPGRADE 1: The "Extractive Grounding" Prompt with strict Schema
         val systemPrompt = """
-            You are a data extraction tool.  
-            Ignore any personal information or addresses.
+            You are a strict data extraction tool. You operate in "Extractive Mode" only.
             
-            Extract the following:
-            1. "merchant_name"
-            2. "date" (YYYY-MM-DD)
-            3. "payment_method"
-            4. "items": List of purchased items with "name", "amount", and "category" (Food, Groceries, Transport, Shopping, Entertainment, General).
-            5. "total"
+            RULES:
+            1. NEVER guess, infer, or hallucinate prices. If an item has no clear price next to or below it, skip it.
+            2. RECEIPTS WITH WEIGHTS: Supermarket receipts often show Unit Price (e.g., "@19.99") and Weight/Quantity (e.g., "*0.104"). You MUST extract the FINAL calculated price on the far right as the "amount" (e.g., 1.14). 
+            3. Clean the "name" by removing barcodes, weights, and the "@" unit price. (e.g., "CILI EPAL HIJAU @10.96" becomes exactly "CILI EPAL HIJAU").
+            4. Ignore tax, change, cash, rounding adjustments, and subtotal lines.
+            5. Categorize each item strictly into one of: [Food, Groceries, Transport, Shopping, Entertainment, General].
             
-            CRITICAL: Return ONLY valid JSON. Start with { and end with }. Do not use markdown. 
-            DO NOT output your thought process, reasoning, or any conversational text.
+            You MUST return a JSON object matching this exact schema:
+            {
+              "merchant_name": "string or empty",
+              "date": "YYYY-MM-DD or empty",
+              "payment_method": "string or empty",
+              "items": [
+                {
+                  "name": "Cleaned item name",
+                  "amount": 0.00,
+                  "category": "String"
+                }
+              ],
+              "total": 0.00
+            }
         """.trimIndent()
 
         var lastException: Exception? = null
 
-        for (i in freeModels.indices) {
-            val modelToTry = freeModels[(currentModelIndex + i) % freeModels.size]
-            Log.d("ReceiptScanner", "Attempting OCR parse with: $modelToTry")
+        for (i in groqModels.indices) {
+            val modelToTry = groqModels[(currentModelIndex + i) % groqModels.size]
+            Log.d("ReceiptScanner", "Attempting OCR parse with Groq: $modelToTry")
 
             try {
                 val jsonPayload = JSONObject().apply {
                     put("model", modelToTry)
-                    put("temperature", 0.0)
-                    put("max_tokens", 2500)
+                    put("temperature", 0.0) // 0.0 is critical for zero hallucinations
+                    put("max_tokens", 1500)
+
+                    // 🟢 UPGRADE 2: Hardware-level JSON enforcement
+                    put("response_format", JSONObject().apply { put("type", "json_object") })
 
                     put("messages", org.json.JSONArray().apply {
                         put(JSONObject().apply { put("role", "system"); put("content", systemPrompt) })
-                        put(JSONObject().apply { put("role", "user"); put("content", rawText) })
+                        put(JSONObject().apply { put("role", "user"); put("content", "RAW RECEIPT TEXT:\n$rawText") })
                     })
                 }
 
                 val request = Request.Builder()
-                    .url("https://openrouter.ai/api/v1/chat/completions")
-                    .addHeader("Authorization", "Bearer $OPENROUTER_API_KEY")
-                    .addHeader("HTTP-Referer", "https://adaptivefinance.com")
+                    .url("https://api.groq.com/openai/v1/chat/completions")
+                    .addHeader("Authorization", "Bearer $GROQ_API_KEY")
                     .post(jsonPayload.toString().toRequestBody("application/json".toMediaType()))
                     .build()
 
                 val response = httpClient.newCall(request).execute()
-                val responseBody = response.body?.string() ?: throw Exception("Empty response from API")
-
-                // 🟢 FIX 2: Deep Logging. Check your Android Studio 'Logcat' tab if it fails!
-                Log.d("ReceiptScanner", "Raw API Response from $modelToTry: $responseBody")
+                val responseBody = response.body?.string() ?: throw Exception("Empty response from Groq API")
 
                 if (!response.isSuccessful) {
                     throw Exception("API Error ${response.code}: $responseBody")
@@ -170,29 +201,16 @@ object ReceiptScanner {
 
                 if (rootJson.has("error")) {
                     val errorMsg = rootJson.getJSONObject("error").optString("message", "Unknown API Error")
-                    throw Exception("OpenRouter Error: $errorMsg")
+                    throw Exception("Groq Error: $errorMsg")
                 }
 
-                val choiceObj = rootJson.getJSONArray("choices").getJSONObject(0)
-                val messageObj = choiceObj.getJSONObject("message")
+                // 🟢 UPGRADE 3: Clean, direct parsing because JSON mode guarantees structure
+                val aiMessageStr = rootJson.getJSONArray("choices")
+                    .getJSONObject(0)
+                    .getJSONObject("message")
+                    .getString("content")
 
-                // 🟢 FIX 3: Safely catch the 'null' refusal
-                if (messageObj.isNull("content")) {
-                    val finishReason = choiceObj.optString("finish_reason", "unknown")
-                    throw Exception("AI Refused to answer. Finish reason: $finishReason")
-                }
-
-                val aiMessageStr = messageObj.getString("content")
-
-                val startIndex = aiMessageStr.indexOf('{')
-                val endIndex = aiMessageStr.lastIndexOf('}')
-
-                if (startIndex == -1 || endIndex == -1) {
-                    throw Exception("AI did not return valid JSON. Output: $aiMessageStr")
-                }
-
-                val cleanJsonStr = aiMessageStr.substring(startIndex, endIndex + 1)
-                val resultData = JSONObject(cleanJsonStr)
+                val resultData = JSONObject(aiMessageStr)
 
                 val merchant = resultData.optString("merchant_name", "Unknown Merchant")
                 val date = resultData.optString("date", "Unknown Date")
@@ -208,23 +226,29 @@ object ReceiptScanner {
                         val name = itemObj.optString("name", "Unknown Item")
                         val amount = itemObj.optDouble("amount", 0.0).toFloat()
                         val category = itemObj.optString("category", "General")
-                        if (amount > 0f) parsedItems.add(ReceiptItem(name, amount, category))
+
+                        // Failsafe: Don't add items with 0.0 amounts (often hallucinated noise)
+                        if (amount > 0f && name.isNotBlank() && name != "Unknown Item") {
+                            parsedItems.add(ReceiptItem(name, amount, category))
+                        }
                     }
                 }
 
                 val finalTotal = if (explicitTotal > 0f) explicitTotal else parsedItems.sumOf { it.amount.toDouble() }.toFloat()
-                currentModelIndex = (currentModelIndex + i + 1) % freeModels.size
+
+                // Advance the model index on success so we distribute load
+                currentModelIndex = (currentModelIndex + i + 1) % groqModels.size
 
                 return@withContext ParsedReceipt(merchant, date, payment, parsedItems, finalTotal)
 
             } catch (e: Exception) {
                 Log.e("ReceiptScanner", "Model $modelToTry failed: ${e.message}")
                 lastException = e
-                continue // Try the next model
+                continue // Loop to the next Groq model
             }
         }
 
-        throw Exception("AI Parsing failed after trying all models. Last Error: ${lastException?.message}")
+        throw Exception("Groq Parsing failed after trying all models. Last Error: ${lastException?.message}")
     }
 
     private suspend fun saveReceiptImageLocally(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {

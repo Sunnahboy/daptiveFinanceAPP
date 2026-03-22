@@ -38,8 +38,9 @@ class FinanceRepository(
         return withContext(Dispatchers.IO) {
             try {
                 // 1. SAVE TO DEVICE BRAIN
-                val newExpense = ExpenseEntity(amount = amount, category = category, timestamp = System.currentTimeMillis())
-                expenseDao.insertExpense(newExpense)
+                //deleted the local save here because the ViewModel already handles
+                //val newExpense = ExpenseEntity(amount = amount, category = category, timestamp = System.currentTimeMillis())
+               // expenseDao.insertExpense(newExpense)
 
                 // 2. STREAK MANAGEMENT
                 val todayMidnight = getMidnightTimestamp()
@@ -137,7 +138,7 @@ class FinanceRepository(
 
                     finalResponse = response.copy(
                         predictionId = "local_override_${java.util.UUID.randomUUID()}",
-                        action = "Aegis_Vault",
+                        action = "strict_Budget",
                         recommendedStrategy = "Strict_Budget",
                         gamificationMessage = "CRITICAL OVERSPEND. Aegis Protocol initiated. Secure the vault.",
                         visualTheme = "Danger"

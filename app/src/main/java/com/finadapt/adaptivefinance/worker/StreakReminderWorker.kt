@@ -16,30 +16,37 @@ class StreakReminderWorker (
 ): CoroutineWorker(context,workerParams){
 
     override suspend fun doWork(): Result {
-        //1 open sharedPreferences to check their activity
         val prefs = context.getSharedPreferences("finadapt_prefs", Context.MODE_PRIVATE)
         val lastLoggedMidnight = prefs.getLong("LAST_LOGGED_MIDNIGHT", 0L)
         val currentStreak = prefs.getInt("CURRENT_STREAK", 0)
         val shieldCount = prefs.getInt("STREAK_SHIELDS", 0)
 
-        //2 check if they logged today
         val todayMidnight = getMidnightTimestamp()
         val hasLoggedToday = (todayMidnight == lastLoggedMidnight)
 
-        //3.check if have not logged today and  they have a streak to lose
-        if (!hasLoggedToday && currentStreak > 0) {
+        // 🟢 FIX: Trigger notification if they haven't logged today, regardless of streak!
+        if (!hasLoggedToday) {
             val title: String
             val message: String
-            if (shieldCount > 0) {
-                title = "Shield Activation Imminent! 🛡️"
-                message = "Your $currentStreak-day streak is cooling off. A Shield will be consumed at midnight to protect it!"
+
+            if (currentStreak > 0) {
+                // They have a streak to protect
+                if (shieldCount > 0) {
+                    title = "Shield Activation Imminent! 🛡️"
+                    message = "Your $currentStreak-day streak is cooling off. A Shield will be consumed at midnight to protect it!"
+                } else {
+                    title = "Streak in Danger! 🔥"
+                    message = "Don't lose your $currentStreak-day streak! Log an expense before midnight."
+                }
             } else {
-                title = "Streak in Danger! 🔥"
-                message = "Don't lose your $currentStreak-day streak! Log an expense before midnight."
+                // 🟢 NEW: They have a 0 streak, encourage them!
+                title = "Time to check in! 📝"
+                message = "You haven't logged any expenses today. Start your saving streak now!"
             }
+
             showNotification(title, message)
-            }
-            return Result.success()
+        }
+        return Result.success()
     }
 
 

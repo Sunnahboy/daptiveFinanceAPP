@@ -17,6 +17,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.finadapt.adaptivefinance.feature.chat.ChatScreen
+import com.finadapt.adaptivefinance.feature.chat.ChatViewModel
 import com.finadapt.adaptivefinance.feature.community.CommunityScreen
 import com.finadapt.adaptivefinance.feature.community.CommunityViewModel
 import com.finadapt.adaptivefinance.feature.dashboard.DashboardScreen
@@ -35,6 +37,7 @@ fun NavGraph(
     dashboardViewModel: DashboardViewModel,
     expenseViewModel: ExpenseViewModel,
     communityViewModel: CommunityViewModel,
+    chatViewModel: ChatViewModel,
     prefs: SharedPreferences
 ) {
     // 1. Observe the current route to know which tab is active
@@ -166,7 +169,8 @@ fun NavGraph(
                     onAnimationFinished = { dashboardViewModel.resetCoinDropAnimation() },
                     onDismissLevelUp = { dashboardViewModel.dismissLevelUpCelebration() },
                     onNavigateToLogExpense = { navController.navigate(Screen.AddExpense.route) },
-                    onNavigateToSettings = { navController.navigate(Screen.Settings.route)}
+                    onNavigateToSettings = { navController.navigate(Screen.Settings.route)},
+                    onNavigateToChat = { navController.navigate(Screen.Chat.route) }
                 )
             }
 
@@ -176,8 +180,17 @@ fun NavGraph(
 
                 AddExpenseScreen(
                     uiState = uiState,
-                    onLogExpense = { amount, category ->
-                        expenseViewModel.submitExpense(amount, category, realUserId)
+                    onLogExpense = { amount, category, merchant, date, payment, imagePath, items ->
+                        expenseViewModel.submitExpense(
+                            amount = amount,
+                            category = category,
+                            userId = realUserId,
+                            merchantName = merchant,
+                            date = date,
+                            paymentMethod = payment,
+                            receiptImagePath = imagePath,
+                            items = items
+                        )
                     },
                     // 🟢 THE FIX: Update the lambda to accept the 3 new parameters!
                     onFeedback = { predictionId, strategyName, userAccepted ->
@@ -198,11 +211,28 @@ fun NavGraph(
                     dashboardViewModel.loadDashboardData()
                 }
 
+                //val allExpenses by dashboardViewModel.allExpenses.collectAsState()
                 val allExpenses by dashboardViewModel.allExpenses.collectAsState()
                 val isDark by dashboardViewModel.isDarkMode.collectAsState()
+//                HistoryScreen(
+//                    allExpenses = allExpenses,
+//                    isDarkMode = isDark
+//                )
+                //val expensesList by expenseViewModel.allExpenses.collectAsState()
                 HistoryScreen(
-                    allExpenses = allExpenses,
-                    isDarkMode = isDark
+                    allExpenses = allExpenses, // (Keep this however you are currently passing it)
+                    isDarkMode = isDark,
+                    onNavigateToChat = { navController.navigate(Screen.Chat.route) },
+
+                    // 🟢 Taps the ViewModel on the shoulder to do the work!
+                    onDeleteExpense = { expenseToDelete ->
+                        expenseViewModel.deleteExpense(expenseToDelete)
+                    },
+
+                    // 🟢 Taps the ViewModel on the shoulder to do the update!
+                    onEditExpense = { updatedExpense ->
+                        expenseViewModel.editExpense(updatedExpense)
+                    }
                 )
             }
 
@@ -249,11 +279,14 @@ fun NavGraph(
                 val userName by dashboardViewModel.userName.collectAsState()
                 val monthlyBudget by dashboardViewModel.monthlyBudget.collectAsState()
                 val isDark by dashboardViewModel.isDarkMode.collectAsState()
+                val liveExpenses by dashboardViewModel.allExpenses.collectAsState()
 
                 SettingsScreen(
                     currentName = userName,
                     currentBudget = monthlyBudget,
                     isDarkMode = isDark,
+                    allExpenses = liveExpenses,
+
                     onNameChanged = { dashboardViewModel.updateUserName(it) },
                     onBudgetChanged = { dashboardViewModel.updateMonthlyBudget(it) },
                     onThemeToggled = { newTheme ->
@@ -261,7 +294,16 @@ fun NavGraph(
                     },
                     onResetGamification = { dashboardViewModel.resetGamification() },
                     onWipeData = { dashboardViewModel.wipeAllData() },
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+
+                )
+            }
+
+            // 🟢 NEW: The Chat Screen Destination
+            composable(Screen.Chat.route) {
+                ChatScreen(
+                    viewModel = chatViewModel,
+                    onNavigateBack = { navController.popBackStack() } // Goes back to Dashboard
                 )
             }
         }

@@ -39,7 +39,7 @@ import java.io.File
 @Composable
 fun AddExpenseScreen(
     uiState: GamificationUiState,
-    onLogExpense: (Float, String) -> Unit,
+    onLogExpense: (Float, String, String, String, String, String, List<ReceiptItem>) -> Unit,
     // 🟢 FIX 1: Updated to match your ViewModel's 3 parameters!
     onFeedback: (String, String, Boolean) -> Unit,
     onDismissState: () -> Unit,
@@ -57,6 +57,7 @@ fun AddExpenseScreen(
     var showReceiptSheet by remember { mutableStateOf(false) }
     var scannedReceipt by remember { mutableStateOf<ParsedReceipt?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var isSubmitting by remember { mutableStateOf(false) }
 
     val commonCategories = listOf("Food", "Transport", "Groceries", "Shopping", "Entertainment")
 
@@ -106,7 +107,7 @@ fun AddExpenseScreen(
                             if (isTtsReady) tts?.speak("Receipt saved. Please enter the amount.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
                         }
                         isScanning = false
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         voiceFeedbackMsg = "Error processing image."
                         isScanning = false
                     }
@@ -275,9 +276,18 @@ fun AddExpenseScreen(
 
             Button(
                 onClick = {
-                    if (isValid) {
+                    if (isValid && !isSubmitting) {
+                        isSubmitting = true // 🟢 LOCK IT INSTANTLY!
                         keyboardController?.hide()
-                        onLogExpense(amountInput.toFloat(), categoryInput)
+                        onLogExpense(
+                            amountInput.toFloat(),
+                            categoryInput,
+                            scannedReceipt?.merchantName ?: "",
+                            scannedReceipt?.date ?: "",
+                            scannedReceipt?.paymentMethod ?: "",
+                            scannedReceipt?.localImagePath ?: "",
+                            scannedReceipt?.items ?: emptyList()
+                        )
                     }
                 },
                 enabled = isValid && !isLoading,

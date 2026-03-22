@@ -3,75 +3,91 @@ package com.finadapt.adaptivefinance.feature.expense
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.core.content.edit
+import com.finadapt.adaptivefinance.data.local.ExpenseDao
+import com.finadapt.adaptivefinance.data.local.ExpenseEntity
 import com.finadapt.adaptivefinance.data.repository.FinanceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import androidx.core.content.edit
 
-//1 . Define the exact states the UI can be in
-
-sealed class  GamificationUiState {
+// 1. Define the exact states the UI can be in
+sealed class GamificationUiState {
     object Idle: GamificationUiState()
-    object  Loading: GamificationUiState()
+    object Loading: GamificationUiState()
     data class Success (
         val predictionId: String,
         val message: String,
         val strategy: String,
-        val action: String,         //the Bandit's chosen action
-        val visualTheme: String     //The UI color recommendation
+        val action: String,
+        val visualTheme: String
     ): GamificationUiState()
     data class Error(val exception: String): GamificationUiState()
-
 }
 
-//Requires the repository via constructor
-class ExpenseViewModel (
-    private  val repository: FinanceRepository,
+// 🟢 FIX 1: Add the local database DAO to the constructor!
+class ExpenseViewModel(
+    private val repository: FinanceRepository,
+    private val expenseDao: ExpenseDao,
     private val prefs: android.content.SharedPreferences,
-): ViewModel(){
-    //2 The reactive state flow that compose will listen to
-    private  val  _uiState = MutableStateFlow<GamificationUiState>(GamificationUiState.Idle)
+): ViewModel() {
+
+    private val _uiState = MutableStateFlow<GamificationUiState>(GamificationUiState.Idle)
     val uiState: StateFlow<GamificationUiState> = _uiState
 
-
-    //accepts both the Double amount and the String category
-    fun submitExpense(amount: Float, category: String, userId: String){
+    // 🟢 FIX 2: Accept the optional AI Receipt fields! (Default to empty for Manual/Voice input)
+    fun submitExpense(
+        amount: Float,
+        category: String,
+        userId: String,
+        merchantName: String = "",
+        date: String = "",
+        paymentMethod: String = "",
+        receiptImagePath: String = "",
+        items: List<ReceiptItem> = emptyList()
+    ) {
         if (amount <= 0.0){
             _uiState.value = GamificationUiState.Error("Please enter a valid number.")
             return
         }
         _uiState.value = GamificationUiState.Loading
 
-        // Launch a background coroutine
         viewModelScope.launch {
-            // The viewModel calls the Repository and waits
+            // 🟢 FIX 3: INSTANT LOCAL SAVE!
+            // Save it to the phone's permanent memory immediately.
+            val newExpense = ExpenseEntity(
+                amount = amount,
+                category = category,
+                merchantName = merchantName,
+                date = date,
+                paymentMethod = paymentMethod,
+                receiptImagePath = receiptImagePath,
+                items = items
+            )
+            expenseDao.insertExpense(newExpense)
+
+            // Now, ping AWS for the Gamification AI Reward
             val result = repository.logExpenseAndGetStrategy(
                 userId = userId,
                 amount = amount,
-                category = category       // 🟢 NEW: Pass the category to the repository
+                category = category
             )
 
             result.fold(
                 onSuccess = { response ->
-                    //1 Extract the action from bandit
                     val aiAction = response.action ?: "Log_Only"
                     val currentXp = prefs.getInt("USER_XP", 0)
-                    val earnedXp = 50 // Base XP for logging an expense
+                    val earnedXp = 50
                     val newXp = currentXp + earnedXp
 
-                    //2 SAVE IT TO MEMORY!
-                    //Dashboard can read what the AI decided.
-                    prefs.edit { putString("LAST_AI_ACTION", aiAction)
-                        //gamification tell the dashboard to play the coins drop
-                        putBoolean("PENDING_COIN_DROP",true)
+                    prefs.edit {
+                        putString("LAST_AI_ACTION", aiAction)
                         putBoolean("PENDING_COIN_DROP", true)
-                        putInt("USER_XP", newXp) // 🟢 Save the new XP so the Piggy Bank grows!
-
-
+                        putInt("USER_XP", newXp)
                     }
 
-                    // 3. Update the UI state to show the game pop-up
                     _uiState.value = GamificationUiState.Success(
                         predictionId = response.predictionId ?: "unknown_id",
                         message = response.gamificationMessage ?: "Expense logged!",
@@ -88,34 +104,48 @@ class ExpenseViewModel (
             )
         }
     }
-    //Tells the Repository to send the +1 Reward
-    // 🟢 UPDATED: Now requires the strategy name and a boolean!
-    // Replace your old submitFeedback function with this:
+
+
+
+    // 🟢 NEW: Safely delete from the database in the background
+    fun deleteExpense(expense: ExpenseEntity) {
+        viewModelScope.launch {
+            expenseDao.deleteExpense(expense.id)
+        }
+    }
+
+    // 🟢 NEW: Safely update the database in the background
+    fun editExpense(expense: ExpenseEntity) {
+        viewModelScope.launch {
+            // Because your DAO uses OnConflictStrategy.REPLACE,
+            // inserting an existing ID just updates it!
+            expenseDao.insertExpense(expense)
+        }
+    }
+
     fun submitFeedback(predictionId: String, strategyName: String, userAccepted: Boolean) {
         viewModelScope.launch {
             repository.submitUserFeedback(predictionId, strategyName, userAccepted)
         }
     }
 
-    // Resets the UI so it doesn't double-fire!
     fun resetState() {
         _uiState.value = GamificationUiState.Idle
     }
-
 }
 
-//Tells android how to build viewModel with database
+// 🟢 FIX 4: Update the Factory so it knows how to pass the Database to the ViewModel
 class ExpenseViewModelFactory(
     private val repository: FinanceRepository,
+    private val expenseDao: ExpenseDao, // Added here!
     private val prefs: android.content.SharedPreferences
-): ViewModelProvider.Factory{
+): ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ExpenseViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ExpenseViewModel(repository, prefs) as T
+            return ExpenseViewModel(repository, expenseDao, prefs) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
-
-    }
+}
 
