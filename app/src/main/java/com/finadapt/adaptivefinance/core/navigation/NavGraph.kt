@@ -262,14 +262,17 @@ fun NavGraph(
 
                 val userXp by dashboardViewModel.userXp.collectAsState()
                 val shieldCount by dashboardViewModel.shieldCount.collectAsState()
-                val liveBadges by dashboardViewModel.badges.collectAsState()
+                //val liveBadges by dashboardViewModel.badges.collectAsState()
+                val userCoins by dashboardViewModel.userCoins.collectAsState()
                 val isDark by dashboardViewModel.isDarkMode.collectAsState()
 
                 RewardsScreen(
                     userXp = userXp,
                     shieldCount = shieldCount,
-                    badges = liveBadges,
+
+                    userCoins = userCoins,
                     isDarkMode = isDark,
+
                     onBuyShield = { dashboardViewModel.onBuyStreakShield() }
                 )
             }
