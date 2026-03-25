@@ -1,3 +1,4 @@
+
 package com.finadapt.adaptivefinance.feature.dashboard
 
 import android.content.SharedPreferences
@@ -11,12 +12,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import androidx.core.content.edit
-import  com.finadapt.adaptivefinance.data.repository.FinanceRepository
-import com.finadapt.adaptivefinance.feature.gamification.Badge
+import com.finadapt.adaptivefinance.data.repository.FinanceRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-
 
 class DashboardViewModel(
     private val expenseDao: ExpenseDao,
@@ -25,15 +24,15 @@ class DashboardViewModel(
 ) : ViewModel() {
 
     // ALL APP STATES
-    // Gamification the coin drop trigger
     private val _playCoinDropAnimation = MutableStateFlow(false)
     val playCoinDropAnimation: StateFlow<Boolean> = _playCoinDropAnimation.asStateFlow()
 
-
     private val _isDarkMode = MutableStateFlow(false)
     val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
+
     private val _currentStreak = MutableStateFlow(0)
     val currentStreak: StateFlow<Int> = _currentStreak.asStateFlow()
+
     private val _totalSpend = MutableStateFlow(0f)
     val totalSpend: StateFlow<Float> = _totalSpend.asStateFlow()
 
@@ -46,31 +45,25 @@ class DashboardViewModel(
     private val _currentAiAction = MutableStateFlow("zen")
     val currentAiAction: StateFlow<String> = _currentAiAction.asStateFlow()
 
+    // 🟢 1. MOUNTAIN PROGRESS (Lifetime XP - Never goes down)
     private val _userXp = MutableStateFlow(0)
     val userXp: StateFlow<Int> = _userXp.asStateFlow()
+
+    // 🟢 2. SPENDABLE WALLET (XP minus Purchases)
+    private val _userCoins = MutableStateFlow(0)
+    val userCoins: StateFlow<Int> = _userCoins.asStateFlow()
 
     private val _userName = MutableStateFlow("User")
     val userName: StateFlow<String> = _userName.asStateFlow()
 
-    //private val _recentExpenses = MutableStateFlow<List<ExpenseEntity>>(emptyList())
-    //val recentExpenses: StateFlow<List<ExpenseEntity>> = _recentExpenses.asStateFlow()
-
-    //private val _allExpenses = MutableStateFlow<List<ExpenseEntity>>(emptyList())
-    //val allExpenses: StateFlow<List<ExpenseEntity>> = _allExpenses.asStateFlow()
-
     private val _weeklyChartData = MutableStateFlow(List(7) { 0f })
-    //val weeklyChartData: StateFlow<List<Float>> = _weeklyChartData.asStateFlow()
-    //Track the Shields in the UI State
+
     private val _shieldCount = MutableStateFlow(0)
     val shieldCount: StateFlow<Int> = _shieldCount.asStateFlow()
 
-    // StateFlow to hold the dynamic badges
-    private val _badges = MutableStateFlow<List<Badge>>(emptyList())
-    val badges: StateFlow<List<Badge>> = _badges.asStateFlow()
-
-    //The Celebration Trigger State
-     private val _showLevelUpCelebration = MutableStateFlow<String?>(null)
+    private val _showLevelUpCelebration = MutableStateFlow<String?>(null)
     val showLevelUpCelebration: StateFlow<String?> = _showLevelUpCelebration.asStateFlow()
+
     val allExpenses: StateFlow<List<ExpenseEntity>> = expenseDao.getALLExpensesFlow()
         .stateIn(
             scope = viewModelScope,
@@ -78,8 +71,6 @@ class DashboardViewModel(
             initialValue = emptyList()
         )
 
-    // 🟢 2. DERIVED STATE: We don't need a separate DB call for "recent".
-    // We just take the top 3 items from our Live Stream!
     val recentExpenses: StateFlow<List<ExpenseEntity>> = allExpenses
         .map { it.take(3) }
         .stateIn(
@@ -88,62 +79,40 @@ class DashboardViewModel(
             initialValue = emptyList()
         )
 
-    init {
-        // 🟢 3. AUTO-EVALUATE BADGES:
-        // Whenever the expense list changes, re-run the badge logic automatically!
-        viewModelScope.launch {
-            allExpenses.collect { list ->
-                evaluateBadges(list.size)
-            }
-        }
-    }
-
     fun loadDashboardData() {
         viewModelScope.launch {
             _isDarkMode.value = financeRepository.isDarkMode()
-            // 1. Fetch Preferences
             _monthlyBudget.value = prefs.getFloat("MONTHLY_BUDGET", 1000f)
             _currentAiAction.value = prefs.getString("LAST_AI_ACTION", "zen") ?: "zen"
 
-            //single XP fetch
+            // 🟢 ECONOMY LOGIC: Calculate Lifetime Map Progress vs Spendable Wallet
             val currentXp = prefs.getInt("USER_XP", 0)
-            _userXp.value = currentXp
+            val spentCoins = prefs.getInt("SPENT_COINS", 0)
+
+            _userXp.value = currentXp // Drives the Mountain Map
+            _userCoins.value = currentXp - spentCoins // Drives the Shield Store
+
             checkForLevelUp(currentXp)
 
             _userName.value = prefs.getString("USER_NAME", "User") ?: "User"
-            _shieldCount.value = financeRepository.getShieldCount()
+            _shieldCount.value = prefs.getInt("STREAK_SHIELDS", 0)
             _currentStreak.value = financeRepository.getLiveStreak()
 
-            //check for pending coin drop
             val shouldDropCoin = prefs.getBoolean("PENDING_COIN_DROP", false)
             if (shouldDropCoin){
                 _playCoinDropAnimation.value = true
                 prefs.edit { putBoolean("PENDING_COIN_DROP", false) }
             }
 
-            // 2. Fetch Total Monthly Spend (30-day window)
             val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
             val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
             _totalSpend.value = expenseDao.getTotalSpendTimeBounded(timeLimit) ?: 0f
 
-            // 3. Fetch Today's Spend
             val calendar = Calendar.getInstance()
-            calendar.set(Calendar.HOUR_OF_DAY, 0)
-            calendar.set(Calendar.MINUTE, 0)
-            calendar.set(Calendar.SECOND, 0)
-            calendar.set(Calendar.MILLISECOND, 0)
+            calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
             val startOfDay = calendar.timeInMillis
             _todaySpend.value = expenseDao.getTodaySpend(startOfDay) ?: 0f
 
-            // 4. Fetch Ledger Data
-//            _recentExpenses.value = expenseDao.getRecentLedger()
-//            val allExp = expenseDao.getAllExpenses()
-//            _allExpenses.value = allExp
-//            evaluateBadges(allExp.size)
-
-
-
-            // 5. Fetch 7-Day Chart Data for History Screen
             val today = System.currentTimeMillis()
             val sevenDaysAgo = today - (7L * 24 * 60 * 60 * 1000)
             val recentList = expenseDao.getExpensesSince(sevenDaysAgo)
@@ -157,70 +126,21 @@ class DashboardViewModel(
             }
             _weeklyChartData.value = dailyTotals.toList()
 
-            //6. SYNC TO CLOUD LEADERBOARD
             val currentTier = when {
                 currentXp < 500 -> "Bronze Novice"
                 currentXp < 2000 -> "Silver Guardian"
                 else -> "Gold Master"
             }
 
-            // Fire and forget: Sync latest XP to your Python server
             try {
                 financeRepository.syncLeaderboard(xp = currentXp, tier = currentTier)
             } catch (e: Exception) {
                 e.printStackTrace()
-
-
             }
         }
     }
 
-
-    //The Badge Evaluator Engine
-    private fun evaluateBadges(totalExpensesLogged: Int) {
-        val streak = _currentStreak.value
-        val quizWins = financeRepository.getGameStat("quiz")
-        val strictBudgetWins = financeRepository.getGameStat("strict_budget")
-        val coolOffWins = financeRepository.getGameStat("cool_off")
-
-        val dynamicBadges = listOf(
-            Badge(
-                id = "1", title = "First Step", icon = "🎯",
-                description = "Log your first expense\n($totalExpensesLogged/1)",
-                isUnlocked = totalExpensesLogged >= 1
-            ),
-            Badge(
-                id = "2", title = "Week Warrior", icon = "🔥",
-                description = "Maintain a 7-day streak\n($streak/7)",
-                isUnlocked = streak >= 7
-            ),
-            Badge(
-                id = "3", title = "AI Scholar", icon = "🧠",
-                description = "Pass 5 Financial Quizzes\n($quizWins/5)",
-                isUnlocked = quizWins >= 5
-            ),
-            Badge(
-                id = "4", title = "Iron Will", icon = "🛡️",
-                description = "Lock budget 3 times\n($strictBudgetWins/3)",
-                isUnlocked = strictBudgetWins >= 3
-            ),
-            Badge(
-                id = "5", title = "Zen Master", icon = "❄️",
-                description = "Use the Cool-Off timer\n($coolOffWins/1)",
-                isUnlocked = coolOffWins >= 1
-            ),
-            Badge(
-                id = "6", title = "Savings Starter", icon = "💰",
-                description = "Log 10 total expenses\n($totalExpensesLogged/10)",
-                isUnlocked = totalExpensesLogged >= 10
-            )
-        )
-
-        _badges.value = dynamicBadges
-    }
-
     // SETTINGS CONTROLS
-
     fun updateUserName(newName: String) {
         prefs.edit { putString("USER_NAME", newName) }
         _userName.value = newName
@@ -232,50 +152,68 @@ class DashboardViewModel(
     }
 
     fun resetGamification() {
-        prefs.edit { putInt("USER_XP", 0).putString("LAST_AI_ACTION", "zen") }
+        // 🟢 Reset both XP and Spent Coins so they don't get negative balances!
+        prefs.edit {
+            putInt("USER_XP", 0)
+            putInt("SPENT_COINS", 0)
+            putInt("CURRENT_STREAK", 0)
+            putInt("STREAK_SHIELDS", 0)
+            putString("LAST_AI_ACTION", "zen")
+
+        }
         _userXp.value = 0
+        _userCoins.value = 0
+        _currentStreak.value = 0
+        _shieldCount.value = 0
         _currentAiAction.value = "zen"
     }
 
-//    fun wipeAllData() {
-//        viewModelScope.launch {
-//            expenseDao.deleteAllExpenses()
-//            loadDashboardData() // Forces the UI to refresh back to RM 0.00
-//        }
-//    }
     fun wipeAllData() {
         viewModelScope.launch {
-            expenseDao.deleteAllExpenses() // 1. Clear database
-
-            // 2. 🟢 NEW: Clear the gamification and streak memory!
+            expenseDao.deleteAllExpenses()
             prefs.edit {
                 putInt("CURRENT_STREAK", 0)
                 putLong("LAST_LOGGED_MIDNIGHT", 0L)
                 putInt("USER_XP", 0)
+                putInt("SPENT_COINS", 0) // Reset spent coins too
                 putInt("STREAK_SHIELDS", 0)
             }
 
             _currentStreak.value = 0
             _userXp.value = 0
+            _userCoins.value = 0
+            _shieldCount.value =0
 
-            loadDashboardData() // 3. Refresh UI
+            loadDashboardData()
         }
     }
 
-    //The Buy Action triggered by the UI button
+    // 🟢 SAFE STORE PURCHASING LOGIC
     fun onBuyStreakShield() {
         viewModelScope.launch {
-            val success = financeRepository.buyStreakShield()
-            if (success) {
-                //If it worked, immediately reload the data so the UI updates!
-                _userXp.value = financeRepository.getUserXp() //Refresh XP
-                _shieldCount.value = financeRepository.getShieldCount() // Refresh Shields
+            val cost = 500
+            val currentCoins = _userCoins.value
+
+            if (currentCoins >= cost) {
+                // 1. Calculate new totals
+                val spentSoFar = prefs.getInt("SPENT_COINS", 0)
+                val newSpentTotal = spentSoFar + cost
+                val currentShields = prefs.getInt("STREAK_SHIELDS", 0)
+                val newShieldTotal = currentShields + 1
+
+                // 2. Save directly to SharedPreferences (Bypassing the old repo method)
+                prefs.edit {
+                    putInt("SPENT_COINS", newSpentTotal)
+                    putInt("STREAK_SHIELDS", newShieldTotal)
+                }
+
+                // 3. Update the UI States instantly
+                _userCoins.value = _userXp.value - newSpentTotal
+                _shieldCount.value = newShieldTotal
             }
         }
     }
 
-
-    //The Detector Logic (called after fetching XP)
     private fun checkForLevelUp(currentXp: Int) {
         val currentTierName = when {
             currentXp < 500 -> "Bronze Novice"
@@ -284,35 +222,26 @@ class DashboardViewModel(
             else -> "Platinum Legend"
         }
 
-        //Ask the repository for the data safely
         val lastSeenTier = financeRepository.getLastSeenTier()
 
-        // If the names don't match, THEY LEVELED UP!
         if (currentTierName != lastSeenTier) {
-            _showLevelUpCelebration.value = currentTierName // Trigger the UI
-
-            //Ask the repository to save the data safely
+            _showLevelUpCelebration.value = currentTierName
             financeRepository.saveLastSeenTier(currentTierName)
         }
     }
 
-    //The Dismiss Function
     fun dismissLevelUpCelebration() {
         _showLevelUpCelebration.value = null
     }
 
-
-    //The function the switch will call
     fun toggleTheme(isDark: Boolean) {
         viewModelScope.launch {
-            financeRepository.saveThemePreference(isDark) // Save to device memory
-            _isDarkMode.value = isDark // Instantly update the UI
+            financeRepository.saveThemePreference(isDark)
+            _isDarkMode.value = isDark
         }
     }
 
-    //call this from the UI after the animation finishes so it resets
     fun resetCoinDropAnimation(){
         _playCoinDropAnimation.value = false
     }
-
 }
