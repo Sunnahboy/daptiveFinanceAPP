@@ -78,6 +78,26 @@ class DashboardViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+    //dashboard constantly listening to the DB
+    init{
+        viewModelScope.launch {
+            allExpenses.collect{
+                //1 instantly check if we should drop a coin
+                val shouldDropCoin = prefs.getBoolean("PENDING_COIN_DROP", false)
+                if (shouldDropCoin){
+                    _playCoinDropAnimation.value = true
+                    prefs.edit { putBoolean("PENDING_COIN_DROP", false) }
+                }
+                //2. Instantly update XP and coins so the gamification UI is in sync
+                val currentXp = prefs.getInt("USER_XP", 0)
+                _userXp.value = currentXp
+                _userCoins.value = currentXp - prefs.getInt("SPENT_COINS", 0)
+                //3. Check for level up
+                _currentStreak.value = financeRepository.getLiveStreak()
+
+            }
+        }
+    }
 
     fun loadDashboardData() {
         viewModelScope.launch {
@@ -244,5 +264,12 @@ class DashboardViewModel(
 
     fun resetCoinDropAnimation(){
         _playCoinDropAnimation.value = false
+    }
+
+    // 🟢 PASTE THIS INTO DashboardViewModel.kt
+    fun submitFeedback(predictionId: String, strategyName: String, userAccepted: Boolean) {
+        viewModelScope.launch {
+            financeRepository.submitUserFeedback(predictionId, strategyName, userAccepted)
+        }
     }
 }
