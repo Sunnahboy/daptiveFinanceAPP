@@ -170,21 +170,52 @@ fun NavGraph(
                     onDismissLevelUp = { dashboardViewModel.dismissLevelUpCelebration() },
                     onNavigateToLogExpense = { navController.navigate(Screen.AddExpense.route) },
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route)},
-                    onNavigateToChat = { navController.navigate(Screen.Chat.route) }
+                    onNavigateToChat = { navController.navigate(Screen.Chat.route) },
+
+                    onGameFeedback = { predId, strategy, accepted ->
+                        dashboardViewModel.submitFeedback(predId, strategy, accepted)
+                    }
+
                 )
             }
 
+//            composable(route = Screen.AddExpense.route) {
+//                val uiState by expenseViewModel.uiState.collectAsState()
+//                val realUserId = prefs.getString("SILENT_USER_ID", "fallback_id") ?: "fallback_id"
+//
+//                AddExpenseScreen(
+//                    uiState = uiState,
+//                    onLogExpense = { amount, category, merchant, date, payment, imagePath, items ->
+//                        expenseViewModel.submitExpense(
+//                            amount = amount,
+//                            category = category,
+//                            userId = realUserId,
+//                            merchantName = merchant,
+//                            date = date,
+//                            paymentMethod = payment,
+//                            receiptImagePath = imagePath,
+//                            items = items
+//                        )
+//                    },
+//                    // 🟢 THE FIX: Update the lambda to accept the 3 new parameters!
+//                    onFeedback = { predictionId, strategyName, userAccepted ->
+//                        expenseViewModel.submitFeedback(predictionId, strategyName, userAccepted)
+//                    },
+//                    onDismissState = {
+//                        expenseViewModel.resetState()
+//                        //fires ONCE when the button is clicked
+//                        dashboardViewModel.loadDashboardData()
+//                        navController.popBackStack()
+//                    }
+//                )
+//            }
             composable(route = Screen.AddExpense.route) {
-                val uiState by expenseViewModel.uiState.collectAsState()
-                val realUserId = prefs.getString("SILENT_USER_ID", "fallback_id") ?: "fallback_id"
-
                 AddExpenseScreen(
-                    uiState = uiState,
                     onLogExpense = { amount, category, merchant, date, payment, imagePath, items ->
-                        expenseViewModel.submitExpense(
+                        // 🟢 Calls the new instant "Fire and Forget" function
+                        expenseViewModel.logExpense(
                             amount = amount,
                             category = category,
-                            userId = realUserId,
                             merchantName = merchant,
                             date = date,
                             paymentMethod = payment,
@@ -192,13 +223,8 @@ fun NavGraph(
                             items = items
                         )
                     },
-                    // 🟢 THE FIX: Update the lambda to accept the 3 new parameters!
-                    onFeedback = { predictionId, strategyName, userAccepted ->
-                        expenseViewModel.submitFeedback(predictionId, strategyName, userAccepted)
-                    },
                     onDismissState = {
-                        expenseViewModel.resetState()
-                        //fires ONCE when the button is clicked
+                        // Refreshes the dashboard to show the new expense, then goes back
                         dashboardViewModel.loadDashboardData()
                         navController.popBackStack()
                     }
