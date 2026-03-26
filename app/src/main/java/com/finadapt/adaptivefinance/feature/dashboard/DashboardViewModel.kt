@@ -159,6 +159,7 @@ class DashboardViewModel(
             putInt("CURRENT_STREAK", 0)
             putInt("STREAK_SHIELDS", 0)
             putString("LAST_AI_ACTION", "zen")
+            putLong("LAST_LOGGED_MIDNIGHT", 0L)
 
         }
         _userXp.value = 0
