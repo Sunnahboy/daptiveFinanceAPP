@@ -1,20 +1,19 @@
 package com.finadapt.adaptivefinance.data.repository
 
-import com.finadapt.adaptivefinance.core.network.ApiClient
-import com.finadapt.adaptivefinance.data.local.AiInteractionEntity
-import com.finadapt.adaptivefinance.data.local.ExpenseDao
-import com.finadapt.adaptivefinance.data.local.ExpenseEntity
-import com.finadapt.adaptivefinance.data.remote.ContextRequest
-import com.finadapt.adaptivefinance.data.remote.AiResponse
-import com.finadapt.adaptivefinance.data.remote.FeedbackRequest
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
+import com.finadapt.adaptivefinance.core.network.ApiClient
+import com.finadapt.adaptivefinance.data.local.AiInteractionEntity
+import com.finadapt.adaptivefinance.data.local.ExpenseDao
+import com.finadapt.adaptivefinance.data.remote.AiResponse
+import com.finadapt.adaptivefinance.data.remote.ContextRequest
+import com.finadapt.adaptivefinance.data.remote.FeedbackRequest
 import com.finadapt.adaptivefinance.data.remote.LeaderboardEntry
 import com.finadapt.adaptivefinance.data.remote.LeaderboardUpdateRequest
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.Calendar.getInstance
 import kotlin.math.ln
@@ -37,12 +36,7 @@ class FinanceRepository(
     ): Result<AiResponse> {
         return withContext(Dispatchers.IO) {
             try {
-                // 1. SAVE TO DEVICE BRAIN
-                //deleted the local save here because the ViewModel already handles
-                //val newExpense = ExpenseEntity(amount = amount, category = category, timestamp = System.currentTimeMillis())
-               // expenseDao.insertExpense(newExpense)
-
-                // 2. STREAK MANAGEMENT
+                // 1. STREAK MANAGEMENT
                 val todayMidnight = getMidnightTimestamp()
                 val lastLoggedMidnight = prefs.getLong("LAST_LOGGED_MIDNIGHT", 0L)
                 var currentStreak = prefs.getInt("CURRENT_STREAK", 0)
@@ -58,13 +52,13 @@ class FinanceRepository(
                     putInt("CURRENT_STREAK", currentStreak)
                 }
 
-                // 3. FETCH RAW DATA FROM DAO
+                // 2. FETCH RAW DATA FROM DAO
                 val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
                 val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
                 val totalSpend = expenseDao.getTotalSpendTimeBounded(timeLimit) ?: 0f
                 val txCount = expenseDao.getTransactionCount().toFloat()
 
-                // 4. EDGE FEATURE ENGINEERING
+                // 3. EDGE FEATURE ENGINEERING
                 val monthlyBudget = prefs.getFloat("MONTHLY_BUDGET", 1000f)
                 val installTimestamp = prefs.getLong("INSTALL_TIMESTAMP", System.currentTimeMillis())
                 val millisActive = System.currentTimeMillis() - installTimestamp
@@ -84,7 +78,7 @@ class FinanceRepository(
                 val pastTxCount = maxOf(1f, txCount - 1f)
                 val avgTxValue = if (pastTxCount > 0f) pastTotalSpend / pastTxCount else 0f
 
-                // 5. SEND TO AWS
+                // 4. PREPARE PAYLOAD
                 val request = ContextRequest(
                     userId = userId,
                     testGroup = "adaptive",
@@ -99,15 +93,13 @@ class FinanceRepository(
                     )
                 )
 
-
                 // 5. SEND TO AWS (With Graceful Offline Fallback!)
                 val response = try {
                     apiService.getAiGamification(ApiClient.API_TOKEN, request)
                 } catch (_: Exception) {
                     Log.w("Gamification", "User is offline. Using local fallback.")
 
-
-                    // 🟢 If there is no internet, we default to skipping the game
+                    // If there is no internet, we default to skipping the game
                     AiResponse(
                         predictionId = "offline_${java.util.UUID.randomUUID()}",
                         recommendedStrategy = "Standard",
@@ -125,10 +117,9 @@ class FinanceRepository(
 
                     val badPredictionId = response.predictionId
                     if (badPredictionId != null) {
-                        // 🟢 FIX 1 APPLIED: Using the safe repositoryScope instead of GlobalScope
                         repositoryScope.launch {
                             try {
-                                val punishFeedback = FeedbackRequest(badPredictionId, -1.5f)
+                                val punishFeedback = FeedbackRequest(badPredictionId, -5.0f)
                                 apiService.sendFeedback(ApiClient.API_TOKEN, punishFeedback)
                             } catch (e: Exception) {
                                 Log.e("Gamification", "Failed to send auto-punish feedback", e)
@@ -138,7 +129,7 @@ class FinanceRepository(
 
                     finalResponse = response.copy(
                         predictionId = "local_override_${java.util.UUID.randomUUID()}",
-                        action = "strict_Budget",
+                        action = "strict_budget", // Ensured exact match with your game constants
                         recommendedStrategy = "Strict_Budget",
                         gamificationMessage = "CRITICAL OVERSPEND. Aegis Protocol initiated. Secure the vault.",
                         visualTheme = "Danger"
@@ -147,18 +138,16 @@ class FinanceRepository(
                 // --- 🛑 END OF AI GUARDRAIL ---
 
                 // 6. SAVE INTERACTION TO MEMORY
-                // 🟢 FIX 2: We must use finalResponse for ALL of these fields!
                 val currentPredictionId = finalResponse.predictionId ?: "fallback_${java.util.UUID.randomUUID()}"
                 val aiMemory = AiInteractionEntity(
                     predictionId = currentPredictionId,
                     strategy = finalResponse.recommendedStrategy ?: "Standard",
-                    action = finalResponse.action ?: "log_only",
+                    action = finalResponse.action ?: "Log_Only",
                     notification = finalResponse.gamificationMessage ?: "Expense logged.",
                     visualTheme = finalResponse.visualTheme ?: "Neutral"
                 )
                 expenseDao.insertAiInteraction(aiMemory)
 
-                // 🟢 FIX 2: Return finalResponse to the UI!
                 Result.success(finalResponse)
 
             } catch (e: Exception) {
@@ -170,16 +159,14 @@ class FinanceRepository(
     suspend fun submitUserFeedback(predictionId: String, strategyName: String, userAccepted: Boolean) {
         withContext(Dispatchers.IO) {
             try {
-                // 1. THE 3-STRIKE LOGIC (Edge Compute)
                 val strikeKey = "STRIKES_$strategyName"
                 val finalReward: Float
 
                 if (userAccepted) {
                     // 🟢 THEY ACCEPTED
-                    finalReward = 1.0f
-                    prefs.edit { putInt(strikeKey, 0) } // Clear strikes
+                    finalReward = 2.0f
+                    prefs.edit { putInt(strikeKey, 0) }
 
-                    // Reward the user with XP for playing
                     val currentXp = prefs.getInt("USER_XP", 0)
                     prefs.edit { putInt("USER_XP", currentXp + 50) }
 
@@ -189,26 +176,21 @@ class FinanceRepository(
                     currentStrikes += 1
 
                     if (currentStrikes >= 3) {
-                        // 🛑 HARD PIVOT: 3 strikes, punish the Bandit!
-                        finalReward = -1.5f
-                        prefs.edit { putInt(strikeKey, 0) } // Reset so we don't spam -1.5 forever
+                        // 🛑 3 STRIKES: Massive punishment to force the Bandit to switch arms!
+                        finalReward = -5.0f
+                        prefs.edit { putInt(strikeKey, 0) }
                     } else {
-                        // ⚪ SOFT IGNORE: Just busy today.
-                        finalReward = 0.0f
-                        prefs.edit { putInt(strikeKey, currentStrikes) } // Save the strike
+                        // 🟡 SOFT IGNORE: A slight negative nudge so it starts losing confidence
+                        finalReward = -0.5f
+                        prefs.edit { putInt(strikeKey, currentStrikes) }
                     }
                 }
 
-                // 2. SEND TO AWS
-                // The AI receives 1.0, 0.0, or -1.5 seamlessly!
                 val feedback = FeedbackRequest(predictionId, finalReward)
                 apiService.sendFeedback(ApiClient.API_TOKEN, feedback)
-
-                // 3. Mark as sent locally
                 expenseDao.markFeedbackAsSent(predictionId)
 
             } catch (e: Exception) {
-                // If the network fails, WorkManager will catch it later.
                 println("⚠️ Feedback Sync Paused. Reason: ${e.localizedMessage}")
             }
         }
@@ -243,40 +225,6 @@ class FinanceRepository(
         }
     }
 
-//---safely subtract XP without crashing or going into negative numbers.-----
-
-    //1. read the current shield count
-    fun getShieldCount(): Int{
-        return prefs.getInt("STREAK_SHIELDS", 0)
-
-    }
-
-    //2. The Transaction Logic (Buy a shield)
-    fun buyStreakShield():Boolean {
-        val currentXp = prefs.getInt("USER_XP", 0)
-        val currentShields = getShieldCount()
-
-        // double check they can afford it
-        if (currentXp >= 500){
-            prefs.edit {
-                putInt("USER_XP", currentXp - 500)
-                putInt("STREAK_SHIELDS", currentShields + 1)
-            }
-            return true
-        }
-        return false
-            }
-
-    //Reads the current XP from the device memory
-    fun getUserXp(): Int {
-        return prefs.getInt("USER_XP", 0)
-    }
-
-    // Read a specific gamification stat
-    fun getGameStat(gameType: String): Int {
-        return prefs.getInt("STAT_$gameType", 0)
-    }
-
     //Read the last seen tier
     fun getLastSeenTier(): String {
         return prefs.getString("LAST_SEEN_TIER", "Bronze Novice") ?: "Bronze Novice"
@@ -303,10 +251,8 @@ class FinanceRepository(
         if (name == null) {
             name = "Saver_${(1000..9999).random()}"
             prefs.edit { putString("ANONYMOUS_NAME", name) }
-
         }
         return name
-
     }
 
     //silently sync users Xp to the supabase
@@ -326,14 +272,10 @@ class FinanceRepository(
         }catch (e: Exception){
             Log.e("TAG", "Failed to process data", e)
         }
-
-
     }
-
 
     // fetches the top 50 users
     suspend fun getTopLeaderboard(): List<LeaderboardEntry> {
-
         return try {
             val response = ApiClient.fastApiService.getLeaderboardTop()
             if (response.isSuccessful) {
@@ -346,5 +288,4 @@ class FinanceRepository(
             emptyList()
         }
     }
-
 }
