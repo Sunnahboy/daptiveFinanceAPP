@@ -6,6 +6,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
+import androidx.core.content.edit
 
 object NotificationScheduler {
 
@@ -49,7 +50,7 @@ object NotificationScheduler {
     fun saveTimesToPrefs(context: Context, times: List<Pair<Int, Int>>) {
         val prefs = context.getSharedPreferences("AdaptiveFinancePrefs", Context.MODE_PRIVATE)
         val timeString = times.joinToString(",") { "${it.first}:${it.second}" }
-        prefs.edit().putString("REMINDER_TIMES", timeString).apply()
+        prefs.edit { putString("REMINDER_TIMES", timeString) }
     }
 
     // Helper to read the string back into a List of Pairs

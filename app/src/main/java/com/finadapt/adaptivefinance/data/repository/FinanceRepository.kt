@@ -55,7 +55,10 @@ class FinanceRepository(
                 // 2. FETCH RAW DATA FROM DAO
                 val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
                 val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
-                val totalSpend = expenseDao.getTotalSpendTimeBounded(timeLimit) ?: 0f
+                val totalSpend = expenseDao.getTotalSpendTimeBounded(
+                    timeLimit,
+                    System.currentTimeMillis()
+                ) ?: 0f
                 val txCount = expenseDao.getTransactionCount().toFloat()
 
                 // 3. EDGE FEATURE ENGINEERING

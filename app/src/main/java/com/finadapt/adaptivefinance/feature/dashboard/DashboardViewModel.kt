@@ -126,7 +126,10 @@ class DashboardViewModel(
 
             val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
             val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
-            _totalSpend.value = expenseDao.getTotalSpendTimeBounded(timeLimit) ?: 0f
+            _totalSpend.value = expenseDao.getTotalSpendTimeBounded(
+                timeLimit,
+                System.currentTimeMillis()
+            ) ?: 0f
 
             val calendar = Calendar.getInstance()
             calendar.set(Calendar.HOUR_OF_DAY, 0); calendar.set(Calendar.MINUTE, 0); calendar.set(Calendar.SECOND, 0); calendar.set(Calendar.MILLISECOND, 0)
