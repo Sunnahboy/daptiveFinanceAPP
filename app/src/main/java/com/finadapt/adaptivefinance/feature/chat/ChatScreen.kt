@@ -45,7 +45,14 @@ fun ChatScreen(
 
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-    rememberCoroutineScope()
+
+    // 🟢 NEW: Our Predefined Smart Questions
+    val suggestedQuestions = listOf(
+        "What did I spend today?",
+        "What was my highest purchase?",
+        "Where am I spending the most?",
+        "What is my remaining budget?"
+    )
 
     // Theming Colors
     val isDark = isSystemInDarkTheme()
@@ -67,7 +74,6 @@ fun ChatScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Adaptive AI", fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(8.dp))
-                        // A little green dot to show the AI is "Online"
                         Box(modifier = Modifier.size(8.dp).background(Color.Green, RoundedCornerShape(4.dp)))
                     }
                 },
@@ -84,7 +90,6 @@ fun ChatScreen(
             )
         },
         containerColor = bgColor,
-        // This ensures the input bar pushes up when the keyboard opens
         modifier = Modifier.imePadding()
     ) { innerPadding ->
         Column(
@@ -105,7 +110,6 @@ fun ChatScreen(
                     ChatBubble(message = message, isDark = isDark)
                 }
 
-                // The "AI is thinking" indicator
                 if (isLoading) {
                     item {
                         Row(
@@ -118,7 +122,6 @@ fun ChatScreen(
                                     .background(if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
                                     .padding(12.dp)
                             ) {
-                                // Three bouncing dots can be built later, a spinner is great for now
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
                                     strokeWidth = 2.dp,
@@ -130,7 +133,47 @@ fun ChatScreen(
                 }
             }
 
-            // 2. THE INPUT BAR
+            // 🟢 2. THE SUGGESTION CHIPS (Predefined Questions)
+            // They gracefully disappear if the user starts typing manually
+            AnimatedVisibility(
+                visible = inputText.isEmpty(),
+                enter = fadeIn() + expandHorizontally(),
+                exit = fadeOut() + shrinkHorizontally()
+            ) {
+                androidx.compose.foundation.lazy.LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(suggestedQuestions) { question ->
+                        Surface(
+                            onClick = {
+                                if (!isLoading) {
+                                    viewModel.sendMessage(question)
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isDark) Color(0xFF334155) else Color(0xFFE0F2FE),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            ) {
+                                Text(
+                                    text = question,
+                                    color = if (isDark) Color.White else Color(0xFF0284C7),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. THE INPUT BAR
             Surface(
                 color = surfaceColor,
                 shadowElevation = 8.dp
@@ -159,12 +202,11 @@ fun ChatScreen(
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // SEND BUTTON
                     IconButton(
                         onClick = {
                             if (inputText.isNotBlank()) {
                                 viewModel.sendMessage(inputText)
-                                inputText = "" // Clear the input bar
+                                inputText = ""
                             }
                         },
                         modifier = Modifier
@@ -183,6 +225,42 @@ fun ChatScreen(
             }
         }
     }
+}
+
+@Composable
+fun TypewriterText(
+    text: String,
+    color: Color,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    lineHeight: androidx.compose.ui.unit.TextUnit,
+    modifier: Modifier = Modifier
+) {
+    var textToDisplay by remember { mutableStateOf("") }
+
+    // 🟢 CRITICAL: rememberSaveable ensures that once a message finishes typing,
+    // it stays fully typed even if the user scrolls it off the screen and back.
+    var animationFinished by androidx.compose.runtime.saveable.rememberSaveable(text) { mutableStateOf(false) }
+
+    LaunchedEffect(text) {
+        if (!animationFinished) {
+            // Speed: 15 milliseconds per character is a very natural reading speed!
+            for (i in text.indices) {
+                textToDisplay = text.substring(0, i + 1)
+                kotlinx.coroutines.delay(15)
+            }
+            animationFinished = true
+        } else {
+            textToDisplay = text
+        }
+    }
+
+    Text(
+        text = textToDisplay,
+        color = color,
+        fontSize = fontSize,
+        lineHeight = lineHeight,
+        modifier = modifier
+    )
 }
 
 // 🟢 Custom UI Component for the Chat Bubbles
@@ -215,17 +293,28 @@ fun ChatBubble(message: ChatMessage, isDark: Boolean) {
     ) {
         Box(
             modifier = Modifier
-                .widthIn(max = 280.dp) // Don't let text stretch all the way across
+                .widthIn(max = 280.dp)
                 .clip(bubbleShape)
                 .background(bubbleColor)
                 .padding(12.dp)
         ) {
-            Text(
-                text = message.text,
-                color = textColor,
-                fontSize = 15.sp,
-                lineHeight = 22.sp
-            )
+            if (isUser) {
+                // User messages appear instantly
+                Text(
+                    text = message.text,
+                    color = textColor,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp
+                )
+            } else {
+                // AI messages get the cool Typewriter Effect!
+                TypewriterText(
+                    text = message.text,
+                    color = textColor,
+                    fontSize = 15.sp,
+                    lineHeight = 22.sp
+                )
+            }
         }
     }
 
