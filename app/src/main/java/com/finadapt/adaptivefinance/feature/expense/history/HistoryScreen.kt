@@ -1,3 +1,4 @@
+
 package com.finadapt.adaptivefinance.feature.expense.history
 
 import android.annotation.SuppressLint
@@ -11,7 +12,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,10 +28,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
 import com.finadapt.adaptivefinance.data.local.ExpenseEntity
+import com.finadapt.adaptivefinance.feature.chat.DraggableAiChatFab
 import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
@@ -33,9 +46,11 @@ import com.patrykandpatrick.vico.compose.component.lineComponent
 import com.patrykandpatrick.vico.compose.component.textComponent
 import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
 import com.patrykandpatrick.vico.core.entry.entryModelOf
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
+// ... (Keep your getCategoryColor and TimeFilter enum exactly the same)
 fun getCategoryColor(category: String): Color {
     return when (category.lowercase()) {
         "food", "dining", "groceries" -> Color(0xFFEF4444)
@@ -50,13 +65,17 @@ fun getCategoryColor(category: String): Color {
 
 enum class TimeFilter { DAILY, WEEKLY, MONTHLY }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("DefaultLocale")
 @Composable
 fun HistoryScreen(
     allExpenses: List<ExpenseEntity>,
-    isDarkMode: Boolean = false // 🟢 NEW: Dark mode state passed in
+    isDarkMode: Boolean = false,
+    // 🟢 NEW: Hooks to tell the ViewModel to Edit or Delete!
+    onDeleteExpense: (ExpenseEntity) -> Unit,
+    onEditExpense: (ExpenseEntity) -> Unit,
+    onNavigateToChat: () -> Unit
 ) {
-    // 🟢 DYNAMIC THEME COLORS
     val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
     val cardBg = if (isDarkMode) Color(0xFF1E293B) else Color.White
     val textColor = if (isDarkMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
@@ -68,7 +87,13 @@ fun HistoryScreen(
     var searchQuery by remember { mutableStateOf("") }
     val dateFormatter = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
 
-    // Chart Engine & Time Limits
+    var selectedExpenseForDetails by remember { mutableStateOf<ExpenseEntity?>(null) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // 🟢 NEW: State for the Edit Dialog
+    var expenseToEdit by remember { mutableStateOf<ExpenseEntity?>(null) }
+
+    // ... (Keep your chart math and filtering logic exactly the same)
     val (safeChartData, chartLabels, cutoffTimestamp) = remember(allExpenses, selectedFilter) {
         val cal = Calendar.getInstance()
         cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
@@ -138,285 +163,317 @@ fun HistoryScreen(
         allExpenses.filter { expense ->
             val matchesSearch = if (searchQuery.isBlank()) true else {
                 expense.category.lowercase().contains(searchQuery.lowercase()) ||
-                        String.format("%.2f", expense.amount).contains(searchQuery)
+                        String.format("%.2f", expense.amount).contains(searchQuery) ||
+                        expense.merchantName.lowercase().contains(searchQuery.lowercase())
             }
             val matchesTime = expense.timestamp >= cutoffTimestamp
             matchesSearch && matchesTime
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(bgColor),
-        contentPadding = PaddingValues(top = 48.dp, start = 20.dp, end = 20.dp, bottom = 100.dp)
-    ) {
-        item {
-            Text("Analytics", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = textColor)
-            Spacer(modifier = Modifier.height(24.dp))
+    Scaffold(
+        containerColor = bgColor,
+    ) { innerPadding ->
+        // 🟢 1. Wrap the entire screen content in a Box
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
 
-            // TIME SELECTOR TABS
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(tabTrackColor, RoundedCornerShape(12.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+            // 2. Your existing LazyColumn (Notice I removed padding(innerPadding) from here since the Box handles it now)
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 24.dp, start = 20.dp, end = 20.dp, bottom = 100.dp)
             ) {
-                listOf(TimeFilter.DAILY, TimeFilter.WEEKLY, TimeFilter.MONTHLY).forEach { filter ->
-                    val isSelected = selectedFilter == filter
-                    val boxBgColor = if (isSelected) tabActiveColor else Color.Transparent
-                    val tabTextColor = if (isSelected) textColor else subTextColor
+                // ... (Keep the Chart and Search bar items exactly the same)
+                item {
+                    Text("Analytics", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = textColor)
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(boxBgColor)
-                            .clickable { selectedFilter = filter }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = filter.name.lowercase().replaceFirstChar { it.uppercase() },
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = tabTextColor,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
+                    Row(modifier = Modifier.fillMaxWidth().background(tabTrackColor, RoundedCornerShape(12.dp)).padding(4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        listOf(TimeFilter.DAILY, TimeFilter.WEEKLY, TimeFilter.MONTHLY).forEach { filter ->
+                            val isSelected = selectedFilter == filter
+                            val boxBgColor = if (isSelected) tabActiveColor else Color.Transparent
+                            val tabTextColor = if (isSelected) textColor else subTextColor
 
-            // THE BAR CHART (Volume over Time)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = cardBg),
-                elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 2.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Box(modifier = Modifier.padding(16.dp)) {
-                    Chart(
-                        chart = columnChart(
-                            columns = listOf(
-                                lineComponent(
-                                    color = Color(0xFF0284C7),
-                                    thickness = 16.dp,
-                                    shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
-                                )
-                            )
-                        ),
-                        model = entryModelOf(*safeChartData.toTypedArray()),
-                        startAxis = rememberStartAxis(
-                            // 🟢 FIX: Axis Labels use dynamic subTextColor
-                            label = textComponent(
-                                color = subTextColor,
-                                textSize = 10.sp
-                            ),
-                            valueFormatter = AxisValueFormatter { value, _ -> "RM ${value.toInt()}" }
-                        ),
-                        bottomAxis = rememberBottomAxis(
-                            // 🟢 FIX: Axis Labels use dynamic subTextColor
-                            label = textComponent(
-                                color = subTextColor,
-                                textSize = 10.sp
-                            ),
-                            valueFormatter = AxisValueFormatter { value, _ -> chartLabels.getOrNull(value.toInt()) ?: "" },
-                            labelRotationDegrees = if (selectedFilter == TimeFilter.DAILY) -45f else 0f,
-                            guideline = null
-                        ),
-                        modifier = Modifier.fillMaxWidth().height(180.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // THE DONUT CHART (Categorical Breakdown)
-            if (filteredExpenses.isNotEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                    elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 2.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Category Breakdown", fontWeight = FontWeight.Bold, color = textColor)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        CategoryDonutChart(expenses = filteredExpenses, textColor = textColor)
-                    }
-                }
-                Spacer(modifier = Modifier.height(32.dp))
-            }
-
-            // SEARCH BAR
-            Text("Transactions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = textColor)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            TextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Search by category or amount...", color = subTextColor) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = subTextColor) },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = cardBg,
-                    unfocusedContainerColor = cardBg,
-                    focusedTextColor = textColor,
-                    unfocusedTextColor = textColor,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        // --- LIST SECTION ---
-        if (filteredExpenses.isEmpty()) {
-            item {
-                Text(
-                    if (searchQuery.isBlank()) "No expenses logged in this timeframe." else "No results found.",
-                    color = subTextColor,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-        } else {
-            items(filteredExpenses.reversed()) { expense ->
-                val dateStr = dateFormatter.format(Date(expense.timestamp))
-                val categoryColor = getCategoryColor(expense.category)
-
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 1.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Box(modifier = Modifier.size(12.dp).background(categoryColor, shape = RoundedCornerShape(6.dp)))
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column {
-                                Text(expense.category, fontWeight = FontWeight.Medium, color = textColor, fontSize = 14.sp)
-                                Text(dateStr, style = MaterialTheme.typography.labelSmall, color = subTextColor, fontSize = 12.sp)
+                            Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(boxBgColor).clickable { selectedFilter = filter }.padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                                Text(text = filter.name.lowercase().replaceFirstChar { it.uppercase() }, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = tabTextColor, fontSize = 14.sp)
                             }
                         }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                        Text(
-                            "- RM ${String.format(Locale.US, "%.2f", expense.amount)}",
-                            fontWeight = FontWeight.Bold,
-                            color = categoryColor,
-                            fontSize = 14.sp
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = cardBg), elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 2.dp), shape = RoundedCornerShape(16.dp)) {
+                        Box(modifier = Modifier.padding(16.dp)) {
+                            Chart(chart = columnChart(columns = listOf(lineComponent(color = Color(0xFF0284C7), thickness = 16.dp, shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)))), model = entryModelOf(*safeChartData.toTypedArray()), startAxis = rememberStartAxis(label = textComponent(color = subTextColor, textSize = 10.sp), valueFormatter = AxisValueFormatter { value, _ -> "RM ${value.toInt()}" }), bottomAxis = rememberBottomAxis(label = textComponent(color = subTextColor, textSize = 10.sp), valueFormatter = AxisValueFormatter { value, _ -> chartLabels.getOrNull(value.toInt()) ?: "" }, labelRotationDegrees = if (selectedFilter == TimeFilter.DAILY) -45f else 0f, guideline = null), modifier = Modifier.fillMaxWidth().height(180.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    if (filteredExpenses.isNotEmpty()) {
+                        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = cardBg), elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 2.dp), shape = RoundedCornerShape(16.dp)) {
+                            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Category Breakdown", fontWeight = FontWeight.Bold, color = textColor)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                CategoryDonutChart(expenses = filteredExpenses, textColor = textColor)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(32.dp))
+                    }
+
+                    Text("Transactions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = textColor)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    TextField(value = searchQuery, onValueChange = { searchQuery = it }, placeholder = { Text("Search by category or amount...", color = subTextColor) }, leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search", tint = subTextColor) }, modifier = Modifier.fillMaxWidth().height(52.dp), colors = TextFieldDefaults.colors(focusedContainerColor = cardBg, unfocusedContainerColor = cardBg, focusedTextColor = textColor, unfocusedTextColor = textColor, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent), shape = RoundedCornerShape(12.dp), singleLine = true)
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // --- LIST SECTION ---
+                if (filteredExpenses.isEmpty()) {
+                    item { Text(if (searchQuery.isBlank()) "No expenses logged in this timeframe." else "No results found.", color = subTextColor, modifier = Modifier.padding(16.dp)) }
+                } else {
+                    items(filteredExpenses.reversed()) { expense ->
+                        val dateStr = dateFormatter.format(Date(expense.timestamp))
+                        val categoryColor = getCategoryColor(expense.category)
+                        val hasReceipt = expense.receiptImagePath.isNotEmpty() || expense.items.isNotEmpty()
+
+                        var showDropdown by remember { mutableStateOf(false) }
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable(enabled = hasReceipt) { selectedExpenseForDetails = expense },
+                            colors = CardDefaults.cardColors(containerColor = cardBg),
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 1.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp).fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Box(modifier = Modifier.size(12.dp).background(categoryColor, shape = RoundedCornerShape(6.dp)))
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column {
+                                        Text(
+                                            text = expense.merchantName.ifEmpty { expense.category },
+                                            fontWeight = FontWeight.Medium, color = textColor, fontSize = 14.sp, maxLines = 1
+                                        )
+                                        Text(dateStr, style = MaterialTheme.typography.labelSmall, color = subTextColor, fontSize = 12.sp)
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (hasReceipt) {
+                                        Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = "Has Receipt", tint = subTextColor.copy(alpha = 0.5f), modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
+
+                                    Text("- RM ${String.format(Locale.US, "%.2f", expense.amount)}", fontWeight = FontWeight.Bold, color = categoryColor, fontSize = 14.sp)
+
+                                    // The Three-Dots Menu Button
+                                    Box {
+                                        IconButton(onClick = { showDropdown = true }) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = subTextColor)
+                                        }
+
+                                        DropdownMenu(
+                                            expanded = showDropdown,
+                                            onDismissRequest = { showDropdown = false },
+                                            modifier = Modifier.background(cardBg)
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Edit", color = textColor) },
+                                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = "Edit", tint = textColor) },
+                                                onClick = {
+                                                    showDropdown = false
+                                                    expenseToEdit = expense
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Delete", color = Color.Red) },
+                                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red) },
+                                                onClick = {
+                                                    showDropdown = false
+                                                    onDeleteExpense(expense)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } // <-- End of LazyColumn
+
+            // 🟢 3. Drop the Draggable FAB at the bottom of the Box!
+            DraggableAiChatFab(
+                onClick = onNavigateToChat, // Ensure this parameter is added to your HistoryScreen signature!
+                modifier = Modifier
+                    .align(Alignment.BottomEnd) // Starts in the bottom right corner
+                    .padding(bottom = 32.dp, end = 16.dp)
+            )
+
+        } // <-- End of Box
+    } // <-- End of Scaffold
+
+
+        // --- 🟢 NEW: THE EDIT DIALOG ---
+        if (expenseToEdit != null) {
+            var editAmount by remember { mutableStateOf(expenseToEdit!!.amount.toString()) }
+            var editCategory by remember { mutableStateOf(expenseToEdit!!.category) }
+
+            AlertDialog(
+                onDismissRequest = { expenseToEdit = null },
+                containerColor = cardBg,
+                title = { Text("Edit Expense", color = textColor, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        OutlinedTextField(
+                            value = editAmount,
+                            onValueChange = { editAmount = it },
+                            label = { Text("Amount (RM)", color = subTextColor) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(focusedTextColor = textColor, unfocusedTextColor = textColor, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent)
+                        )
+                        OutlinedTextField(
+                            value = editCategory,
+                            onValueChange = { editCategory = it },
+                            label = { Text("Category", color = subTextColor) },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(focusedTextColor = textColor, unfocusedTextColor = textColor, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent)
                         )
                     }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val newAmount = editAmount.toFloatOrNull()
+                            if (newAmount != null && editCategory.isNotBlank()) {
+                                // Create an updated copy of the entity
+                                val updatedExpense = expenseToEdit!!.copy(
+                                    amount = newAmount,
+                                    category = editCategory
+                                )
+                                onEditExpense(updatedExpense) // Tells ViewModel to update
+                                expenseToEdit = null
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                    ) {
+                        Text("Save", color = Color.White)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { expenseToEdit = null }) {
+                        Text("Cancel", color = subTextColor)
+                    }
+                }
+            )
+        }
+
+        // ... (Keep the digital receipt Bottom Sheet perfectly identical)
+        if (selectedExpenseForDetails != null) {
+            val expense = selectedExpenseForDetails!!
+            ModalBottomSheet(onDismissRequest = { selectedExpenseForDetails = null }, sheetState = sheetState, containerColor = cardBg) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(expense.merchantName.ifEmpty { expense.category }, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = textColor)
+                            Text(expense.date.ifEmpty { dateFormatter.format(Date(expense.timestamp)) }, color = subTextColor, fontSize = 14.sp)
+                        }
+                        if (expense.receiptImagePath.isNotEmpty()) {
+                            var showFullImage by remember { mutableStateOf(false) }
+                            AsyncImage(model = File(expense.receiptImagePath), contentDescription = "Receipt Thumbnail", contentScale = ContentScale.Crop, modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)).clickable { showFullImage = true })
+                            if (showFullImage) {
+                                Dialog(onDismissRequest = { showFullImage = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+                                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))) {
+                                        AsyncImage(model = File(expense.receiptImagePath), contentDescription = "Full Receipt", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                                        IconButton(onClick = { showFullImage = false }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) { Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    if (expense.items.isNotEmpty()) {
+                        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f, fill = false).heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(expense.items) { item ->
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(item.name, fontWeight = FontWeight.Medium, color = textColor, maxLines = 1)
+                                        Text(item.category, fontSize = 12.sp, color = getCategoryColor(item.category))
+                                    }
+                                    Text("RM ${String.format(Locale.US, "%.2f", item.amount)}", fontWeight = FontWeight.Bold, color = textColor)
+                                }
+                                HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = subTextColor.copy(alpha = 0.1f))
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    } else {
+                        Text("This expense was logged manually without itemized details.", color = subTextColor, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Total Paid", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textColor)
+                        Text("RM ${String.format(Locale.US, "%.2f", expense.amount)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = getCategoryColor(expense.category))
+                    }
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
         }
     }
-}
 
-// 🟢 Custom Canvas Donut Chart Component
+
+// ... CategoryDonutChart the same
 @Composable
 fun CategoryDonutChart(expenses: List<ExpenseEntity>, textColor: Color) {
-    // 1. Group, sum, and sort expenses
-    val categoryTotals = expenses.groupBy { it.category }
-        .mapValues { entry -> entry.value.sumOf { it.amount.toDouble() }.toFloat() }
-        .toList()
-        .sortedByDescending { it.second }
-
+    val categoryTotals = expenses.groupBy { it.category }.mapValues { entry -> entry.value.sumOf { it.amount.toDouble() }.toFloat() }.toList().sortedByDescending { it.second }
     val totalSpend = categoryTotals.sumOf { it.second.toDouble() }.toFloat()
-
-    // 2. Animation State
     var animationPlayed by remember { mutableStateOf(false) }
     LaunchedEffect(key1 = expenses) { animationPlayed = true }
-
-    val animateSweep by animateFloatAsState(
-        targetValue = if (animationPlayed) 1f else 0f,
-        animationSpec = tween(durationMillis = 1000),
-        label = "donutAnimation"
-    )
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // --- 3. THE DONUT RING ---
+    val animateSweep by animateFloatAsState(targetValue = if (animationPlayed) 1f else 0f, animationSpec = tween(durationMillis = 1000), label = "donutAnimation")
+    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(modifier = Modifier.size(160.dp), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 var currentStartAngle = -90f
                 val strokeWidth = 40f
-
                 categoryTotals.forEach { (category, amount) ->
                     val sweepAngle = (amount / totalSpend) * 360f * animateSweep
                     val color = getCategoryColor(category)
                     val gap = if (categoryTotals.size > 1) 2f else 0f
-
-                    drawArc(
-                        color = color,
-                        startAngle = currentStartAngle,
-                        sweepAngle = sweepAngle - gap,
-                        useCenter = false,
-                        style = Stroke(width = strokeWidth, cap = StrokeCap.Butt)
-                    )
+                    drawArc(color = color, startAngle = currentStartAngle, sweepAngle = sweepAngle - gap, useCenter = false, style = Stroke(width = strokeWidth, cap = StrokeCap.Butt))
                     currentStartAngle += sweepAngle
                 }
             }
-
-            // Center Text
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Total", color = Color.Gray, fontSize = 12.sp)
-                Text(
-                    text = "RM ${String.format(Locale.US, "%.0f", totalSpend)}",
-                    fontWeight = FontWeight.Black,
-                    fontSize = 18.sp,
-                    color = textColor
-                )
+                Text(text = "RM ${String.format(Locale.US, "%.0f", totalSpend)}", fontWeight = FontWeight.Black, fontSize = 18.sp, color = textColor)
             }
         }
-
         Spacer(modifier = Modifier.height(24.dp))
-
-        // --- 4. THE LEGEND ---
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             categoryTotals.forEach { (category, amount) ->
                 val percentage = if (totalSpend > 0) (amount / totalSpend) * 100 else 0f
                 val color = getCategoryColor(category)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(modifier = Modifier.size(12.dp).background(color, CircleShape))
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = category,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = textColor
-                        )
+                        Text(text = category, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = textColor)
                     }
-
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "${percentage.toInt()}%",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = color
-                        )
+                        Text(text = "${percentage.toInt()}%", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = color)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "(RM ${String.format(Locale.US, "%.0f", amount)})",
-                            fontSize = 12.sp,
-                            color = Color.Gray
-                        )
+                        Text(text = "(RM ${String.format(Locale.US, "%.0f", amount)})", fontSize = 12.sp, color = Color.Gray)
                     }
                 }
             }

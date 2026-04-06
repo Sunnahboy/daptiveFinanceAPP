@@ -1,224 +1,265 @@
+
 package com.finadapt.adaptivefinance.feature.gamification
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieComposition
+import kotlin.math.abs
+import com.finadapt.adaptivefinance.R
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.unit.times
+import kotlinx.coroutines.launch
 
-data class Badge(
-    val id: String,
+data class MapStop(
+    val xpRequired: Int,
     val title: String,
-    val description: String,
-    val icon: String,
-    val isUnlocked: Boolean,
+    val isBuilding: Boolean,
+    val swingOffset: Float,
+    val uniqueLottieRes: Int
 )
 
 @Composable
 fun RewardsScreen(
     userXp: Int,
+    userCoins: Int,
     shieldCount: Int,
-    badges: List<Badge>,
-    isDarkMode: Boolean = false, // 🟢 NEW: Dark mode state passed in
+    isDarkMode: Boolean = false,
     onBuyShield: () -> Unit,
 ) {
-    // 🟢 DYNAMIC THEME COLORS
-    val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val bgColorTop = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFE0F2FE)
+    val bgColorBottom = if (isDarkMode) Color(0xFF1E293B) else Color(0xFFF1F5F9)
     val textColor = if (isDarkMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
-    val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color.Gray
+    val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B)
 
-    val badgeRows = badges.chunked(2) // split the badges into list of two for the grid
+    val mapStops = listOf(
+        MapStop(0, "Base Camp", isBuilding = true, swingOffset = 0f, uniqueLottieRes = R.raw.camp_node),
+        MapStop(100, "Slime Ambush", isBuilding = false, swingOffset = -0.35f, uniqueLottieRes = R.raw.fight_slime),
+        MapStop(250, "The First Gate", isBuilding = true, swingOffset = 0.3f, uniqueLottieRes = R.raw.boss_gate_node),
+        MapStop(500, "Crystal Cavern", isBuilding = false, swingOffset = -0.2f, uniqueLottieRes = R.raw.crystal_glow),
+        MapStop(1000, "Skybridge", isBuilding = true, swingOffset = 0.4f, uniqueLottieRes = R.raw.boss_gate_node),
+        MapStop(1500, "Frozen Falls", isBuilding = false, swingOffset = -0.42f, uniqueLottieRes = R.raw.camp_node),
+        MapStop(2000, "Dragon's Peak", isBuilding = true, swingOffset = 0.25f, uniqueLottieRes = R.raw.boss_gate_node),
+        MapStop(2500, "Cloud Temple", isBuilding = false, swingOffset = -0.3f, uniqueLottieRes = R.raw.crystal_glow),
+        MapStop(3500, "Astral Observatory", isBuilding = true, swingOffset = 0.35f, uniqueLottieRes = R.raw.boss_gate_node),
+        MapStop(5000, "Summit of Prosperity", isBuilding = true, swingOffset = 0f, uniqueLottieRes = R.raw.boss_gate_node)
+    )
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(bgColor), // 🟢 Dynamic background
-        contentPadding = PaddingValues(top = 48.dp, start = 20.dp, end = 20.dp, bottom = 100.dp)
-    ) {
-        // -- HEADER --
-        item {
-            Text(
-                "Rewards & Trophies",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = textColor // 🟢 Dynamic
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "Complete AI challenges to earn XP and unlock badges.",
-                color = subTextColor, // 🟢 Dynamic
-                fontSize = 14.sp
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-        }
+    Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(bgColorTop, bgColorBottom)))) {
+        Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(modifier = Modifier.height(180.dp))
+                Text("The Ascent", fontSize = 36.sp, fontWeight = FontWeight.Black, color = textColor, letterSpacing = 2.sp)
+                Text("Lifetime Power: $userXp XP", color = Color(0xFF10B981), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(40.dp))
 
-        // -- THE XP ECONOMY (Streak Shield Store) --
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp), // Added padding here instead of Spacer inside
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF06B6D4)), // Cyan stays vibrant in both modes!
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Shield,
-                                contentDescription = "Shield",
-                                tint = Color.White
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "STREAK SHIELD",
-                                fontWeight = FontWeight.Black,
-                                color = Color.White,
-                                letterSpacing = 1.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            "You have $shieldCount active",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "Protects your streak if you miss a day of logging.",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp
-                        )
-                    }
+                MountainRoadmap(userXp = userXp, mapStops = mapStops, isDarkMode = isDarkMode)
 
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    // The Buy Button (disabled if they don't have enough XP)
-                    val shieldCost = 500
-                    val canAfford = userXp >= shieldCost
-                    Button(
-                        onClick = onBuyShield,
-                        enabled = canAfford,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            disabledContainerColor = Color.White.copy(alpha = 0.3f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = if (canAfford) "-$shieldCost XP" else "Need $shieldCost XP",
-                            color = if (canAfford) Color(0xFF06B6D4) else Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                Spacer(modifier = Modifier.height(100.dp))
             }
         }
 
-        // -- SAFE GRID IMPLEMENTATION --
-        items(badgeRows) { rowItems ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                for (badge in rowItems) {
-                    BadgeCard(
-                        badge = badge,
-                        isDarkMode = isDarkMode, // 🟢 Pass theme state down
-                        modifier = Modifier.weight(1f)
-                    )
+        Surface(color = bgColorTop.copy(alpha = 0.95f), modifier = Modifier.fillMaxWidth(), shadowElevation = if (isDarkMode) 0.dp else 4.dp) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp).statusBarsPadding()) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(40.dp).background(Color(0xFFF59E0B).copy(alpha = 0.2f), CircleShape).border(1.dp, Color(0xFFF59E0B), CircleShape), contentAlignment = Alignment.Center) { Text("🪙", fontSize = 18.sp) }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column { Text("Coins", color = subTextColor, fontSize = 10.sp, fontWeight = FontWeight.Bold); Text("$userCoins", color = textColor, fontSize = 18.sp, fontWeight = FontWeight.Black) }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(horizontalAlignment = Alignment.End) { Text("Shields", color = subTextColor, fontSize = 10.sp, fontWeight = FontWeight.Bold); Text("x$shieldCount", color = textColor, fontSize = 18.sp, fontWeight = FontWeight.Black) }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Box(modifier = Modifier.size(40.dp).background(Color(0xFF06B6D4).copy(alpha = 0.2f), CircleShape).border(1.dp, Color(0xFF06B6D4), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Default.Shield, contentDescription = "Shields", tint = Color(0xFF06B6D4), modifier = Modifier.size(20.dp)) }
+                    }
                 }
-                // If there's an odd number of badges, fill the empty space
-                if (rowItems.size == 1) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+                Spacer(modifier = Modifier.height(16.dp))
+                val shieldCost = 500
+                val canAfford = userCoins >= shieldCost
+                Button(
+                    onClick = onBuyShield, enabled = canAfford, modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981), disabledContainerColor = if (isDarkMode) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.1f)),
+                    shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(vertical = 12.dp)
+                ) { Text(text = if (canAfford) "Buy Shield (-$shieldCost 🪙)" else "Need $shieldCost 🪙 for Shield", fontWeight = FontWeight.Bold, color = if (canAfford) Color.White else subTextColor) }
             }
         }
     }
 }
 
 @Composable
-fun BadgeCard(badge: Badge, isDarkMode: Boolean, modifier: Modifier = Modifier) {
-    // 🟢 DYNAMIC BADGE COLORS
-    val alpha = if (badge.isUnlocked) 1f else 0.4f
+fun MountainRoadmap(userXp: Int, mapStops: List<MapStop>, isDarkMode: Boolean) {
+    val nodeSpacing = 160.dp
+    val mapHeight = nodeSpacing * mapStops.size
 
-    // Unlocked = White/Slate. Locked = Gray/Dark Slate.
-    val cardBgColor = if (isDarkMode) {
-        if (badge.isUnlocked) Color(0xFF1E293B) else Color(0xFF0F172A)
-    } else {
-        if (badge.isUnlocked) Color.White else Color(0xFFF1F5F9)
-    }
+    val trailLockedColor = if (isDarkMode) Color(0xFF334155) else Color(0xFFCBD5E1)
+    val trailUnlockedColor = Color(0xFF10B981)
+    val nodeLabelColor = if (isDarkMode) Color(0xFF1E293B) else Color.White
+    val textColor = if (isDarkMode) Color.White else Color(0xFF0F172A)
 
-    val textColor = if (isDarkMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
-    val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color.Gray
-    val iconBgColor = if (isDarkMode) Color(0xFF334155) else Color(0xFFF8FAFC)
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f, targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(animation = tween(1500, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+        label = "scale"
+    )
 
-    Card(
-        modifier = modifier.height(160.dp).alpha(alpha),
-        colors = CardDefaults.cardColors(containerColor = cardBgColor),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(if (badge.isUnlocked && !isDarkMode) 4.dp else 0.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp).fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // Lock Icon Logic
-            if (!badge.isUnlocked) {
-                Icon(
-                    Icons.Default.Lock,
-                    contentDescription = "Locked",
-                    tint = subTextColor,
-                    modifier = Modifier.size(16.dp).align(Alignment.End)
-                )
-            } else {
-                Spacer(modifier = Modifier.height(16.dp)) // Balance the layout
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(mapHeight)) {
+        val widthPx = maxWidth.value
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val strokeWidth = 20.dp.toPx()
+            val nodeCenters = mapStops.mapIndexed { index, stop -> Offset((size.width / 2) + (size.width * stop.swingOffset), size.height - (index * nodeSpacing.toPx()) - (nodeSpacing.toPx() / 2)) }
+
+            val lockedPath = Path().apply { moveTo(nodeCenters.first().x, nodeCenters.first().y); for (i in 0 until nodeCenters.size - 1) { val curr = nodeCenters[i]; val next = nodeCenters[i + 1]; val controlOffset = abs(next.y - curr.y) * 0.4f; cubicTo(curr.x, curr.y - controlOffset, next.x, next.y + controlOffset, next.x, next.y) } }
+            drawPath(path = lockedPath, color = trailLockedColor, style = Stroke(width = strokeWidth, cap = StrokeCap.Round))
+
+            val highestUnlockedIndex = mapStops.indexOfLast { userXp >= it.xpRequired }
+            if (highestUnlockedIndex > 0) {
+                val unlockedPath = Path().apply { moveTo(nodeCenters.first().x, nodeCenters.first().y); for (i in 0 until highestUnlockedIndex) { val curr = nodeCenters[i]; val next = nodeCenters[i + 1]; val controlOffset = abs(next.y - curr.y) * 0.4f; cubicTo(curr.x, curr.y - controlOffset, next.x, next.y + controlOffset, next.x, next.y) } }
+                drawPath(path = unlockedPath, color = trailUnlockedColor, style = Stroke(width = strokeWidth, cap = StrokeCap.Round))
+                drawPath(path = unlockedPath, color = Color.White.copy(alpha = 0.3f), style = Stroke(width = strokeWidth * 0.3f, cap = StrokeCap.Round))
             }
+        }
 
-            // The Badge Icon
+        mapStops.forEachIndexed { index, stop ->
+            val isUnlocked = userXp >= stop.xpRequired
+            val isCurrent = userXp >= stop.xpRequired && (index == mapStops.size - 1 || userXp < mapStops[index + 1].xpRequired)
+
+            val offsetX = (widthPx * stop.swingOffset).dp
+            val offsetY = mapHeight - (index * nodeSpacing) - (nodeSpacing / 2)
+
+            val coroutineScope = rememberCoroutineScope()
+            val tapScale = remember { Animatable(1f) }
+
             Box(
-                modifier = Modifier.size(56.dp).background(iconBgColor, CircleShape),
+                modifier = Modifier
+                    .offset(x = (widthPx / 2).dp + offsetX - 75.dp, y = offsetY - 75.dp)
+                    .width(150.dp)
+                    .height(180.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(badge.icon, fontSize = 28.sp)
-            }
-            Spacer(modifier = Modifier.height(12.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
 
-            Text(
-                text = badge.title,
-                fontWeight = FontWeight.Bold,
-                color = textColor, // 🟢 Dynamic
-                fontSize = 14.sp,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = badge.description,
-                color = subTextColor, // 🟢 Dynamic
-                fontSize = 11.sp,
-                textAlign = TextAlign.Center,
-                lineHeight = 14.sp
-            )
+                    val nodeSize = if (stop.isBuilding) 85.dp else 70.dp
+                    val shape = if (stop.isBuilding) RoundedCornerShape(20.dp) else CircleShape
+
+                    val lottieRes = if (!isUnlocked) R.raw.locked_node else stop.uniqueLottieRes
+                    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(lottieRes))
+
+                    // 🟢 FIX: Set isPlaying = true so every single Lottie stays alive and animating!
+                    val progress by animateLottieCompositionAsState(
+                        composition = composition,
+                        iterations = LottieConstants.IterateForever,
+                        isPlaying = true
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(nodeSize)
+                            .scale(if (isCurrent) pulseScale * tapScale.value else tapScale.value)
+                            .shadow(if (isCurrent) 16.dp else 4.dp, shape, spotColor = if (isCurrent) trailUnlockedColor else Color.Black)
+                            .background(if (isUnlocked) trailUnlockedColor else trailLockedColor, shape)
+                            .border(width = if (isCurrent) 4.dp else 0.dp, color = if (isCurrent) Color.White else Color.Transparent, shape = shape)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                coroutineScope.launch {
+                                    tapScale.animateTo(
+                                        targetValue = 1.3f,
+                                        animationSpec = tween(100, easing = FastOutSlowInEasing)
+                                    )
+                                    tapScale.animateTo(
+                                        targetValue = 1f,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                            stiffness = Spring.StiffnessLow
+                                        )
+                                    )
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LottieAnimation(composition = composition, progress = { progress }, modifier = Modifier.fillMaxSize(0.65f))
+
+                        if (isCurrent) {
+                            val avatarComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.walking_character))
+                            val avatarProgress by animateLottieCompositionAsState(composition = avatarComposition, iterations = LottieConstants.IterateForever, isPlaying = true)
+                            LottieAnimation(
+                                composition = avatarComposition, progress = { avatarProgress },
+                                modifier = Modifier.size(55.dp).align(Alignment.TopCenter).offset(y = (-35).dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Surface(
+                        color = nodeLabelColor.copy(alpha = 0.95f), shape = RoundedCornerShape(10.dp), shadowElevation = if (isDarkMode) 0.dp else 4.dp,
+                        border = BorderStroke(1.dp, if (isDarkMode) Color(0xFF334155) else Color(0xFFE2E8F0))
+                    ) {
+                        Text(text = stop.title, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
+                    }
+                }
+            }
         }
     }
 }

@@ -31,6 +31,11 @@ android {
         // Use quotes around the value for BuildConfig strings
         val token = properties.getProperty("API_TOKEN") ?: "MISSING_TOKEN"
         buildConfigField("String", "API_TOKEN", "\"$token\"")
+
+        //val apiKey = properties.getProperty("OPENROUTER_API_KEY") ?: ""
+        //buildConfigField("String", "OPENROUTER_API_KEY", "\"$apiKey\"")
+        val groqKey = properties.getProperty("GROQ_API_KEY") ?: ""
+        buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")
     }
     buildFeatures {
         buildConfig = true
@@ -68,6 +73,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.material3)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -98,6 +104,19 @@ dependencies {
     implementation("com.patrykandpatrick.vico:compose-m3:1.14.0")
 
     implementation("androidx.work:work-runtime-ktx:2.9.0")//background work manager
+    implementation("com.airbnb.android:lottie-compose:6.3.0")//for lottie files
+    // Standard ML Kit Text Recognition
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    // The New ML Kit Document Scanner UI
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
+    // Allows Kotlin Coroutines to 'await()' Google Play Services Tasks
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+    implementation("org.apache.poi:poi:5.2.3")
+    implementation("org.apache.poi:poi-ooxml:5.2.3")
+
 
 
 
