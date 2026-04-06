@@ -12,102 +12,137 @@ import android.util.Log
 import okhttp3.OkHttpClient
 
 
-object ApiClient{
-    //domain
+object ApiClient {
+    // Domains
     private const val PRIMARY_URL = "https://adaptivefinance.duckdns.org/"
-    private  const val BACKUP_URL = "https://adaptive-finance-backend.onrender.com/"
-    private  const val RATE_LIMITER_URL = "https://adaptive-finance-backend.onrender.com/"
-
-
+    private const val BACKUP_URL = "https://adaptive-finance-backend.onrender.com/"
+    private const val RATE_LIMITER_URL = "https://finadapt-ratelimiter-service-production.up.railway.app/"
 
     //Safely pulled from local.properties at compile time!
     const val API_TOKEN = BuildConfig.API_TOKEN
-    //2 The auto failover Interceptor
+
+
+    //@Volatile ensures thread-safety since OkHttp runs on background threads
+    @Volatile
+    private var circuitOpenUntil: Long = 0L
+    private const val CIRCUIT_COOLDOWN_MS = 5 * 60 * 1000L // 5 minutes
+
+    // The auto failover Interceptor
     private val failoverInterceptor = Interceptor { chain ->
         val request = chain.request()
+        val now = System.currentTimeMillis()
+
+        // 1. Check Circuit Breaker & Safety Headers
+        val isCircuitOpen = now < circuitOpenUntil
+        val avoidRetry = request.header("X-No-Retry") == "true"
+
         var response: Response? = null
         var exception: IOException? = null
 
-        try{
-            //step A: try the aws primary server
-            response = chain.proceed(request)
-        } catch ( e: IOException) {
-            //catch the timeout
-            exception = e
-
-        }
-        //step B: check if the aws failed
-        if (response == null || !response.isSuccessful || response.code in 500..599){
-            response?.close() // prevents memory leaks
-            Log.w("ApiClient","AWS server unresponsive. Failing back to Render...")
-
-            //Step C: Swap the Url to render
-            val backupHttpUrl = BACKUP_URL.toHttpUrlOrNull()
-            if (backupHttpUrl != null){
-                val fallbackUrl = request.url.newBuilder()
-                    .scheme(scheme = backupHttpUrl.scheme)
-                    .host(backupHttpUrl.host)
-                    .port( backupHttpUrl.port)
-                    .build()
-                 val fallbackRequest = request.newBuilder()
-                    .url(fallbackUrl)
-                    .build()
-
-                 try{
-                    //step D : Send to render instead
-                    response = chain.proceed(fallbackRequest)
-                 }catch (e: IOException){
-                    throw exception ?: e
-                 }
-
+        // 2. Try Primary Server (Only if Circuit is CLOSED)
+        if (!isCircuitOpen) {
+            try {
+                //TIMEOUT FIX: Give AWS a fast 10-second leash, don't block the user for a minute
+                response = chain
+                    .withConnectTimeout(10, TimeUnit.SECONDS)
+                    .withReadTimeout(15, TimeUnit.SECONDS)
+                    .proceed(request)
+            } catch (e: IOException) {
+                exception = e // Caught a timeout or network drop
             }
         }
-        //return a successful response or throw error if both server fails
-        response?: throw exception ?: IOException("Both primary and backup servers failed")
 
+        // 3. Evaluate the Result
+        val isServerDown = response == null || response.code in 502..504
+
+        // If primary succeeded, or it's a 4xx error (like 401 Unauthorized), or we are forbidden to retry -> return immediately
+        if (!isServerDown || avoidRetry) {
+            if (response?.isSuccessful == true) {
+                circuitOpenUntil = 0L // Reset the breaker on a successful AWS hit
+            }
+            return@Interceptor response ?: throw exception ?: IOException("Unknown network error")
         }
 
+        // 4. Primary Failed -> Trip the Circuit Breaker
+        if (!isCircuitOpen) {
+            Log.w("ApiClient", "AWS server down! Tripping circuit breaker for 5 mins. Failing over to Render...")
+            circuitOpenUntil = now + CIRCUIT_COOLDOWN_MS
+        } else {
+            Log.w("ApiClient", "Circuit open. Routing directly to Render...")
+        }
 
-        //3 Attach the interceptor to the Okhttp
-        private val okHttpClient = OkHttpClient.Builder()
-            .addInterceptor(failoverInterceptor)
-            //60 second timeouts to account for render's cold start sleep mode
-            .connectTimeout(60,TimeUnit.SECONDS)
-            .readTimeout(60,TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
+        response?.close() // Prevents memory leaks from the dead primary body
+
+        // 5. Build the Fallback Request
+        val backupHttpUrl = BACKUP_URL.toHttpUrlOrNull()
+            ?: throw IOException("Invalid Backup URL configuration")
+
+        //PORT FIX: Safely adopt Render's scheme, host, and port natively
+        val fallbackUrl = request.url.newBuilder()
+            .scheme(backupHttpUrl.scheme)
+            .host(backupHttpUrl.host)
+            .port(backupHttpUrl.port)
             .build()
 
-     //4 build retrofit using the custom OkHttpClient
-
-    val retrofit: Retrofit by lazy{
-        Retrofit.Builder()
-            .baseUrl(PRIMARY_URL)//defaults to aws ec2
-            .client(okHttpClient)//failover logic and timeout
-            .addConverterFactory(GsonConverterFactory.create()) // coverts JSON to kotlin data class
+        val fallbackRequest = request.newBuilder()
+            .url(fallbackUrl)
+            .header("X-Is-Fallback", "true")
+            .removeHeader("X-No-Retry") // Clean up the request headers
             .build()
+
+        // 6. Send to Render
+        try {
+            //Give backup  the full 60 seconds to wake up from its sleep mode
+            return@Interceptor chain
+                .withConnectTimeout(60, TimeUnit.SECONDS)
+                .withReadTimeout(60, TimeUnit.SECONDS)
+                .proceed(fallbackRequest)
+        } catch (e: IOException) {
+            throw exception ?: e // Throw the original exception if BOTH fail
+        }
     }
 
-    val fastApiService: FastApiInterface by lazy{
-        retrofit.create(FastApiInterface::class.java)
-    }
+    // Attach the interceptor to OkHttp
+    private val okHttpClient = OkHttpClient.Builder()
+        .addInterceptor(failoverInterceptor)
+        // Default base timeouts
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
 
-
-    //KTor Rate limiting
+    // KTor Rate limiting (Separate client without the AWS failover logic)
     private val rateLimitOkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    val rateLimitRetrofit: Retrofit by lazy {
-        Retrofit.Builder()
-            .baseUrl(RATE_LIMITER_URL)
-            .client(rateLimitOkHttpClient)
+    // DRY: build Retrofit instances
+    private fun buildRetrofit(baseUrl: String, client: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl(baseUrl)
+            .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
     }
-    //call endpoint safely
-    val rateLimitApiService: FastApiInterface by lazy{
+
+    // Retrofit Instances
+    val retrofit: Retrofit by lazy {
+        buildRetrofit(PRIMARY_URL, okHttpClient)
+    }
+
+    val fastApiService: FastApiInterface by lazy {
+        retrofit.create(FastApiInterface::class.java)
+    }
+
+    //Rate Limiter Retrofit Instance
+    val rateLimitRetrofit: Retrofit by lazy {
+        buildRetrofit(RATE_LIMITER_URL, rateLimitOkHttpClient)
+    }
+
+    // Rate Limiter Service
+    val rateLimitApiService: FastApiInterface by lazy {
         rateLimitRetrofit.create(FastApiInterface::class.java)
     }
 }
