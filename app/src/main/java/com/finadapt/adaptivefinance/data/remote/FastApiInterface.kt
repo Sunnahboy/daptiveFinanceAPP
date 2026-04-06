@@ -1,4 +1,5 @@
 package com.finadapt.adaptivefinance.data.remote
+import com.finadapt.adaptivefinance.feature.expense.ParsedReceipt
 import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
@@ -81,7 +82,7 @@ data class LeaderboardTopResponse(
 //KTOR rate-Limiter AI Endpoints
 data class ChatRequest(
     @SerializedName("prompt")
-    val userId: String
+    val prompt: String
 )
 
 data class ChatResponse(
@@ -89,6 +90,10 @@ data class ChatResponse(
     val message: String
 )
 
+data class ReceiptRequest(
+    @SerializedName("raw_text")
+    val rawText: String
+)
 
 
 //4. The exact FastAPI Endpoint
@@ -114,8 +119,15 @@ interface FastApiInterface{
 
 
     @POST("api/chat")
-    suspend fun askFinancialAI(
-        @Header("X-User_Id") userId: String,
+    suspend fun askFinancialAi(
+        @Header("X-User-Id") userId: String,
         @Body request: ChatRequest
-    ): Response<ChatResponse>//easily check  response.code =429 in viewModel
+    ): Response<ChatResponse> // easily check response.code() == 429
+
+
+    @POST("api/receipt")
+    suspend fun parseReceipt(
+        @Header("X-User-Id") userId: String,
+        @Body request: ReceiptRequest
+    ): Response<ParsedReceipt>
 }
