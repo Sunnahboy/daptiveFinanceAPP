@@ -1,21 +1,23 @@
 package com.finadapt.adaptivefinance.data.repository
 
-import com.finadapt.adaptivefinance.core.network.ApiClient
-import com.finadapt.adaptivefinance.data.local.AiInteractionEntity
-import com.finadapt.adaptivefinance.data.local.ExpenseDao
-import com.finadapt.adaptivefinance.data.local.ExpenseEntity
-import com.finadapt.adaptivefinance.data.remote.ContextRequest
-import com.finadapt.adaptivefinance.data.remote.AiResponse
-import com.finadapt.adaptivefinance.data.remote.FeedbackRequest
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
+import com.finadapt.adaptivefinance.core.network.ApiClient
+import com.finadapt.adaptivefinance.data.local.AiInteractionEntity
+import com.finadapt.adaptivefinance.data.local.ExpenseDao
+import com.finadapt.adaptivefinance.data.remote.AiResponse
+import com.finadapt.adaptivefinance.data.remote.ContextRequest
+import com.finadapt.adaptivefinance.data.remote.FeedbackRequest
 import com.finadapt.adaptivefinance.data.remote.LeaderboardEntry
 import com.finadapt.adaptivefinance.data.remote.LeaderboardUpdateRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.Calendar.getInstance
+import kotlin.math.ln
+import kotlin.math.sqrt
 
 class FinanceRepository(
     private val expenseDao: ExpenseDao,
@@ -24,6 +26,9 @@ class FinanceRepository(
 
     private val apiService = ApiClient.fastApiService
 
+    // "fire-and-forget" background tasks
+    private val repositoryScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+
     suspend fun logExpenseAndGetStrategy(
         userId: String,
         amount: Float,
@@ -31,94 +36,122 @@ class FinanceRepository(
     ): Result<AiResponse> {
         return withContext(Dispatchers.IO) {
             try {
-                //1.SAVE TO DEVICE BRAIN (Room )
-                //We must save the expense to the database BEFORE we do the math
-                val newExpense = ExpenseEntity(
-                    amount = amount,
-                    category = category,
-                    timestamp = System.currentTimeMillis() //Stamps it with today's date!
-                )
-                expenseDao.insertExpense(newExpense)
-                // 2.EDGE FEATURE ENGINEERING (With Projected Run Rate)
-
-
-                //STREAK
+                // 1. STREAK MANAGEMENT
                 val todayMidnight = getMidnightTimestamp()
                 val lastLoggedMidnight = prefs.getLong("LAST_LOGGED_MIDNIGHT", 0L)
                 var currentStreak = prefs.getInt("CURRENT_STREAK", 0)
-
                 val daysDifference = (todayMidnight - lastLoggedMidnight) / (1000 * 60 * 60 * 24)
 
                 when (daysDifference) {
-                    0L -> { /* Already logged today, streak stays the same */ }
-                    1L -> { currentStreak += 1 } // Logged yesterday! Increment streak!
-                    else -> { currentStreak = 1 } // Streak broken, start fresh at 1!
+                    0L -> { /* Already logged today */ }
+                    1L -> { currentStreak += 1 }
+                    else -> { currentStreak = 1 }
                 }
-
                 prefs.edit {
                     putLong("LAST_LOGGED_MIDNIGHT", todayMidnight)
                     putInt("CURRENT_STREAK", currentStreak)
                 }
 
-                // Fetch the 30-Day Bounded Spend (from  DAO)
+                // 2. FETCH RAW DATA FROM DAO
                 val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
                 val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
-                val totalSpend = expenseDao.getTotalSpendTimeBounded(timeLimit) ?: 0f
+                val totalSpend = expenseDao.getTotalSpendTimeBounded(
+                    timeLimit,
+                    System.currentTimeMillis()
+                ) ?: 0f
                 val txCount = expenseDao.getTransactionCount().toFloat()
-                val avgTxValue = if (txCount > 0f) totalSpend / txCount else 0f
 
-                // Fetch Baseline & Install Date
+                // 3. EDGE FEATURE ENGINEERING
                 val monthlyBudget = prefs.getFloat("MONTHLY_BUDGET", 1000f)
                 val installTimestamp = prefs.getLong("INSTALL_TIMESTAMP", System.currentTimeMillis())
-
-                // Calculate "Days Active"
                 val millisActive = System.currentTimeMillis() - installTimestamp
                 val daysActive = maxOf(1f, millisActive / (1000f * 60f * 60f * 24f))
 
-                //Calculate the Projected 30-Day Spend
-                val projectedSpend = if (daysActive < 30f) {
-                    // New User: Extrapolate their current pace to a full month
-                    (totalSpend / daysActive) * 30f
-                } else {
-                    // Veteran User: The 30-day window is already fully accurate
-                    totalSpend
-                }
+                val projectedSpend = if (daysActive < 30f) (totalSpend / daysActive) * 30f else totalSpend
+                val macroDrift = if (monthlyBudget > 0f) (projectedSpend / monthlyBudget) else 0.5f
 
-                // Final Volatility Math using the PROJECTED spend
-                val spendingVolatility = if (monthlyBudget > 0f) {
-                    (projectedSpend / monthlyBudget).coerceIn(0.0f, 2.0f)
-                } else {
-                    0.5f
-                }
+                val dailyAllowance = if (monthlyBudget > 0f) monthlyBudget / 30f else 50f
+                val transactionSpikeRatio = amount / dailyAllowance
+                val microAnomaly = ln(1.0 + transactionSpikeRatio).toFloat()
 
-                // 3. SEND THE ANONYMIZED VECTOR TO AWS
+                val synthesizedRisk = sqrt((macroDrift * macroDrift) + (microAnomaly * microAnomaly))
+                val finalVolatility = synthesizedRisk.coerceIn(0.0f, 5.0f)
+
+                val pastTotalSpend = maxOf(0f, totalSpend - amount)
+                val pastTxCount = maxOf(1f, txCount - 1f)
+                val avgTxValue = if (pastTxCount > 0f) pastTotalSpend / pastTxCount else 0f
+
+                // 4. PREPARE PAYLOAD
                 val request = ContextRequest(
                     userId = userId,
-                    testGroup = "adaptive",     //tell the DB they are in the AI group
-                    amount = amount,            //Pass the amount down
-                    category = category,        //Pass the category down
+                    testGroup = "adaptive",
+                    amount = amount,
+                    category = category,
                     features = mapOf(
                         "total_spend" to totalSpend,
-                        "spending_volatility" to spendingVolatility,
-                        "return_rate" to 0.05f, // Mocked for now
+                        "spending_volatility" to finalVolatility,
+                        "return_rate" to 0.05f,
                         "transaction_count" to txCount,
                         "avg_transaction_value" to avgTxValue
                     )
-
                 )
 
-                val response = apiService.getAiGamification(ApiClient.API_TOKEN, request)
-                //If server doesn't send an ID, we generate a safe local fallback UUID
-                val currentPredictionId = response.predictionId ?: "fallback_${java.util.UUID.randomUUID()}"
+                // 5. SEND TO AWS (With Graceful Offline Fallback!)
+                val response = try {
+                    apiService.getAiGamification(ApiClient.API_TOKEN, request)
+                } catch (_: Exception) {
+                    Log.w("Gamification", "User is offline. Using local fallback.")
+
+                    // If there is no internet, we default to skipping the game
+                    AiResponse(
+                        predictionId = "offline_${java.util.UUID.randomUUID()}",
+                        recommendedStrategy = "Standard",
+                        action = "Log_Only",
+                        gamificationMessage = "Expense logged securely offline.",
+                        visualTheme = "Neutral"
+                    )
+                }
+
+                // --- 🛑 START OF AI GUARDRAIL ---
+                var finalResponse = response
+
+                if (finalVolatility >= 4.0f && response.action?.contains("Streak", ignoreCase = true) == true) {
+                    Log.w("Gamification", "🛡️ GUARDRAIL TRIGGERED: Overriding AI during critical overspend.")
+
+                    val badPredictionId = response.predictionId
+                    if (badPredictionId != null) {
+                        repositoryScope.launch {
+                            try {
+                                val punishFeedback = FeedbackRequest(badPredictionId, -5.0f)
+                                apiService.sendFeedback(ApiClient.API_TOKEN, punishFeedback)
+                            } catch (e: Exception) {
+                                Log.e("Gamification", "Failed to send auto-punish feedback", e)
+                            }
+                        }
+                    }
+
+                    finalResponse = response.copy(
+                        predictionId = "local_override_${java.util.UUID.randomUUID()}",
+                        action = "strict_budget", // Ensured exact match with your game constants
+                        recommendedStrategy = "Strict_Budget",
+                        gamificationMessage = "CRITICAL OVERSPEND. Aegis Protocol initiated. Secure the vault.",
+                        visualTheme = "Danger"
+                    )
+                }
+                // --- 🛑 END OF AI GUARDRAIL ---
+
+                // 6. SAVE INTERACTION TO MEMORY
+                val currentPredictionId = finalResponse.predictionId ?: "fallback_${java.util.UUID.randomUUID()}"
                 val aiMemory = AiInteractionEntity(
                     predictionId = currentPredictionId,
-                    strategy = response.recommendedStrategy ?: "Standard",
-                    action = response.action ?: "log_only",
-                    notification = response.gamificationMessage ?: "Expense logged.",
-                    visualTheme = response.visualTheme ?: "Neutral"
+                    strategy = finalResponse.recommendedStrategy ?: "Standard",
+                    action = finalResponse.action ?: "Log_Only",
+                    notification = finalResponse.gamificationMessage ?: "Expense logged.",
+                    visualTheme = finalResponse.visualTheme ?: "Neutral"
                 )
                 expenseDao.insertAiInteraction(aiMemory)
-                Result.success(response)
+
+                Result.success(finalResponse)
 
             } catch (e: Exception) {
                 Result.failure(e)
@@ -126,27 +159,42 @@ class FinanceRepository(
         }
     }
 
-    suspend fun submitUserFeedback(predictionId: String, reward: Int) {
+    suspend fun submitUserFeedback(predictionId: String, strategyName: String, userAccepted: Boolean) {
         withContext(Dispatchers.IO) {
             try {
-                // 1. Send to AWS for the bandit feedback(0 or 1)
-                val feedback = FeedbackRequest(predictionId, reward)
-                apiService.sendFeedback(ApiClient.API_TOKEN, feedback)
+                val strikeKey = "STRIKES_$strategyName"
+                val finalReward: Float
 
-                // 2. If successful, update the local database so we never send it again!
-                expenseDao.markFeedbackAsSent(predictionId)
-                //3 XP reward the user for playing the game
-                if(reward > 0f){
-                    // reward > 0 users clicked yes or accepted challenge
+                if (userAccepted) {
+                    // 🟢 THEY ACCEPTED
+                    finalReward = 2.0f
+                    prefs.edit { putInt(strikeKey, 0) }
+
                     val currentXp = prefs.getInt("USER_XP", 0)
                     prefs.edit { putInt("USER_XP", currentXp + 50) }
+
+                } else {
+                    // 🔴 THEY DECLINED
+                    var currentStrikes = prefs.getInt(strikeKey, 0)
+                    currentStrikes += 1
+
+                    if (currentStrikes >= 3) {
+                        // 🛑 3 STRIKES: Massive punishment to force the Bandit to switch arms!
+                        finalReward = -5.0f
+                        prefs.edit { putInt(strikeKey, 0) }
+                    } else {
+                        // 🟡 SOFT IGNORE: A slight negative nudge so it starts losing confidence
+                        finalReward = -0.5f
+                        prefs.edit { putInt(strikeKey, currentStrikes) }
+                    }
                 }
 
+                val feedback = FeedbackRequest(predictionId, finalReward)
+                apiService.sendFeedback(ApiClient.API_TOKEN, feedback)
+                expenseDao.markFeedbackAsSent(predictionId)
+
             } catch (e: Exception) {
-                // If the network fails, we do nothing!
-                // isFeedbackSent remains false in Room, and WorkManager will catch it later.
                 println("⚠️ Feedback Sync Paused. Reason: ${e.localizedMessage}")
-                println("Network failed. Feedback saved locally for eventual sync.")
             }
         }
     }
@@ -180,47 +228,6 @@ class FinanceRepository(
         }
     }
 
-//---safely subtract XP without crashing or going into negative numbers.-----
-
-    //1. read the current shield count
-    fun getShieldCount(): Int{
-        return prefs.getInt("STREAK_SHIELDS", 0)
-
-    }
-
-    //2. The Transaction Logic (Buy a shield)
-    fun buyStreakShield():Boolean {
-        val currentXp = prefs.getInt("USER_XP", 0)
-        val currentShields = getShieldCount()
-
-        // double check they can afford it
-        if (currentXp >= 500){
-            prefs.edit {
-                putInt("USER_XP", currentXp - 500)
-                putInt("STREAK_SHIELDS", currentShields + 1)
-            }
-            return true
-        }
-        return false
-            }
-
-    //Reads the current XP from the device memory
-    fun getUserXp(): Int {
-        return prefs.getInt("USER_XP", 0)
-    }
-
-    //1. increment a specific gamification stat
-    fun incrementGameStat(gameType: String){
-        val currentCount = prefs.getInt(gameType, 0)
-        prefs.edit { putInt("STAT_$gameType", currentCount + 1) }
-
-    }
-
-    // Read a specific gamification stat
-    fun getGameStat(gameType: String): Int {
-        return prefs.getInt("STAT_$gameType", 0)
-    }
-
     //Read the last seen tier
     fun getLastSeenTier(): String {
         return prefs.getString("LAST_SEEN_TIER", "Bronze Novice") ?: "Bronze Novice"
@@ -247,10 +254,8 @@ class FinanceRepository(
         if (name == null) {
             name = "Saver_${(1000..9999).random()}"
             prefs.edit { putString("ANONYMOUS_NAME", name) }
-
         }
         return name
-
     }
 
     //silently sync users Xp to the supabase
@@ -270,14 +275,10 @@ class FinanceRepository(
         }catch (e: Exception){
             Log.e("TAG", "Failed to process data", e)
         }
-
-
     }
-
 
     // fetches the top 50 users
     suspend fun getTopLeaderboard(): List<LeaderboardEntry> {
-
         return try {
             val response = ApiClient.fastApiService.getLeaderboardTop()
             if (response.isSuccessful) {
@@ -290,5 +291,4 @@ class FinanceRepository(
             emptyList()
         }
     }
-
 }

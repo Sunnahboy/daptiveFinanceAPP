@@ -46,7 +46,7 @@ data class FeedbackRequest(
     @SerializedName("prediction_id")
     val predictionId: String,
     @SerializedName("reward")
-    val reward: Int
+    val reward: Float
 )
 
 // LeaderBoard data models

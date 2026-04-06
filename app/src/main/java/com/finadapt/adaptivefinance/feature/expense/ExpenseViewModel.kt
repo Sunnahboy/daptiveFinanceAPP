@@ -1,109 +1,143 @@
+
 package com.finadapt.adaptivefinance.feature.expense
 
+import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.finadapt.adaptivefinance.data.repository.FinanceRepository
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import androidx.core.content.edit
+import com.finadapt.adaptivefinance.data.local.ExpenseDao
+import com.finadapt.adaptivefinance.data.local.ExpenseEntity
+import com.finadapt.adaptivefinance.data.repository.FinanceRepository
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-//1 . Define the exact states the UI can be in
+class ExpenseViewModel(
+    private val repository: FinanceRepository,
+    private val expenseDao: ExpenseDao,
+    private val prefs: SharedPreferences,
+): ViewModel() {
 
-sealed class  GamificationUiState {
-    object Idle: GamificationUiState()
-    object  Loading: GamificationUiState()
-    data class Success (
-        val predictionId: String,
-        val message: String,
-        val strategy: String,
-        val action: String,         //the Bandit's chosen action
-        val visualTheme: String     //The UI color recommendation
-    ): GamificationUiState()
-    data class Error(val exception: String): GamificationUiState()
+    // 🟢 1. THE QUEUE MANAGER
+    // This holds our countdown timer so we can cancel it if they log rapidly.
+    private var aiSyncJob: Job? = null
+    //holds the total amount and categories of rapid fire logging
+    private var accumulatedAmount = 0f
+    private var lastCategory = ""
 
-}
+    fun logExpense(
+        amount: Float,
+        category: String,
+        merchantName: String = "",
+        date: String = "",
+        paymentMethod: String = "",
+        receiptImagePath: String = "",
+        items: List<ReceiptItem> = emptyList()
+    ) {
+        if (amount <= 0.0f) return
 
-//Requires the repository via constructor
-class ExpenseViewModel (
-    private  val repository: FinanceRepository,
-    private val prefs: android.content.SharedPreferences,
-): ViewModel(){
-    //2 The reactive state flow that compose will listen to
-    private  val  _uiState = MutableStateFlow<GamificationUiState>(GamificationUiState.Idle)
-    val uiState: StateFlow<GamificationUiState> = _uiState
-
-
-    //Now accepts both the Double amount and the String category
-    fun submitExpense(amount: Float, category: String, userId: String){
-        if (amount <= 0.0){
-            _uiState.value = GamificationUiState.Error("Please enter a valid number.")
-            return
-        }
-        _uiState.value = GamificationUiState.Loading
-
-        // Launch a background coroutine
+        // --- STEP 1: INSTANT LOCAL SAVE & REWARD ---
+        // We launch this instantly. No delays.
         viewModelScope.launch {
-            // The viewModel calls the Repository and waits
-            val result = repository.logExpenseAndGetStrategy(
-                userId = userId,
+            val newExpense = ExpenseEntity(
+                id = 0, // Room will auto-generate the actual ID
                 amount = amount,
-                category = category       // 🟢 NEW: Pass the category to the repository
+                category = category,
+                merchantName = merchantName,
+                date = date,
+                paymentMethod = paymentMethod,
+                receiptImagePath = receiptImagePath,
+                items = items,
+                timestamp = System.currentTimeMillis()
             )
+            expenseDao.insertExpense(newExpense)
+
+            // Instant reward (Fix: We only do this once now!)
+            val currentXp = prefs.getInt("USER_XP", 0)
+            prefs.edit {
+                putInt("USER_XP", currentXp + 50)
+                putBoolean("PENDING_COIN_DROP", true)
+            }
+        }
+
+        //add to the accumulator
+        accumulatedAmount += amount
+        lastCategory = category
+
+        // --- STEP 2: THE DEBOUNCER ---
+        // Cancel the previous countdown if they log another expense quickly
+        aiSyncJob?.cancel()
+
+        // Start a new countdown
+        aiSyncJob = viewModelScope.launch {
+            // Wait 2 seconds to see if they log another expense
+            delay(2000)
+            //capture the combined total
+            val amountToSend = accumulatedAmount
+            val categoryToSend = lastCategory
+            accumulatedAmount = 0f
+
+            // --- STEP 3: SILENT BACKGROUND AI CHECK ---
+            val userId = prefs.getString("SILENT_USER_ID", "default_user") ?: "default_user"
+            val result = repository.logExpenseAndGetStrategy(userId, amountToSend, categoryToSend)
 
             result.fold(
                 onSuccess = { response ->
-                    // 🟢 1. Extract the action from AWS
-                    val aiAction = response.action ?: "Log_Only"
+                    val aiAction = response.action ?: "zen"
 
-                    // 🟢 2. SAVE IT TO MEMORY!
-                    // This is the bridge. Now the Dashboard can read what the AI decided.
-                    prefs.edit { putString("LAST_AI_ACTION", aiAction) }
+                    // Check if an ambush is already waiting
+                    val currentAmbush = prefs.getString("PENDING_AMBUSH_ACTION", null)
 
-                    // 3. Update the UI state to show the game pop-up
-                    _uiState.value = GamificationUiState.Success(
-                        predictionId = response.predictionId ?: "unknown_id",
-                        message = response.gamificationMessage ?: "Expense logged!",
-                        strategy = response.recommendedStrategy ?: "Standard",
-                        action = aiAction,
-                        visualTheme = response.visualTheme ?: "Neutral"
-                    )
+                    prefs.edit {
+                        // 🟢 STEP 4: THE SAFEGUARD
+                        if (aiAction != "zen" && aiAction != "Log_Only" && aiAction.isNotBlank()) {
+                            // 1. It's a real game! Always overwrite and save it.
+                            putString("LAST_AI_ACTION", aiAction)
+                            putString("PENDING_AMBUSH_ACTION", aiAction)
+                            putString("PENDING_AMBUSH_MESSAGE", response.gamificationMessage ?: "Time for a challenge!")
+                            putString("PENDING_AMBUSH_ID", response.predictionId ?: "")
+
+                        } else if (currentAmbush == null) {
+                            // 2. It's "zen" AND there are no ambushes waiting. Safe to update.
+                            putString("LAST_AI_ACTION", aiAction)
+                        }
+                        // 3. If it's "zen" but an ambush IS waiting, we do NOTHING to protect the ambush!
+                    }
                 },
-                onFailure = { error ->
-                    _uiState.value = GamificationUiState.Error(
-                        exception = error.message ?: "Unknown network error"
-                    )
+                onFailure = {
+                    // Silent background failure. The user's expense is safe.
                 }
             )
         }
     }
-    //Tells the Repository to send the +1 Reward
-    fun submitFeedback(predictionId: String, reward: Int) {
+
+    // 🟢 Safely delete from the database in the background
+    fun deleteExpense(expense: ExpenseEntity) {
         viewModelScope.launch {
-            repository.submitUserFeedback(predictionId, reward)
+            expenseDao.deleteExpense(expense.id)
         }
     }
 
-    // Resets the UI so it doesn't double-fire!
-    fun resetState() {
-        _uiState.value = GamificationUiState.Idle
+    // 🟢 Safely update the database in the background
+    fun editExpense(expense: ExpenseEntity) {
+        viewModelScope.launch {
+            expenseDao.insertExpense(expense)
+        }
     }
-
 }
 
-//Tells android how to build viewModel with database
+// 🟢 THE FACTORY
 class ExpenseViewModelFactory(
     private val repository: FinanceRepository,
-    private val prefs: android.content.SharedPreferences
-): ViewModelProvider.Factory{
+    private val expenseDao: ExpenseDao,
+    private val prefs: SharedPreferences
+): ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ExpenseViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ExpenseViewModel(repository, prefs) as T
+            return ExpenseViewModel(repository, expenseDao, prefs) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
-
-    }
-
+}
