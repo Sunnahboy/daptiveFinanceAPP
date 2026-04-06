@@ -11,10 +11,10 @@ data class ContextRequest(
     @SerializedName("user_id")
     val userId: String,
     @SerializedName("test_group")
-    val testGroup: String = "adaptive", // 🟢 NEW: Tells the DB they are in the AI group
+    val testGroup: String = "adaptive", //Tells the DB they are in the AI group
 
     @SerializedName("amount")
-    val amount: Float,                  // 🟢 NEW: The raw RM amount
+    val amount: Float,
 
     @SerializedName("category")
     val category: String,
@@ -78,6 +78,18 @@ data class LeaderboardTopResponse(
 )
 
 
+//KTOR rate-Limiter AI Endpoints
+data class ChatRequest(
+    @SerializedName("prompt")
+    val userId: String
+)
+
+data class ChatResponse(
+    @SerializedName("message")
+    val message: String
+)
+
+
 
 //4. The exact FastAPI Endpoint
 interface FastApiInterface{
@@ -98,4 +110,12 @@ interface FastApiInterface{
     //Fetch the Top 50 Users
     @GET("gamification/v1/leaderboard/top")
     suspend fun getLeaderboardTop(): Response<LeaderboardTopResponse>
+
+
+
+    @POST("api/chat")
+    suspend fun askFinancialAI(
+        @Header("X-User_Id") userId: String,
+        @Body request: ChatRequest
+    ): Response<ChatResponse>//easily check  response.code =429 in viewModel
 }
