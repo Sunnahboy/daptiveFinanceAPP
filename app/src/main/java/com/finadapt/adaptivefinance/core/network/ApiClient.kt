@@ -13,9 +13,12 @@ import okhttp3.OkHttpClient
 
 
 object ApiClient{
-    //aws Nginx domain
+    //domain
     private const val PRIMARY_URL = "https://adaptivefinance.duckdns.org/"
-    private  const val BACKUP_URL = "https://adaptive-finance-backend.onrender.com "
+    private  const val BACKUP_URL = "https://adaptive-finance-backend.onrender.com/"
+    private  const val RATE_LIMITER_URL = "https://adaptive-finance-backend.onrender.com/"
+
+
 
     //Safely pulled from local.properties at compile time!
     const val API_TOKEN = BuildConfig.API_TOKEN
@@ -86,5 +89,25 @@ object ApiClient{
 
     val fastApiService: FastApiInterface by lazy{
         retrofit.create(FastApiInterface::class.java)
+    }
+
+
+    //KTor Rate limiting
+    private val rateLimitOkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    val rateLimitRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl(RATE_LIMITER_URL)
+            .client(rateLimitOkHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+    //call endpoint safely
+    val rateLimitApiService: FastApiInterface by lazy{
+        rateLimitRetrofit.create(FastApiInterface::class.java)
     }
 }
