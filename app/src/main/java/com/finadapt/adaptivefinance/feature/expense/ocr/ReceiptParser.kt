@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
 
 object ReceiptParser {
 
-    suspend fun parseWithGroq(formattedText: String, userId: String): ParsedReceipt = withContext(Dispatchers.IO) {
+    suspend fun parseWithLlm(formattedText: String, userId: String): ParsedReceipt = withContext(Dispatchers.IO) {
         try {
             // 1. Send the messy OCR text to your secure Ktor backend
             val request = ReceiptRequest(rawText = formattedText)

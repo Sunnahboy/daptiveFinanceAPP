@@ -68,7 +68,7 @@ object ReceiptScanner {
             Log.d("ReceiptScanner", "Cleaned Text sent to LLM:\n$cleanText")
 
             // 5. parse the data (with retries and defensive JSON)
-            val parsedData = ReceiptParser.parseWithGroq(cleanText)
+            val parsedData = ReceiptParser.parseWithLlm(cleanText)
 
             parsedData.localImagePath = permanentPath
             parsedData
