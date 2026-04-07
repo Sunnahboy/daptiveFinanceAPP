@@ -1,6 +1,7 @@
 
 package com.finadapt.adaptivefinance.feature.expense
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -90,7 +91,9 @@ fun AddExpenseScreen(
 
                 coroutineScope.launch {
                     try {
-                        val receipt = ReceiptScanner.analyzeReceipt(context, uri)
+                        val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE) // Note: change "AppPrefs" if your app uses a different preference file name!
+                        val userId = prefs.getString("USER_ID", "default_user") ?: "default_user"
+                        val receipt = ReceiptScanner.analyzeReceipt(context, uri, userId)
                         scannedReceipt = receipt
                         showReceiptSheet = true
 

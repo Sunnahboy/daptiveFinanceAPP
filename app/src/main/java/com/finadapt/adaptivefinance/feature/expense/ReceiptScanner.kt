@@ -10,6 +10,7 @@ import androidx.activity.result.IntentSenderRequest
 import com.finadapt.adaptivefinance.feature.expense.ocr.OcrEngine
 import com.finadapt.adaptivefinance.feature.expense.ocr.ReceiptLayoutAnalyzer
 import com.finadapt.adaptivefinance.feature.expense.ocr.ReceiptParser
+import com.google.gson.annotations.SerializedName
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
@@ -21,14 +22,20 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 
-data class ReceiptItem(val name: String, val amount: Float, val category: String)
+
+data class ReceiptItem(
+    @SerializedName("name") val name: String = "Unknown Item",
+    @SerializedName("amount") val amount: Float = 0f,
+    @SerializedName("category") val category: String = "General"
+)
+
 data class ParsedReceipt(
-    val merchantName: String,
-    val date: String,
-    val paymentMethod: String,
-    val items: List<ReceiptItem>,
-    val total: Float,
-    var localImagePath: String = ""
+    @SerializedName("merchant_name") val merchantName: String = "",
+    @SerializedName("date") val date: String = "",
+    @SerializedName("payment_method") val paymentMethod: String = "",
+    @SerializedName("items") val items: List<ReceiptItem> = emptyList(),
+    @SerializedName("total") val total: Float = 0f,
+    @Transient var localImagePath: String = ""
 )
 
 object ReceiptScanner {
@@ -48,7 +55,7 @@ object ReceiptScanner {
         }
     }
 
-    suspend fun analyzeReceipt(context: Context, uri: Uri): ParsedReceipt {
+    suspend fun analyzeReceipt(context: Context, uri: Uri,userId:String): ParsedReceipt {
         val permanentPath = saveReceiptImageLocally(context, uri)
 
         return try {
@@ -68,7 +75,7 @@ object ReceiptScanner {
             Log.d("ReceiptScanner", "Cleaned Text sent to LLM:\n$cleanText")
 
             // 5. parse the data (with retries and defensive JSON)
-            val parsedData = ReceiptParser.parseWithLlm(cleanText)
+            val parsedData = ReceiptParser.parseWithLlm(cleanText, userId)
 
             parsedData.localImagePath = permanentPath
             parsedData
