@@ -22,21 +22,32 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 
-
 data class ReceiptItem(
-    @SerializedName("name") val name: String = "Unknown Item",
-    @SerializedName("amount") val amount: Float = 0f,
-    @SerializedName("category") val category: String = "General"
-)
+    @SerializedName("name") private val _name: String? = null,
+    @SerializedName("amount") private val _amount: Float? = null,
+    @SerializedName("category") private val _category: String? = null
+) {
+
+    val name: String get() = _name ?: "Unknown Item"
+    val amount: Float get() = _amount ?: 0f
+    val category: String get() = _category ?: "General"
+}
 
 data class ParsedReceipt(
-    @SerializedName("merchant_name") val merchantName: String = "",
-    @SerializedName("date") val date: String = "",
-    @SerializedName("payment_method") val paymentMethod: String = "",
-    @SerializedName("items") val items: List<ReceiptItem> = emptyList(),
-    @SerializedName("total") val total: Float = 0f,
+    @SerializedName("merchant_name") private val _merchantName: String? = null,
+    @SerializedName("date") private val _date: String? = null,
+    @SerializedName("payment_method") private val _paymentMethod: String? = null,
+    @SerializedName("items") private val _items: List<ReceiptItem>? = null,
+    @SerializedName("total") private val _total: Float? = null,
+
     @Transient var localImagePath: String = ""
-)
+) {
+    val merchantName: String get() = _merchantName ?: ""
+    val date: String get() = _date ?: ""
+    val paymentMethod: String get() = _paymentMethod ?: ""
+    val items: List<ReceiptItem> get() = _items ?: emptyList()
+    val total: Float get() = _total ?: 0f
+}
 
 object ReceiptScanner {
 
