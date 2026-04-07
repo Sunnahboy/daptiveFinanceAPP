@@ -9,9 +9,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import com.finadapt.adaptivefinance.core.navigation.NavGraph
 import com.finadapt.adaptivefinance.core.navigation.Screen
 import com.finadapt.adaptivefinance.data.local.AppDatabase
@@ -19,39 +16,34 @@ import com.finadapt.adaptivefinance.data.repository.FinanceRepository
 import com.finadapt.adaptivefinance.feature.chat.ChatViewModel
 import com.finadapt.adaptivefinance.feature.chat.ChatViewModelFactory
 import com.finadapt.adaptivefinance.feature.community.CommunityViewModel
+import com.finadapt.adaptivefinance.feature.community.CommunityViewModelFactory
 import com.finadapt.adaptivefinance.feature.dashboard.DashboardViewModel
 import com.finadapt.adaptivefinance.feature.dashboard.DashboardViewModelFactory
 import com.finadapt.adaptivefinance.feature.expense.ExpenseViewModel
 import com.finadapt.adaptivefinance.feature.expense.ExpenseViewModelFactory
-import com.finadapt.adaptivefinance.worker.StreakReminderWorker
-import java.util.Calendar
-import java.util.concurrent.TimeUnit
-import com.finadapt.adaptivefinance.feature.community.CommunityViewModelFactory
 import com.finadapt.adaptivefinance.worker.NotificationScheduler
 
+// 🟢 NEW: Make sure to import your custom theme!
+import com.finadapt.adaptivefinance.ui.theme.AdaptiveFinanceTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        //The moment the app launches, schedule the background worker
-        // 🟢 THE FIX: Load the user's saved times and schedule them all!
+
+        // 🟢 Load the user's saved times and schedule them all!
         val savedTimes = NotificationScheduler.getTimesFromPrefs(this)
         NotificationScheduler.scheduleDailyReminders(this, savedTimes)
-
 
         // 1. Initialize the Room Database & Prefs
         val database = AppDatabase.getDatabase(applicationContext)
         val prefs = applicationContext.getSharedPreferences("AdaptiveFinancePrefs", MODE_PRIVATE)
 
-        // ⚠️ UNCOMMENT THIS LINE ONLY WHEN YOU WANT TO FORCE RESET THE APP FOR TESTING
-        // prefs.edit { clear() }
-
         // 2. Give BOTH the Database and Prefs to the repository
         val repository = FinanceRepository(database.expenseDao(), prefs)
 
         setContent {
-            // Standard Material 3 Wrapper
-            MaterialTheme {
+            // 🟢 THE FIX: Replaced 'MaterialTheme' with your custom 'AdaptiveFinanceTheme'
+            AdaptiveFinanceTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -73,10 +65,10 @@ class MainActivity : ComponentActivity() {
 
                     // 4. SMART ROUTING: Check if they are a returning user
                     val hasCompletedOnboarding = prefs.getString("SILENT_USER_ID", null) != null
-                    //Build the Chat ViewModel using the DAO
 
                     val startDestination = if (hasCompletedOnboarding) {
-                        Screen.Dashboard.route
+                        //Screen.Dashboard.route
+                        "MAIN_PAGER"
                     } else {
                         Screen.Onboarding.route
                     }
@@ -89,13 +81,10 @@ class MainActivity : ComponentActivity() {
                         expenseViewModel = expenseViewModel,
                         communityViewModel = communityViewModel,
                         chatViewModel = chatViewModel,
-                        prefs = prefs // Pass prefs to fetch the UUID in the graph
+                        prefs = prefs
                     )
                 }
             }
         }
     }
-
- //
-
 }
