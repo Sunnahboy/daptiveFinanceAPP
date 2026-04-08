@@ -39,6 +39,7 @@ import java.io.File
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddExpenseScreen(
+    isDarkMode: Boolean,
     onLogExpense: (Float, String, String, String, String, String, List<ReceiptItem>) -> Unit,
     onDismissState: () -> Unit,
 ) {
@@ -114,8 +115,10 @@ fun AddExpenseScreen(
         }
     }
 
-    val bgColor = Color(0xFFF8FAFC)
-    val cardColor = Color.White
+
+    val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val cardColor = if (isDarkMode) Color(0xFF1E293B) else Color.White
+    val textColor = if (isDarkMode) Color.White else Color(0xFF0F172A)
     val primaryColor = Color(0xFF0284C7)
 
     // Validation only requires Amount and Category. Merchant remains optional!
@@ -125,11 +128,6 @@ fun AddExpenseScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Log Expense", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onDismissState) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = bgColor)
             )
         },
@@ -221,6 +219,8 @@ fun AddExpenseScreen(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = textColor,
+                                unfocusedTextColor = textColor,
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedBorderColor = Color.Transparent,
                             )
@@ -229,7 +229,7 @@ fun AddExpenseScreen(
                 }
 
                 // 2. 🟢 NEW: MERCHANT INPUT
-                Text("Merchant (Optional)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                Text("Merchant (Optional)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
 
                 OutlinedTextField(
                     value = merchantInput,
@@ -238,11 +238,16 @@ fun AddExpenseScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = textColor,
+                        unfocusedTextColor = textColor
+                    )
+
                 )
 
                 // 3. CATEGORY SELECTION
-                Text("Category", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                Text("Category", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
 
                 OutlinedTextField(
                     value = categoryInput,
@@ -251,7 +256,11 @@ fun AddExpenseScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = textColor,
+                        unfocusedTextColor = textColor
+                    )
                 )
 
                 FlowRow(
@@ -261,13 +270,32 @@ fun AddExpenseScreen(
                 ) {
                     commonCategories.forEach { category ->
                         val isSelected = categoryInput.equals(category, ignoreCase = true)
+
                         FilterChip(
                             selected = isSelected,
                             onClick = { categoryInput = category },
-                            label = { Text(category) },
+                            label = {
+                                Text(
+                                    text = category,
+                                    // 🟢 Explicitly set text color so it never vanishes
+                                    color = if (isSelected) primaryColor else textColor
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
+                                // Selected State
                                 selectedContainerColor = primaryColor.copy(alpha = 0.1f),
-                                selectedLabelColor = primaryColor
+                                selectedLabelColor = primaryColor,
+
+                                // Unselected State (Forces contrast against the background)
+                                containerColor = Color.Transparent,
+                                labelColor = textColor
+                            ),
+                            // 🟢 Explicitly set the border so you can always see the outline of the chip
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = textColor.copy(alpha = 0.2f),
+                                selectedBorderColor = primaryColor
                             ),
                             shape = RoundedCornerShape(16.dp)
                         )

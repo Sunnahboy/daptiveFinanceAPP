@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.finadapt.adaptivefinance.core.navigation.NavGraph
-import com.finadapt.adaptivefinance.core.navigation.Screen
 import com.finadapt.adaptivefinance.data.local.AppDatabase
 import com.finadapt.adaptivefinance.data.repository.FinanceRepository
 import com.finadapt.adaptivefinance.feature.chat.ChatViewModel
@@ -63,20 +62,9 @@ class MainActivity : ComponentActivity() {
                     val chatFactory = ChatViewModelFactory(database.expenseDao(), prefs)
                     val chatViewModel: ChatViewModel = viewModel(factory = chatFactory)
 
-                    // 4. SMART ROUTING: Check if they are a returning user
-                    val hasCompletedOnboarding = prefs.getString("SILENT_USER_ID", null) != null
-
-                    val startDestination = if (hasCompletedOnboarding) {
-                        //Screen.Dashboard.route
-                        "MAIN_PAGER"
-                    } else {
-                        Screen.Onboarding.route
-                    }
-
                     // 5. Launch the App via NavGraph!
                     NavGraph(
                         navController = navController,
-                        startDestination = startDestination,
                         dashboardViewModel = dashboardViewModel,
                         expenseViewModel = expenseViewModel,
                         communityViewModel = communityViewModel,

@@ -43,7 +43,6 @@ import coil.compose.AsyncImage
 import com.airbnb.lottie.compose.*
 import com.finadapt.adaptivefinance.R
 import com.finadapt.adaptivefinance.data.local.ExpenseEntity
-import com.finadapt.adaptivefinance.feature.chat.DraggableAiChatFab
 import com.finadapt.adaptivefinance.feature.gamification.GamificationDialog // 🟢 NEW IMPORT
 import com.finadapt.adaptivefinance.ui.components.LevelUpOverlay
 import com.finadapt.adaptivefinance.ui.components.NotificationPermissionHandler
@@ -68,9 +67,8 @@ fun DashboardScreen(
     onAnimationFinished: () -> Unit,
     isDarkMode: Boolean = false,
     onDismissLevelUp: () -> Unit,
-    onNavigateToLogExpense: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToChat: () -> Unit,
+
     // 🟢 NEW: We need a way to send game feedback to the server from the Dashboard now!
     onGameFeedback: (String, String, Boolean) -> Unit
 ) {
@@ -122,22 +120,7 @@ fun DashboardScreen(
 
     Scaffold(
         containerColor = bgColor,
-        floatingActionButton = {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                FloatingActionButton(
-                    onClick = onNavigateToLogExpense,
-                    containerColor = Color(0xFF007AFF),
-                    contentColor = Color.White,
-                    shape = CircleShape,
-                    elevation = FloatingActionButtonDefaults.elevation(8.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Log Expense", modifier = Modifier.size(28.dp))
-                }
-            }
-        }
+
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
 
@@ -285,7 +268,7 @@ fun DashboardScreen(
                 Spacer(modifier = Modifier.height(100.dp))
             }
 
-            DraggableAiChatFab(onClick = onNavigateToChat, modifier = Modifier.align(Alignment.BottomEnd).padding(bottom = 80.dp, end = 16.dp))
+
 
             if (levelUpTier != null) {
                 LevelUpOverlay(newTierName = levelUpTier, onDismiss = onDismissLevelUp)
