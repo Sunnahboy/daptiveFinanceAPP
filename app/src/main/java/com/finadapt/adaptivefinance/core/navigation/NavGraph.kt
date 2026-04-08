@@ -59,15 +59,14 @@ fun NavGraph(
     val hasCompletedOnboarding = prefs.getString("SILENT_USER_ID", null) != null
     val calculatedStartDestination = if (hasCompletedOnboarding) "MAIN_PAGER" else Screen.Onboarding.route
 
-    // 🟢 1. BACK TO NORMAL: Home is at 0, Settings is at 6.
     val tabScreens = listOf(
-        Screen.Dashboard.route,   // Index 0: HOME
-        Screen.History.route,     // Index 1
-        Screen.AddExpense.route,  // Index 2
-        Screen.Community.route,   // Index 3
-        Screen.Rewards.route,     // Index 4
-        Screen.Chat.route,        // Index 5: CHAT
-        Screen.Settings.route     // Index 6: SETTINGS
+        Screen.Dashboard.route,
+        Screen.History.route,
+        Screen.AddExpense.route,
+        Screen.Community.route,
+        Screen.Rewards.route,
+        Screen.Chat.route,
+        Screen.Settings.route
     )
 
     val pagerState = rememberPagerState(pageCount = { tabScreens.size })
@@ -83,34 +82,33 @@ fun NavGraph(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // 🟢 1. The AI Chatbot Button
+                    //AI Chatbot Button
                     AnimatedDraggableFab(
                         text = "Ask AI...",
                         icon = Icons.Default.AutoAwesome,
                         contentDescription = "AI Assistant",
-                        bubbleColor = Color(0xFF0284C7), // Blue
+                        bubbleColor = Color(0xFF0284C7),
                         buttonContainerColor = Color.White,
                         buttonContentColor = Color(0xFF0284C7),
-                        delayMillis = 1500L, // Starts first
+                        delayMillis = 1500L,
                         onClick = { scope.launch { pagerState.animateScrollToPage(5) } }
                     )
 
-                    // 🟢 2. The Log Expense Button
+                    //Log Expense Button
                     AnimatedDraggableFab(
                         text = "Log...",
                         icon = Icons.Default.Add,
                         contentDescription = "Log Expense",
-                        bubbleColor = Color(0xFF10B981), // Green
+                        bubbleColor = Color(0xFF10B981),
                         buttonContainerColor = Color(0xFF10B981),
                         buttonContentColor = Color.White,
-                        delayMillis = 2000L, // Starts half a second later so they stagger perfectly
+                        delayMillis = 2000L,
                         onClick = { scope.launch { pagerState.animateScrollToPage(2) } }
                     )
                 }
             }
         },
         bottomBar = {
-            // 🟢 Bottom bar works perfectly again because Home is 0!
             val showNavBar = currentRoute == "MAIN_PAGER" && pagerState.currentPage < 5
             if (showNavBar) {
                 NavigationBar(
@@ -161,7 +159,7 @@ fun NavGraph(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
                     beyondViewportPageCount = 3,
-                    // 🟢 2. Disable normal pager swiping ONLY when on Settings
+                    //Disable normal pager swiping only when on Settings
                     userScrollEnabled = pagerState.currentPage != 6
                 ) { pageIndex ->
                     when (tabScreens[pageIndex]) {
@@ -248,7 +246,7 @@ fun NavGraph(
                             val isDarkSetting by dashboardViewModel.isDarkMode.collectAsState()
                             val liveExpenses by dashboardViewModel.allExpenses.collectAsState()
 
-                            // 🟢 3. THE CUSTOM SWIPE-TO-HOME DETECTOR
+                            //custom swipe to the home screen
                             var dragAccumulator by remember { mutableFloatStateOf(0f) }
 
                             Box(
@@ -258,7 +256,7 @@ fun NavGraph(
                                         detectHorizontalDragGestures(
                                             onDragStart = { dragAccumulator = 0f },
                                             onDragEnd = {
-                                                // If they swiped left or right far enough, go Home (0)!
+                                                //If  swiped left or right far enough, go Home 0
                                                 if (abs(dragAccumulator) > 50f) {
                                                     scope.launch { pagerState.animateScrollToPage(0) }
                                                 }

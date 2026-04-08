@@ -14,21 +14,20 @@ class ChatIntentResolver(
     private val expenseDao: ExpenseDao,
     private val prefs: SharedPreferences
 ) {
-    // 🟢 HELPER: Randomizer for natural phrasing
+    //Randomizer for natural phrasing
     private fun pickRandom(vararg phrases: String): String = phrases.random()
 
-    // 🟢 HELPER: Contextual Emojis based on spend severity
+    //Contextual Emojis based on spend severity
     private fun getSpendEmoji(amount: Float, timeframe: String): String {
-        // A rough threshold: spending > RM 100 in a day gets a warning emoji.
         val threshold = if (timeframe == "TODAY" || timeframe == "YESTERDAY") 100f else 500f
         return when {
-            amount == 0f -> pickRandom("🎉", "🛡️", "🙌")
-            amount > threshold -> pickRandom("💸", "⚠️", "📉")
-            else -> pickRandom("✨", "✅", "☕")
+            amount == 0f -> pickRandom("\uD83C\uDF89\uD83C\uDF43", "⚔\uFE0F", "\uD83D\uDE4C\uD83C\uDFFE")
+            amount > threshold -> pickRandom("\uD83D\uDCB0", "\uFE0F\uFE0F\uFE0F", "\uD83D\uDCB9")
+            else -> pickRandom("\uD83E\uDEE7\uD83D\uDC97", "\uFE0F", "⋆\uFE0E ˖")
         }
     }
 
-    // 🟢 HELPER: Conversational Follow-ups
+    //Conversational Follow-ups
     private fun getFollowUp(intent: String): String {
         return when (intent) {
             "SPEND_SUMMARY" -> pickRandom("Want me to dig into a specific category?", "Shall we check how much budget you have left?")
@@ -39,7 +38,7 @@ class ChatIntentResolver(
     }
 
     suspend fun execute(command: AiIntentResponse): String {
-        // 🟢 THE ILLUSION OF WORK: A small delay makes the bot feel "thoughtful"
+        //small delay makes the bot feel thoughtful
         delay(600)
 
         val intent = command.intent.uppercase()
@@ -80,7 +79,7 @@ class ChatIntentResolver(
                             "Your ledger is completely blank for $timeLabel. Great job saving! $emoji"
                         )
                     } else {
-                        // 🟢 FIX 1: Use solid emoji bullets instead of spaces for perfect mobile alignment
+                        //solid emoji bullets instead of spaces for perfect mobile alignment
                         val breakdownText = expenseDao.getCategoryBreakdown(startTime, endTime).joinToString("\n") {
                             "🔹 ${it.category}: ${it.total.toCurrency()}"
                         }
@@ -90,9 +89,9 @@ class ChatIntentResolver(
                             "Pulling those numbers now. You've spent ${totalSpent.toCurrency()} in total $timeLabel. $emoji"
                         )
 
-                        // 🟢 FIX 2: Hardcoded line breaks guarantee it won't break on different screen sizes
+                        //guarantee it won't break on different screen sizes
                         intro + "\n\n" +
-                                "📊 Category Breakdown:\n" +
+                                "\uD83D\uDCD2 Category Breakdown:\n" +
                                 breakdownText
                     }
                 } else {
@@ -121,7 +120,7 @@ class ChatIntentResolver(
                     val topCategory = breakdown.maxByOrNull { it.total }
                     val singleMerchant = highest.merchantName.ifEmpty { highest.category }
 
-                    // 🟢 FIX 1: Solid emoji bullets for alignment
+                    //Solid emoji bullets for alignment
                     val top3 = breakdown.sortedByDescending { it.total }.take(3).joinToString("\n") {
                         "🔹 ${it.category}: ${it.total.toCurrency()}"
                     }
@@ -131,13 +130,13 @@ class ChatIntentResolver(
                         "Here's what your spending habits look like $timeLabel:"
                     )
 
-                    // 🟢 FIX 2: Clean stacking with absolute line breaks
+                    //Clean stacking with absolute line breaks
                     intro + "\n\n" +
-                            "🚨 Biggest Drain:\n" +
+                            "\uD83D\uDE2B Biggest Drain:\n" +
                             "   ${topCategory?.category} (${(topCategory?.total ?: 0f).toCurrency()})\n\n" +
-                            "💸 Heaviest Hit:\n" +
+                            "\uD83D\uDCB3 Heaviest Hit:\n" +
                             "   ${highest.amount.toCurrency()} at $singleMerchant\n\n" +
-                            "🔝 Top Spending Zones:\n" +
+                            "\uD83D\uDD1D Top Spending Zones:\n" +
                             top3
                 }
             }
@@ -155,7 +154,7 @@ class ChatIntentResolver(
                 } else {
                     pickRandom(
                         "Checking your vault status... You have ${remaining.toCurrency()} left in your budget for the next 30 days. You're doing great! 🟢",
-                        "Looking good! You still have ${remaining.toCurrency()} of runway left. ✅"
+                        "Looking good! You still have ${remaining.toCurrency()} of runway left. ✔"
                     )
                 }
             }
@@ -195,9 +194,9 @@ class ChatIntentResolver(
                 }
             }
             "GENERAL_CHAT" -> {
-                // If the AI actually provided a reply, use it!
+                //If the AI actually provided a reply, use it
                 command.directReply.ifBlank {
-                    // 🟢 Ultimate Fallback: A natural conversation filler instead of an error!
+                    //Fallback: A natural conversation filler instead of an error
                     pickRandom(
                         "I hear you! What else about your budget is on your mind?",
                         "That makes sense. Want me to pull up any specific transactions?",
@@ -207,8 +206,6 @@ class ChatIntentResolver(
             }
             else -> ""
         }
-
-        // 🟢 FIX 3: Replaced the ugly markdown underscores `_` with a clean lightbulb emoji
         return if (responseText.isNotBlank()) "$responseText\n\n💡 ${getFollowUp(intent)}" else ""
     }
 }

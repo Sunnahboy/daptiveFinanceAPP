@@ -22,43 +22,43 @@ object ApiClient {
     const val API_TOKEN = BuildConfig.API_TOKEN
 
 
-    //@Volatile ensures thread-safety since OkHttp runs on background threads
-    @Volatile
+
+    @Volatile//ensures thread safety , OKHttp runs on background threads
     private var circuitOpenUntil: Long = 0L
     private const val CIRCUIT_COOLDOWN_MS = 5 * 60 * 1000L // 5 minutes
 
-    // The auto failover Interceptor
+    //auto failover Interceptor
     private val failoverInterceptor = Interceptor { chain ->
         val request = chain.request()
         val now = System.currentTimeMillis()
 
-        // 1. Check Circuit Breaker & Safety Headers
+        // 1 Check Circuit Breaker & Safety Headers
         val isCircuitOpen = now < circuitOpenUntil
         val avoidRetry = request.header("X-No-Retry") == "true"
 
         var response: Response? = null
         var exception: IOException? = null
 
-        // 2. Try Primary Server (Only if Circuit is CLOSED)
+        // 2 Try Primary Server (only if the circuit is closed)
         if (!isCircuitOpen) {
             try {
-                //TIMEOUT FIX: Give AWS a fast 10-second leash, don't block the user for a minute
+                //Give primary server a fast 10-second leash, don't block the user for a minute
                 response = chain
                     .withConnectTimeout(10, TimeUnit.SECONDS)
                     .withReadTimeout(15, TimeUnit.SECONDS)
                     .proceed(request)
             } catch (e: IOException) {
-                exception = e // Caught a timeout or network drop
+                exception = e //Caught a timeout or network drop
             }
         }
 
         // 3. Evaluate the Result
         val isServerDown = response == null || response.code in 502..504
 
-        // If primary succeeded, or it's a 4xx error (like 401 Unauthorized), or we are forbidden to retry -> return immediately
+        // If primary succeeded, or it's a 4xx error  or  forbidden to retry -> return immediately
         if (!isServerDown || avoidRetry) {
             if (response?.isSuccessful == true) {
-                circuitOpenUntil = 0L // Reset the breaker on a successful AWS hit
+                circuitOpenUntil = 0L // Reset the breaker on a successful AWS ec2 hit
             }
             return@Interceptor response ?: throw exception ?: IOException("Unknown network error")
         }
@@ -77,7 +77,7 @@ object ApiClient {
         val backupHttpUrl = BACKUP_URL.toHttpUrlOrNull()
             ?: throw IOException("Invalid Backup URL configuration")
 
-        //PORT FIX: Safely adopt Render's scheme, host, and port natively
+        //Safely adopt Render's scheme, host, and port natively
         val fallbackUrl = request.url.newBuilder()
             .scheme(backupHttpUrl.scheme)
             .host(backupHttpUrl.host)
@@ -90,7 +90,7 @@ object ApiClient {
             .removeHeader("X-No-Retry") // Clean up the request headers
             .build()
 
-        // 6. Send to Render
+        // 6. Send to fall 0ver server
         try {
             //Give backup  the full 60 seconds to wake up from its sleep mode
             return@Interceptor chain
@@ -98,7 +98,7 @@ object ApiClient {
                 .withReadTimeout(60, TimeUnit.SECONDS)
                 .proceed(fallbackRequest)
         } catch (e: IOException) {
-            throw exception ?: e // Throw the original exception if BOTH fail
+            throw exception ?: e // Throw the original exception if both fail
         }
     }
 
@@ -111,14 +111,14 @@ object ApiClient {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    // KTor Rate limiting (Separate client without the AWS failover logic)
+    // KTor Rate limiting (Separate client without the  failover logic)
     private val rateLimitOkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    // DRY: build Retrofit instances
+    //build Retrofit instances
     private fun buildRetrofit(baseUrl: String, client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl(baseUrl)
