@@ -7,28 +7,25 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 
-//1. The Data we send to the aws server instance
+//Data sent to the  server instance
 data class ContextRequest(
     @SerializedName("user_id")
     val userId: String,
     @SerializedName("test_group")
     val testGroup: String = "adaptive", //Tells the DB they are in the AI group
-
     @SerializedName("amount")
     val amount: Float,
-
     @SerializedName("category")
     val category: String,
-
     @SerializedName("features")
     val features: Map<String, Float>,
 
 )
 
-//2. The data we get back from the AI
+//The data we get back from the bandit
 data class AiResponse(
     @SerializedName("prediction_id")
-    val predictionId: String? = null,  // <--- This was missing!
+    val predictionId: String? = null,
 
     @SerializedName("strategy")
     val recommendedStrategy: String? = null,
@@ -42,15 +39,14 @@ data class AiResponse(
     @SerializedName("visual_theme")
     val visualTheme: String? = null
 )
-//3 The Feedback Payload for Phase 3
+//Feedback Payload for Phase 3
 data class FeedbackRequest(
     @SerializedName("prediction_id")
     val predictionId: String,
     @SerializedName("reward")
     val reward: Float
 )
-
-// LeaderBoard data models
+//LeaderBoard data models
 data class LeaderboardUpdateRequest(
     @SerializedName("user_id")
     val userId: String,
@@ -61,7 +57,6 @@ data class LeaderboardUpdateRequest(
     @SerializedName("tier")
     val tier: String
 )
-
 data class LeaderboardEntry(
     @SerializedName("anonymous_name")
     val anonymousName: String,
@@ -70,33 +65,26 @@ data class LeaderboardEntry(
     @SerializedName("tier")
     val tier: String
 )
-
 data class LeaderboardTopResponse(
     @SerializedName("status")
     val status: String,
     @SerializedName("data")
     val data: List<LeaderboardEntry>
 )
-
-
 //KTOR rate-Limiter AI Endpoints
 data class ChatRequest(
     @SerializedName("prompt")
     val prompt: String
 )
-
 data class ChatResponse(
     @SerializedName("message")
     val message: String
 )
-
 data class ReceiptRequest(
     @SerializedName("raw_text")
     val rawText: String
 )
-
-
-//4. The exact FastAPI Endpoint
+//FastAPI Endpoint
 interface FastApiInterface{
     @POST("predict/v1/context")
     suspend fun getAiGamification(

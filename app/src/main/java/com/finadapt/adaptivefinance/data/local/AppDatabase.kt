@@ -6,14 +6,16 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-//A singleton database so the app does not open 50 connections and crashes the phone's memory
+/*  A singleton database so the app does not open
+    50 connections and crashes the phone's memory
+ */
 
 @Database(
     entities = [ExpenseEntity::class, AiInteractionEntity::class],
     version = 3,
     exportSchema = false
 )
-@TypeConverters(Converters::class) // 🟢 Tell Room to use your Gson converter!
+@TypeConverters(Converters::class) //Gson converter for Room
 abstract class AppDatabase: RoomDatabase(){
     abstract fun expenseDao(): ExpenseDao
 
@@ -29,7 +31,7 @@ abstract class AppDatabase: RoomDatabase(){
                     AppDatabase::class.java,
                     "adaptive_finance_db"
                 )
-                    .fallbackToDestructiveMigration() // 🟢 3: Safely wipes the old V1 database for testing
+                    .fallbackToDestructiveMigration() //Safely wipes the old V1 database for testing
                     .build()
                 INSTANCE = instance
                 instance
