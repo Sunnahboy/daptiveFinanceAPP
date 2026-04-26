@@ -39,7 +39,7 @@ import com.finadapt.adaptivefinance.feature.onboarding.OnboardingScreen
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.ui.input.pointer.pointerInput
 import com.finadapt.adaptivefinance.ui.components.AnimatedDraggableFab
 import kotlin.math.abs
@@ -85,7 +85,7 @@ fun NavGraph(
                     //AI Chatbot Button
                     AnimatedDraggableFab(
                         text = "Ask AI...",
-                        icon = Icons.Default.AutoAwesome,
+                        icon = Icons.Default.SmartToy,
                         contentDescription = "AI Assistant",
                         bubbleColor = Color(0xFF0284C7),
                         buttonContainerColor = Color.White,
