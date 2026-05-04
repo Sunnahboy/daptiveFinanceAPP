@@ -95,6 +95,8 @@ class FinanceRepository(
                         "avg_transaction_value" to avgTxValue
                     )
                 )
+                //ADD THIS ONE LINE HERE:
+                Log.d("MATH_CHECK", "App is sending Volatility: $finalVolatility | Total Spend: $totalSpend")
 
                 // 5. SEND TO AWS (With Graceful Offline Fallback!)
                 val response = try {
