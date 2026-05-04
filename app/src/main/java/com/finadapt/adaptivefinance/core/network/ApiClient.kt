@@ -10,6 +10,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import android.util.Log
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 
 
 object ApiClient {
@@ -20,8 +21,13 @@ object ApiClient {
 
     //Safely pulled from local.properties at compile time!
     const val API_TOKEN = BuildConfig.API_TOKEN
-
-
+    // LOGGER DEFINITION
+    // print the exact JSON payload to Logcat
+    private val loggingInterceptor = HttpLoggingInterceptor { message ->
+        Log.d("NETWORK_PAYLOAD", message)
+    }.apply {
+        level = HttpLoggingInterceptor.Level.BODY
+    }
 
     @Volatile//ensures thread safety , OKHttp runs on background threads
     private var circuitOpenUntil: Long = 0L
@@ -104,6 +110,7 @@ object ApiClient {
 
     // Attach the interceptor to OkHttp
     private val okHttpClient = OkHttpClient.Builder()
+        .addInterceptor(loggingInterceptor) //LOGGER
         .addInterceptor(failoverInterceptor)
         // Default base timeouts
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -113,6 +120,7 @@ object ApiClient {
 
     // KTor Rate limiting (Separate client without the  failover logic)
     private val rateLimitOkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(loggingInterceptor) //rate limit requests
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)

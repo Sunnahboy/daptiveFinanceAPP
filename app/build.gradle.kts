@@ -118,6 +118,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("org.apache.poi:poi:5.2.3")
     implementation("org.apache.poi:poi-ooxml:5.2.3")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
 
 
