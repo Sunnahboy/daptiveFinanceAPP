@@ -16,7 +16,7 @@ class StreakReminderWorker (
 ): CoroutineWorker(context,workerParams){
 
     override suspend fun doWork(): Result {
-        val prefs = context.getSharedPreferences("finadapt_prefs", Context.MODE_PRIVATE)
+        val prefs = context.getSharedPreferences("AdaptiveFinancePrefs", Context.MODE_PRIVATE)
         val lastLoggedMidnight = prefs.getLong("LAST_LOGGED_MIDNIGHT", 0L)
         val currentStreak = prefs.getInt("CURRENT_STREAK", 0)
         val shieldCount = prefs.getInt("STREAK_SHIELDS", 0)
