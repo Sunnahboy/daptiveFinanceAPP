@@ -46,16 +46,16 @@ fun AdaptiveFinanceTheme(
         SideEffect {
             val window = (view.context as Activity).window
 
-            // 🟢 1. Tell Android to let your app draw BEHIND the status bar (Edge-to-Edge)
+            // 1.  app draw BEHIND the status bar (Edge-to-Edge)
             WindowCompat.setDecorFitsSystemWindows(window, false)
 
-            // 🟢 2. Use the modern insets controller to set the icon colors
+            // 2. modern insets controller to set the icon colors
             val insetsController = WindowCompat.getInsetsController(window, view)
 
             // If the user is in light mode, force the icons to be dark so they show up.
             insetsController.isAppearanceLightStatusBars = !darkTheme
 
-            // Optional: Do the same for the navigation bar at the bottom!
+
             insetsController.isAppearanceLightNavigationBars = !darkTheme
         }
     }

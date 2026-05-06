@@ -11,7 +11,7 @@ object ReceiptParser {
 
     suspend fun parseWithLlm(formattedText: String, userId: String): ParsedReceipt = withContext(Dispatchers.IO) {
         try {
-            // 1. Send the messy OCR text to your secure Ktor backend
+            // 1. Send the messy OCR text to  secure Ktor backend
             val request = ReceiptRequest(rawText = formattedText)
             val response = ApiClient.rateLimitApiService.parseReceipt(userId, request)
 

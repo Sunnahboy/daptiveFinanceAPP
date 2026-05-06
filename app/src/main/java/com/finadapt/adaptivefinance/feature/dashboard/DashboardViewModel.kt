@@ -45,11 +45,11 @@ class DashboardViewModel(
     private val _currentAiAction = MutableStateFlow("zen")
     val currentAiAction: StateFlow<String> = _currentAiAction.asStateFlow()
 
-    // 🟢 1. MOUNTAIN PROGRESS (Lifetime XP - Never goes down)
+    // 1. MOUNTAIN PROGRESS (Lifetime XP - Never goes down)
     private val _userXp = MutableStateFlow(0)
     val userXp: StateFlow<Int> = _userXp.asStateFlow()
 
-    // 🟢 2. SPENDABLE WALLET (XP minus Purchases)
+    // 2. SPENDABLE WALLET (XP minus Purchases)
     private val _userCoins = MutableStateFlow(0)
     val userCoins: StateFlow<Int> = _userCoins.asStateFlow()
 
@@ -105,7 +105,7 @@ class DashboardViewModel(
             _monthlyBudget.value = prefs.getFloat("MONTHLY_BUDGET", 1000f)
             _currentAiAction.value = prefs.getString("LAST_AI_ACTION", "zen") ?: "zen"
 
-            // 🟢 ECONOMY LOGIC: Calculate Lifetime Map Progress vs Spendable Wallet
+            //ECONOMY LOGIC: Calculate Lifetime Map Progress vs Spendable Wallet
             val currentXp = prefs.getInt("USER_XP", 0)
             val spentCoins = prefs.getInt("SPENT_COINS", 0)
 
@@ -175,7 +175,7 @@ class DashboardViewModel(
     }
 
     fun resetGamification() {
-        // 🟢 Reset both XP and Spent Coins so they don't get negative balances!
+        //Reset both XP and Spent Coins so they don't get negative balances!
         prefs.edit {
             putInt("USER_XP", 0)
             putInt("SPENT_COINS", 0)
@@ -212,7 +212,7 @@ class DashboardViewModel(
         }
     }
 
-    // 🟢 SAFE STORE PURCHASING LOGIC
+    // SAFE STORE PURCHASING LOGIC
     fun onBuyStreakShield() {
         viewModelScope.launch {
             val cost = 500
@@ -269,7 +269,7 @@ class DashboardViewModel(
         _playCoinDropAnimation.value = false
     }
 
-    // 🟢 PASTE THIS INTO DashboardViewModel.kt
+    //DashboardViewModel.kt
     fun submitFeedback(predictionId: String, strategyName: String, userAccepted: Boolean) {
         viewModelScope.launch {
             financeRepository.submitUserFeedback(predictionId, strategyName, userAccepted)

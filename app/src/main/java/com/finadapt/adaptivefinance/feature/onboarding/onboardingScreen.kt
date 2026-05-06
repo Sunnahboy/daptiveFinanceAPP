@@ -307,7 +307,7 @@ fun BudgetInputStep(budget: String, onBudgetChange: (String) -> Unit, onDone: ()
         OutlinedTextField(
             value = budget,
             onValueChange = onBudgetChange,
-            label = { Text("Monthly Budget (RM)") }, // Adjusted to KES for your thesis context!
+            label = { Text("Monthly Budget (RM)") },
             prefix = { Text("RM ", fontWeight = FontWeight.Bold) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),

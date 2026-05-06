@@ -187,7 +187,7 @@ class FinanceRepository(
                         finalReward = -5.0f
                         prefs.edit { putInt(strikeKey, 0) }
                     } else {
-                        // 🟡 SOFT IGNORE: A slight negative nudge so it starts losing confidence
+                        //SOFT IGNORE: A slight negative nudge so it starts losing confidence
                         finalReward = -0.5f
                         prefs.edit { putInt(strikeKey, currentStrikes) }
                     }

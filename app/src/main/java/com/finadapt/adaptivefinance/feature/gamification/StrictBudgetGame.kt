@@ -94,7 +94,6 @@ fun StrictBudgetGame(
         modifier = Modifier
             .fillMaxWidth()
             .background(darkMetal)
-            // 🟢 FIXED: Clean, imported extension function!
             .animateContentSize(
                 animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium)
             )
@@ -109,8 +108,8 @@ fun StrictBudgetGame(
         Spacer(modifier = Modifier.height(24.dp))
 
         when (currentPhase) {
-            // 🟢 PHASE 1: THE COMMAND TERMINAL
-            // 🟢 PHASE 1: THE THREAT DETECTION INTRO (Premium & Alive!)
+            // PHASE 1: THE COMMAND TERMINAL
+            // PHASE 1: THE THREAT DETECTION INTRO (Premium & Alive!)
             StrictPhase.INTRO -> {
                 // 1. Load the "Consequence" Lottie (Burning money, empty wallet, etc.)
                 val dangerLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.danger_broke))
@@ -144,7 +143,7 @@ fun StrictBudgetGame(
                     modifier = Modifier.fillMaxWidth()
                 ) {
 
-                    // 🟢 THE THREAT HOLOGRAM (Shows them going broke!)
+                    // THE THREAT HOLOGRAM (Shows them going broke!)
                     Box(contentAlignment = Alignment.Center) {
                         // Pulsing red alarm background
                         Box(
@@ -165,7 +164,7 @@ fun StrictBudgetGame(
                         }
                     }
 
-                    // 🟢 THE THREAT READOUT TERMINAL
+                    // THE THREAT READOUT TERMINAL
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = brushedSteel),
@@ -192,7 +191,7 @@ fun StrictBudgetGame(
 
                 Spacer(modifier = Modifier.height(40.dp))
 
-                // 🟢 THE HIGH-CLASS ANIMATED BUTTONS
+                // THE HIGH-CLASS ANIMATED BUTTONS
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
 
                     val startInteraction = remember { MutableInteractionSource() }
@@ -343,7 +342,7 @@ fun StrictBudgetGame(
                 }
             }
 
-            // 🟢 PHASE 3: THE VAULT SLAM (Single Master Card!)
+            //  PHASE 3: THE VAULT SLAM (Single Master Card!)
             StrictPhase.RESULT -> {
                 // 1. Pre-load Vault Lottie
                 val slamLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.vault_slam))
@@ -383,7 +382,7 @@ fun StrictBudgetGame(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // 🟢 THE SINGLE MASTER CARD
+                    //  THE SINGLE MASTER CARD
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = brushedSteel),
@@ -406,7 +405,7 @@ fun StrictBudgetGame(
                                 )
                             }
 
-                            // 🟢 THE INSTANT SUCCESS UI (No slow fades, just snaps in!)
+                            //  THE INSTANT SUCCESS UI (No slow fades, just snaps in!)
                             if (isSecured) {
                                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -442,8 +441,8 @@ fun StrictBudgetGame(
 
                                 Spacer(modifier = Modifier.height(24.dp))
 
-                                // 🟢 THE UPGRADED "AWESOME" CONFIRM BUTTON
-                                // We add a continuous sweeping shimmer so it screams "CLICK ME!"
+
+                                // continuous sweeping shimmer so it screams "CLICK ME!"
                                 val infiniteTransition = rememberInfiniteTransition(label = "btn_shimmer")
                                 val shimmerTranslate by infiniteTransition.animateFloat(
                                     initialValue = -500f, targetValue = 1000f,
@@ -458,7 +457,7 @@ fun StrictBudgetGame(
                                     shape = RoundedCornerShape(4.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(60.dp) // Made it slightly taller for a better tap target!
+                                        .height(60.dp) // slightly taller for a better tap target!
                                 ) {
                                     Box(
                                         modifier = Modifier

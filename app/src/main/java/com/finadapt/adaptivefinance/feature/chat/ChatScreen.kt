@@ -69,7 +69,7 @@ fun ChatScreen(
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    // 🟢 NEW: Our Predefined Smart Questions
+    // Predefined Smart Questions
     val suggestedQuestions = listOf(
         "What did I spend today?",
         "What was my highest purchase?",
@@ -156,7 +156,7 @@ fun ChatScreen(
                 }
             }
 
-            // 🟢 2. THE SUGGESTION CHIPS (Predefined Questions)
+            // 2. THE SUGGESTION CHIPS (Predefined Questions)
             // They gracefully disappear if the user starts typing manually
             AnimatedVisibility(
                 visible = inputText.isEmpty(),

@@ -10,8 +10,8 @@ class SoundEngine(context: Context) {
 
     private val soundMap = mutableMapOf<String, Int>()
 
-    // 🟢 FIXED: Changed from Map<String, Int> to Map<String, List<Int>>
-    // This allows tracking multiple simultaneous plays of the same sound
+
+    //This allows tracking multiple simultaneous plays of the same sound
     private val activeStreams = mutableMapOf<String, MutableList<Int>>()
 
     init {
@@ -38,13 +38,13 @@ class SoundEngine(context: Context) {
 
     fun play(soundName: String) {
         soundMap[soundName]?.let { soundId ->
-            // 🟢 FIXED: Add to list instead of overwriting
+            //Add to list instead of overwriting
             val streamId = soundPool.play(soundId, 1f, 1f, 0, 0, 1f)
             activeStreams.getOrPut(soundName) { mutableListOf() }.add(streamId)
         }
     }
 
-    // 🟢 FIXED: Stop all instances of a sound
+    // Stop all instances of a sound
     fun stop(soundName: String) {
         activeStreams[soundName]?.let { streamIds ->
             streamIds.forEach { streamId ->
@@ -54,7 +54,7 @@ class SoundEngine(context: Context) {
         }
     }
 
-    // 🟢 FIXED: A helper to kill all tension sounds instantly
+    // A helper to kill all tension sounds instantly
     fun stopAllTicking() {
         stop("tick1")
         stop("tick2")
