@@ -80,6 +80,8 @@ class FinanceRepository(
                 val pastTotalSpend = maxOf(0f, totalSpend - amount)
                 val pastTxCount = maxOf(1f, txCount - 1f)
                 val avgTxValue = if (pastTxCount > 0f) pastTotalSpend / pastTxCount else 0f
+                //THE IMPULSE MATH (If they spend 3x their daily allowance, impulse is 0.30)
+                val calculatedImpulse = (transactionSpikeRatio * 0.10f).coerceIn(0.0f, 1.0f)
 
                 // 4. PREPARE PAYLOAD
                 val request = ContextRequest(
@@ -90,15 +92,15 @@ class FinanceRepository(
                     features = mapOf(
                         "total_spend" to totalSpend,
                         "spending_volatility" to finalVolatility,
-                        "return_rate" to 0.05f,
+                        "return_rate" to calculatedImpulse,
                         "transaction_count" to txCount,
                         "avg_transaction_value" to avgTxValue
                     )
                 )
-                //ADD THIS ONE LINE HERE:
-                Log.d("MATH_CHECK", "App is sending Volatility: $finalVolatility | Total Spend: $totalSpend")
+                //Logs fo debugging
+                Log.d("MATH_CHECK", "App is sending Volatility: $finalVolatility | Return Rate (Impulse): $calculatedImpulse")
 
-                // 5. SEND TO AWS (With Graceful Offline Fallback!)
+                // 5. SEND TO server i.e aws ec2 (With Graceful Offline Fallback!)
                 val response = try {
                     apiService.getAiGamification(ApiClient.API_TOKEN, request)
                 } catch (_: Exception) {
@@ -114,7 +116,7 @@ class FinanceRepository(
                     )
                 }
 
-                // --- 🛑 START OF AI GUARDRAIL ---
+                //START OF bandit GUARDRAIL
                 var finalResponse = response
 
                 if (finalVolatility >= 4.0f && response.action?.contains("Streak", ignoreCase = true) == true) {
@@ -140,7 +142,7 @@ class FinanceRepository(
                         visualTheme = "Danger"
                     )
                 }
-                // --- 🛑 END OF AI GUARDRAIL ---
+                // END OF bandit  GUARDRAIL
 
                 // 6. SAVE INTERACTION TO MEMORY
                 val currentPredictionId = finalResponse.predictionId ?: "fallback_${java.util.UUID.randomUUID()}"
@@ -176,12 +178,12 @@ class FinanceRepository(
                     prefs.edit { putInt("USER_XP", currentXp + 50) }
 
                 } else {
-                    // 🔴 THEY DECLINED
+                    //THEY DECLINED
                     var currentStrikes = prefs.getInt(strikeKey, 0)
                     currentStrikes += 1
 
                     if (currentStrikes >= 3) {
-                        // 🛑 3 STRIKES: Massive punishment to force the Bandit to switch arms!
+                        //3 STRIKES: Massive punishment to force the Bandit to switch arms!
                         finalReward = -5.0f
                         prefs.edit { putInt(strikeKey, 0) }
                     } else {
@@ -196,7 +198,7 @@ class FinanceRepository(
                 expenseDao.markFeedbackAsSent(predictionId)
 
             } catch (e: Exception) {
-                println("⚠️ Feedback Sync Paused. Reason: ${e.localizedMessage}")
+                println(" Feedback Sync Paused. Reason: ${e.localizedMessage}")
             }
         }
     }
