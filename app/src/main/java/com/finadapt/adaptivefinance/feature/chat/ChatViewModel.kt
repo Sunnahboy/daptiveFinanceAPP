@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
-import com.finadapt.adaptivefinance.data.remote.AiIntentResponse // 🟢 ADDED
+import com.finadapt.adaptivefinance.data.remote.AiIntentResponse
 import com.google.gson.Gson
 
 
@@ -140,7 +140,7 @@ class ChatViewModel(
     }
 }
 
-// 🟢 Update Factory to provide the Resolver
+//Update Factory to provide the Resolver
 class ChatViewModelFactory(
     private val expenseDao: ExpenseDao,
     private val prefs: SharedPreferences

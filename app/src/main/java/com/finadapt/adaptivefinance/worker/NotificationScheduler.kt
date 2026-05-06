@@ -10,7 +10,7 @@ import androidx.core.content.edit
 
 object NotificationScheduler {
 
-    // 🟢 NEW: Accepts a list of Pair<Hour, Minute>
+    // Accepts a list of Pair<Hour, Minute>
     fun scheduleDailyReminders(context: Context, times: List<Pair<Int, Int>>) {
         val workManager = WorkManager.getInstance(context)
 

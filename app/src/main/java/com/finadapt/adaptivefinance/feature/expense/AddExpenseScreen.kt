@@ -228,7 +228,7 @@ fun AddExpenseScreen(
                     }
                 }
 
-                // 2. 🟢 NEW: MERCHANT INPUT
+                // 2. MERCHANT INPUT
                 Text("Merchant (Optional)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
 
                 OutlinedTextField(
@@ -277,7 +277,7 @@ fun AddExpenseScreen(
                             label = {
                                 Text(
                                     text = category,
-                                    // 🟢 Explicitly set text color so it never vanishes
+                                    //Explicitly set text color so it never vanishes
                                     color = if (isSelected) primaryColor else textColor
                                 )
                             },
@@ -290,7 +290,7 @@ fun AddExpenseScreen(
                                 containerColor = Color.Transparent,
                                 labelColor = textColor
                             ),
-                            // 🟢 Explicitly set the border so you can always see the outline of the chip
+                            //Explicitly set the border so you can always see the outline of the chip
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
@@ -311,7 +311,7 @@ fun AddExpenseScreen(
                         isSubmitting = true
                         keyboardController?.hide()
 
-                        // 🟢 SMART FALLBACK: Use what they typed. If blank, use Category.
+                        //SMART FALLBACK: Use what they typed. If blank, use Category.
                         val finalMerchant = merchantInput.takeIf { it.isNotBlank() } ?: categoryInput
 
                         onLogExpense(
@@ -402,7 +402,7 @@ fun AddExpenseScreen(
                             if (receipt.total > 0f) amountInput = receipt.total.toString()
                             if (dominantCategory != "General") categoryInput = dominantCategory
 
-                            // 🟢 SMART AUTO-FILL: Put the scanned merchant into the text box!
+                            // SMART AUTO-FILL: Puts the scanned merchant into the text box
                             if (receipt.merchantName.isNotBlank()) merchantInput = receipt.merchantName
 
                             showReceiptSheet = false

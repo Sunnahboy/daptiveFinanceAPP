@@ -31,7 +31,7 @@ fun CommunityScreen(
     isLoading: Boolean,
     isDarkMode: Boolean = false
 ) {
-    // 🟢 PREMIUM ADAPTIVE COLORS
+    //PREMIUM ADAPTIVE COLORS
     val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFE2E8F0)
     val listContainerColor = if (isDarkMode) Color(0xFF1E293B).copy(alpha = 0.8f) else Color.White.copy(alpha = 0.6f)
     val textColor = if (isDarkMode) Color.White else Color(0xFF0F172A)
@@ -49,7 +49,7 @@ fun CommunityScreen(
         val top3 = leaderboardData.take(3)
         val topPlayer = leaderboardData.firstOrNull()
 
-        // 🟢 THE FIX: One unified LazyColumn so the entire screen scrolls flawlessly
+        // One unified LazyColumn so the entire screen scrolls flawlessly
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()

@@ -38,14 +38,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
-
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     currentName: String,
     currentBudget: Float,
     isDarkMode: Boolean = false,
-    allExpenses: List<ExpenseEntity>, // 🟢 NEW: We need the live data to export it!
+    allExpenses: List<ExpenseEntity>, //live data to export it
     onNameChanged: (String) -> Unit,
     onBudgetChanged: (Float) -> Unit,
     onThemeToggled: (Boolean) -> Unit,
@@ -56,25 +58,25 @@ fun SettingsScreen(
     val context = LocalContext.current
     var nameInput by remember { mutableStateOf(currentName) }
     var budgetInput by remember { mutableStateOf(currentBudget.toInt().toString()) }
-    // 🟢 NEW: State for our reminder times
+    // State for our reminder times
     var reminderTimes by remember { mutableStateOf(NotificationScheduler.getTimesFromPrefs(context)) }
 
-    // 🟢 INDIVIDUAL BUTTON STATES
+    // INDIVIDUAL BUTTON STATES
     var nameActionState by remember { mutableStateOf("IDLE") }
     var budgetActionState by remember { mutableStateOf("IDLE") }
-    // 🟢 NEW: State for our reminder times
+    // State for our reminder times
 
 
-    // 🟢 EXPORT STATES
+    // EXPORT STATES
     var selectedTimeframe by remember { mutableStateOf(ReportGenerator.Timeframe.MONTHLY) }
     var isGenerating by remember { mutableStateOf(false) }
 
-    // 🟢 VALIDATION STATES
+    // VALIDATION STATES
     var nameError by remember { mutableStateOf<String?>(null) }
     var budgetError by remember { mutableStateOf<String?>(null) }
     var showValidationErrorDialog by remember { mutableStateOf(false) }
 
-    // 🟢 DIALOG STATES
+    // DIALOG STATES
     var showWipeDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
@@ -129,7 +131,6 @@ fun SettingsScreen(
             // ─────────────────────────────────────────
             // 1. ACCOUNT & PROFILE
             // ─────────────────────────────────────────
-            // (Your existing Account & Profile code stays exactly the same)
             SettingsSectionHeader("Account & Profile", textColor)
 
             Card(
@@ -241,7 +242,7 @@ fun SettingsScreen(
 
                     HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
 
-                    // 🟢 THE NOTIFICATION TIMES UI
+                    // THE NOTIFICATION TIMES UI
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -253,7 +254,7 @@ fun SettingsScreen(
                                 Text("When should the AI remind you?", color = subTextColor, fontSize = 12.sp)
                             }
                             // Add Time Button
-                            if (reminderTimes.size < 3) { // Let's limit to 3 reminders max to prevent spam
+                            if (reminderTimes.size < 3) { // limit to 3 reminders max to prevent spam
                                 IconButton(onClick = {
                                     val calendar = Calendar.getInstance()
                                     android.app.TimePickerDialog(
@@ -323,7 +324,7 @@ fun SettingsScreen(
             }
 
             // ─────────────────────────────────────────
-            // 3. DATA & EXPORT (🟢 NEW RAG REPORT ENGINE)
+            // 3. DATA & EXPORT
             // ─────────────────────────────────────────
             SettingsSectionHeader("Data & Export", textColor)
 
@@ -462,7 +463,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(80.dp))
         }
 
-        // --- DIALOGS (Kept exactly as you had them) ---
+
         // Validation Error Dialog (with Lottie)
         if (showValidationErrorDialog) {
             val errorLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.error_alert))
@@ -488,13 +489,62 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { showHelpDialog = false },
                 containerColor = cardColor,
-                title = { Text("Help Center", fontWeight = FontWeight.Bold, color = textColor) },
+                title = {
+                    Text(
+                        "Help Center",
+                        fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+                },
                 text = {
-                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
-                        Text(text = """Q: How does the AI Bandit work?... (truncated for length, yours is still fully intact in code)""".trimIndent(), color = subTextColor, fontSize = 14.sp, lineHeight = 22.sp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp) //Keeps the dialog scrollable
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        val helpText = buildAnnotatedString {
+                            // Question 1
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("Q: How does the AI Bandit work?\n")
+                            }
+                            append("A: Our Contextual AI learns your spending habits. If you spend erratically, it adapts by offering stricter advice. If you spend safely, it rewards you with streak bonuses. It learns every time you accept or ignore its advice!\n\n")
+
+                            // Question 2
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("Q: How do I earn XP and level up?\n")
+                            }
+                            append("A: You earn XP by logging your expenses daily to keep your streak alive, and by following the AI's financial advice. Earning XP moves you up the tiers on the global leaderboard.\n\n")
+
+                            // Question 3
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("Q: Why did I receive a \"Strict Budget\" warning?\n")
+                            }
+                            append("A: The AI triggered this because it detected high \"Spending Volatility.\" This usually happens if you spend a large percentage of your monthly budget too quickly.\n\n")
+
+                            // Question 4
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("Q: Is my financial data secure?\n")
+                            }
+                            append("A: Yes. We do not connect to your bank or save any sensitive credentials. You appear on the leaderboard under a randomly generated anonymous name.")
+                        }
+
+                        Text(
+                            text = helpText,
+                            color = subTextColor,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp
+                        )
                     }
                 },
-                confirmButton = { Button(onClick = { showHelpDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = primaryColor)) { Text("Close", color = Color.White) } }
+                confirmButton = {
+                    Button(
+                        onClick = { showHelpDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                    ) {
+                        Text("Close", color = Color.White)
+                    }
+                }
             )
         }
 
@@ -503,13 +553,69 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { showPrivacyDialog = false },
                 containerColor = cardColor,
-                title = { Text("Privacy Policy", fontWeight = FontWeight.Bold, color = textColor) },
+                title = {
+                    Text(
+                        "Privacy Policy",
+                        fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+                },
                 text = {
-                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
-                        Text(text = """1. Data Collection & Cloud Sync...""".trimIndent(), color = subTextColor, fontSize = 14.sp, lineHeight = 22.sp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp) //Keeps the dialog from taking up the whole screen
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // Build the text with bold headers
+                        val privacyText = buildAnnotatedString {
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("Privacy by Design: Abstracted Reinforcement Learning\n\n")
+                            }
+                            append("Your privacy is our priority. Our AI learns from mathematical patterns, not personal identities.\n\n")
+
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("1. Financial Activity Data (The \"Context\")\n")
+                            }
+                            append("• We collect: Expense categories, transaction amounts, and timestamps.\n")
+                            append("• Why: To provide the Contextual Multi-Armed Bandit (CMAB) AI with the context needed for personalized advice.\n")
+                            append("• Note: We DO NOT connect to real bank accounts or collect sensitive banking credentials.\n\n")
+
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("2. AI Feedback Data (The \"Reward\")\n")
+                            }
+                            append("• We collect: The AI's predicted advice and your feedback score (+1.0 or -0.5).\n")
+                            append("• Why: To close the Reinforcement Learning loop, allowing our algorithm to adjust and improve its accuracy over time.\n\n")
+
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("3. Gamification & Progression Data\n")
+                            }
+                            append("• We collect: An anonymous username, a randomized device/user ID, XP, and tier.\n")
+                            append("• Why: To populate the global leaderboard and securely maintain your gamified progress without exposing your real identity.\n\n")
+
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("4. Technical & Analytical Data\n")
+                            }
+                            append("• We collect: IP addresses and broad user segments.\n")
+                            append("• Why: IPs are used strictly for secure server routing. User segments group similar behaviors for AI improvements without identifying individuals.")
+                        }
+
+                        Text(
+                            text = privacyText,
+                            color = subTextColor,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp
+                        )
                     }
                 },
-                confirmButton = { Button(onClick = { showPrivacyDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = primaryColor)) { Text("I Understand", color = Color.White) } }
+                confirmButton = {
+                    Button(
+                        onClick = { showPrivacyDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                    ) {
+                        Text("I Understand", color = Color.White)
+                    }
+                }
             )
         }
 
@@ -582,7 +688,7 @@ fun SettingsRowAction(
     }
 }
 
-// 🟢 NEW: Helper function to slice the data by timeframe for the Export
+//Helper function to slice the data by timeframe for the Export
 fun filterExpenses(allExpenses: List<ExpenseEntity>, timeframe: ReportGenerator.Timeframe): List<ExpenseEntity> {
     val cutoff = System.currentTimeMillis() - when (timeframe) {
         ReportGenerator.Timeframe.DAILY -> 24L * 60 * 60 * 1000

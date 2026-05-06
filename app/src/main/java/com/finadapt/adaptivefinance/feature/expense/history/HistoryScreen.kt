@@ -87,7 +87,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-// ... (Keep your getCategoryColor and TimeFilter enum exactly the same)
+
 fun getCategoryColor(category: String): Color {
     return when (category.lowercase()) {
         "food", "dining", "groceries" -> Color(0xFFEF4444)
@@ -108,7 +108,7 @@ enum class TimeFilter { DAILY, WEEKLY, MONTHLY }
 fun HistoryScreen(
     allExpenses: List<ExpenseEntity>,
     isDarkMode: Boolean = false,
-    // 🟢 NEW: Hooks to tell the ViewModel to Edit or Delete!
+    //Hooks to tell the ViewModel to Edit or Delete!
     onDeleteExpense: (ExpenseEntity) -> Unit,
     onEditExpense: (ExpenseEntity) -> Unit,
 ) {
@@ -126,10 +126,10 @@ fun HistoryScreen(
     var selectedExpenseForDetails by remember { mutableStateOf<ExpenseEntity?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // 🟢 NEW: State for the Edit Dialog
+    //State for the Edit Dialog
     var expenseToEdit by remember { mutableStateOf<ExpenseEntity?>(null) }
 
-    // ... (Keep your chart math and filtering logic exactly the same)
+
     val (safeChartData, chartLabels, cutoffTimestamp) = remember(allExpenses, selectedFilter) {
         val cal = Calendar.getInstance()
         cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
@@ -210,19 +210,19 @@ fun HistoryScreen(
     Scaffold(
         containerColor = bgColor,
     ) { innerPadding ->
-        // 🟢 1. Wrap the entire screen content in a Box
+        //Wrap the entire screen content in a Box
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
 
-            // 2. Your existing LazyColumn (Notice I removed padding(innerPadding) from here since the Box handles it now)
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 24.dp, start = 20.dp, end = 20.dp, bottom = 100.dp)
             ) {
-                // ... (Keep the Chart and Search bar items exactly the same)
+
                 item {
                     Text("Analytics", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = textColor)
                     Spacer(modifier = Modifier.height(24.dp))
@@ -351,7 +351,7 @@ fun HistoryScreen(
     }
 
 
-        // --- 🟢 NEW: THE EDIT DIALOG ---
+        // --- THE EDIT DIALOG ---
         if (expenseToEdit != null) {
             var editAmount by remember { mutableStateOf(expenseToEdit!!.amount.toString()) }
             var editCategory by remember { mutableStateOf(expenseToEdit!!.category) }
@@ -406,7 +406,7 @@ fun HistoryScreen(
             )
         }
 
-        // ... (Keep the digital receipt Bottom Sheet perfectly identical)
+        //Keep the digital receipt Bottom Sheet perfectly identical
         if (selectedExpenseForDetails != null) {
             val expense = selectedExpenseForDetails!!
             ModalBottomSheet(onDismissRequest = { selectedExpenseForDetails = null }, sheetState = sheetState, containerColor = cardBg) {
@@ -461,7 +461,7 @@ fun HistoryScreen(
     }
 
 
-// ... CategoryDonutChart the same
+// CategoryDonutChart
 @Composable
 fun CategoryDonutChart(expenses: List<ExpenseEntity>, textColor: Color) {
     val categoryTotals = expenses.groupBy { it.category }.mapValues { entry -> entry.value.sumOf { it.amount.toDouble() }.toFloat() }.toList().sortedByDescending { it.second }

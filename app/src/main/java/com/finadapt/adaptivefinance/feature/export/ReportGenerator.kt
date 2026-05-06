@@ -126,7 +126,7 @@ object ReportGenerator {
         }
     }
 
-    // --- 🟢 ULTIMATE PDF GENERATION (Pie Chart + Bar Graph + Table) ---
+    //  ULTIMATE PDF GENERATION (Pie Chart + Bar Graph + Table)
     @SuppressLint("DefaultLocale")
     fun generatePdfReport(context: Context, expenses: List<ExpenseEntity>, timeframe: Timeframe): File? {
         return try {
@@ -171,7 +171,7 @@ object ReportGenerator {
             var currentY = 160f
 
             if (categoryTotals.isNotEmpty()) {
-                // 2. 🥧 PIE CHART & BREAKDOWN (Left & Right)
+                // 2. PIE CHART & BREAKDOWN (Left & Right)
                 paint.color = Color.BLACK
                 paint.textSize = 18f
                 paint.isFakeBoldText = true
@@ -207,7 +207,7 @@ object ReportGenerator {
 
                 currentY += 190f
 
-                // 3. 📊 SLEEK BAR GRAPH
+                // 3. SLEEK BAR GRAPH
                 paint.color = Color.BLACK
                 paint.textSize = 18f
                 paint.isFakeBoldText = true
@@ -236,7 +236,7 @@ object ReportGenerator {
                 currentY += 30f
             }
 
-            // 4. 📋 TRANSACTIONS TABLE (Fits top 6 beautifully on the remaining page)
+            // 4. TRANSACTIONS TABLE (Fits top 6 beautifully on the remaining page)
             paint.color = Color.BLACK
             paint.textSize = 18f
             paint.isFakeBoldText = true
@@ -300,7 +300,7 @@ object ReportGenerator {
         }
     }
 
-    // --- 🟢 SHARE INTENT FIREWALL ---
+    //  SHARE INTENT FIREWALL -
     fun shareFile(context: Context, file: File, mimeType: String) {
         val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {

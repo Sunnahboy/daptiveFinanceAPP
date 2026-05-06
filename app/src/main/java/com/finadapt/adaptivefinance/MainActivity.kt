@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // 🟢 Load the user's saved times and schedule them all!
+        //  Load the user's saved times and schedule them all!
         val savedTimes = NotificationScheduler.getTimesFromPrefs(this)
         NotificationScheduler.scheduleDailyReminders(this, savedTimes)
 
@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
         val repository = FinanceRepository(database.expenseDao(), prefs)
 
         setContent {
-            // 🟢 THE FIX: Replaced 'MaterialTheme' with your custom 'AdaptiveFinanceTheme'
+            //Replaced 'MaterialTheme' with your custom 'AdaptiveFinanceTheme'
             AdaptiveFinanceTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),

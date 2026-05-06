@@ -32,7 +32,7 @@ fun GamificationDialog(
     val context = LocalContext.current
     val soundEngine = remember { SoundEngine(context) }
 
-    // 🟢 The Master Intercept Dialog
+    //The Master Intercept Dialog
     Dialog(
         onDismissRequest = { /* We leave this empty to FORCE the user to interact with the game */ },
         properties = DialogProperties(
@@ -46,7 +46,7 @@ fun GamificationDialog(
             colors = CardDefaults.cardColors(containerColor = dialogBgColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
         ) {
-            // 🕹️ The Game Router Logic
+            // The Game Router Logic
             when (action) {
                 "quiz" -> QuizGame(
                     awsMessage = message,
@@ -84,7 +84,7 @@ fun GamificationDialog(
                     }
                 )
 
-                // 🛑 Fallback (Just in case AWS sends a new action we haven't built yet)
+                // Fallback (Just in case AWS sends a new action we haven't built yet)
                 else -> {
                     Column(modifier = Modifier.padding(24.dp)) {
                         Text("🤖 AI Intervention", fontWeight = FontWeight.Bold, color = if (isDark) Color.White else Color.Black)
