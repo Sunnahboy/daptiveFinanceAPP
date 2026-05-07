@@ -12,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material3.*
@@ -46,7 +45,7 @@ fun AddExpenseScreen(
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    // 🟢 UI STATES (Added merchantInput!)
+    //UI STATES
     var amountInput by remember { mutableStateOf("") }
     var merchantInput by remember { mutableStateOf("") }
     var categoryInput by remember { mutableStateOf("") }
@@ -324,6 +323,14 @@ fun AddExpenseScreen(
                             scannedReceipt?.items ?: emptyList()
                         )
 
+                        // Reset the form state for the next time
+                        isSubmitting = false
+                        amountInput = ""
+                        merchantInput = ""
+                        categoryInput = ""
+                        scannedReceipt = null
+                        voiceFeedbackMsg = ""
+
                         onDismissState()
                     }
                 },
@@ -336,7 +343,7 @@ fun AddExpenseScreen(
             }
         }
 
-        // --- DIGITAL RECEIPT BOTTOM SHEET ---
+        //  DIGITAL RECEIPT BOTTOM SHEET
         if (showReceiptSheet && scannedReceipt != null) {
             val receipt = scannedReceipt!!
             ModalBottomSheet(
