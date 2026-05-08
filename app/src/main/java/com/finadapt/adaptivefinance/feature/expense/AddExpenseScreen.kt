@@ -357,6 +357,7 @@ fun AddExpenseScreen(
                             Text(receipt.merchantName.ifEmpty { "Receipt Saved" }, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = primaryColor)
                             if (receipt.date.isNotEmpty()) { Text("${receipt.date} • ${receipt.paymentMethod}", color = Color.Gray, fontSize = 14.sp) }
                         }
+
                         if (receipt.localImagePath.isNotEmpty()) {
                             var showFullImage by remember { mutableStateOf(false) }
                             AsyncImage(model = File(receipt.localImagePath), contentDescription = "Receipt Thumbnail", contentScale = ContentScale.Crop, modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)).clickable { showFullImage = true })
