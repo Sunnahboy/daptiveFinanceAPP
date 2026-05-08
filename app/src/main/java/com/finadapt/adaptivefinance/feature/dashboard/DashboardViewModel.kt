@@ -79,22 +79,53 @@ class DashboardViewModel(
             initialValue = emptyList()
         )
     //dashboard constantly listening to the DB
-    init{
+    init {
         viewModelScope.launch {
-            allExpenses.collect{
-                //1 instantly check if we should drop a coin
+            allExpenses.collect { expenses ->
+                // 1. instantly check if we should drop a coin
                 val shouldDropCoin = prefs.getBoolean("PENDING_COIN_DROP", false)
                 if (shouldDropCoin){
                     _playCoinDropAnimation.value = true
                     prefs.edit { putBoolean("PENDING_COIN_DROP", false) }
                 }
-                //2. Instantly update XP and coins so the gamification UI is in sync
+
+                // 2. Instantly update XP and coins so the gamification UI is in sync
                 val currentXp = prefs.getInt("USER_XP", 0)
                 _userXp.value = currentXp
                 _userCoins.value = currentXp - prefs.getInt("SPENT_COINS", 0)
-                //3. Check for level up
+
+                // 3. Check for level up and streak
                 _currentStreak.value = financeRepository.getLiveStreak()
 
+                // instantly recalculate the exact millisecond a new expense is saved
+                val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
+                val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
+                _totalSpend.value = expenseDao.getTotalSpendTimeBounded(
+                    timeLimit,
+                    System.currentTimeMillis()
+                ) ?: 0f
+
+                val calendar = Calendar.getInstance()
+                calendar.set(Calendar.HOUR_OF_DAY, 0)
+                calendar.set(Calendar.MINUTE, 0)
+                calendar.set(Calendar.SECOND, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
+                val startOfDay = calendar.timeInMillis
+
+                _todaySpend.value = expenseDao.getTodaySpend(startOfDay) ?: 0f
+
+                val today = System.currentTimeMillis()
+                val sevenDaysAgo = today - (7L * 24 * 60 * 60 * 1000)
+                val recentList = expenseDao.getExpensesSince(sevenDaysAgo)
+
+                val dailyTotals = FloatArray(7)
+                recentList.forEach { expense ->
+                    val daysAgo = ((today - expense.timestamp) / (24 * 60 * 60 * 1000)).toInt()
+                    if (daysAgo in 0..6) {
+                        dailyTotals[6 - daysAgo] += expense.amount
+                    }
+                }
+                _weeklyChartData.value = dailyTotals.toList()
             }
         }
     }
@@ -175,7 +206,7 @@ class DashboardViewModel(
     }
 
     fun resetGamification() {
-        //Reset both XP and Spent Coins so they don't get negative balances!
+        //Reset both XP and Spent Coins so they don't get negative balances
         prefs.edit {
             putInt("USER_XP", 0)
             putInt("SPENT_COINS", 0)
