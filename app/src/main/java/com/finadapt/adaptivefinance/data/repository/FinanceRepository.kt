@@ -170,7 +170,7 @@ class FinanceRepository(
                 val finalReward: Float
 
                 if (userAccepted) {
-                    // 🟢 THEY ACCEPTED
+                    //THEY ACCEPTED
                     finalReward = 2.0f
                     prefs.edit { putInt(strikeKey, 0) }
 
@@ -183,7 +183,7 @@ class FinanceRepository(
                     currentStrikes += 1
 
                     if (currentStrikes >= 3) {
-                        //3 STRIKES: Massive punishment to force the Bandit to switch arms!
+                        //3 STRIKES: Massive punishment to force the Bandit to switch arms
                         finalReward = -5.0f
                         prefs.edit { putInt(strikeKey, 0) }
                     } else {
