@@ -100,7 +100,7 @@ class FinanceRepository(
                 //Logs fo debugging
                 Log.d("MATH_CHECK", "App is sending Volatility: $finalVolatility | Return Rate (Impulse): $calculatedImpulse")
 
-                // 5. SEND TO server i.e aws ec2 (With Graceful Offline Fallback!)
+                // 5. SEND TO server
                 val response = try {
                     apiService.getAiGamification(ApiClient.API_TOKEN, request)
                 } catch (_: Exception) {

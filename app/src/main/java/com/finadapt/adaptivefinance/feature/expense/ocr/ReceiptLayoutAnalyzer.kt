@@ -5,7 +5,6 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 object ReceiptLayoutAnalyzer {
-
     /**
      * Reconstructs physical rows using O(n log n) clustering on deskewed coordinates.
      */
@@ -53,7 +52,6 @@ object ReceiptLayoutAnalyzer {
             }
         }
         if (currentRow.isNotEmpty()) rows.add(currentRow)
-
         //5 Sort each row left-to-right (X-axis) and return
         return rows.map { row -> row.sortedBy { it.centerX } }
     }

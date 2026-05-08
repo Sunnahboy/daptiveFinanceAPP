@@ -103,7 +103,7 @@ fun StrictBudgetGame(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Lock, contentDescription = "Security", tint = alertAmber, modifier = Modifier.size(28.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("AEGIS PROTOCOL", fontSize = 24.sp, fontWeight = FontWeight.Black, color = alertAmber, letterSpacing = 2.sp)
+            Text("High-Risk Mode", fontSize = 24.sp, fontWeight = FontWeight.Black, color = alertAmber, letterSpacing = 2.sp)
         }
         Spacer(modifier = Modifier.height(24.dp))
 
