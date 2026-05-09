@@ -12,7 +12,7 @@ data class OcrElement(
 )
 object OcrEngine {
     /**
-     * Converts raw ML Kit Text into our strict domain model.
+     * Converts raw ML Kit Text into  strict domain model.
      * Enforces invariants immediately: Drops anything without valid geometry.
      */
 
@@ -23,7 +23,7 @@ object OcrEngine {
             val box = element.boundingBox
             val corners = element.cornerPoints
 
-            // invariant : Must have bounding box and corner points to exist in our system
+            // invariant : Must have bounding box and corner points to exist in the system
             if (box == null || corners == null || corners.size < 4) return@mapNotNull null
 
             // Calculate real center
