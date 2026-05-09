@@ -24,7 +24,7 @@ fun GamificationDialog(
     action: String,
     message: String,
     predictionId: String,
-    onFeedback: (String, Int) -> Unit, // Sends the 1 or 0 back to AWS
+    onFeedback: (String, Int) -> Unit, // Sends the 1 or 0 back to server
     onDismiss: () -> Unit              // Closes the router and goes back to Dashboard
 ) {
     val isDark = isSystemInDarkTheme()
@@ -84,7 +84,7 @@ fun GamificationDialog(
                     }
                 )
 
-                // Fallback (Just in case AWS sends a new action we haven't built yet)
+                // Fallback (Just in case bandit returns a prediction we haven't built yet)
                 else -> {
                     Column(modifier = Modifier.padding(24.dp)) {
                         Text("🤖 AI Intervention", fontWeight = FontWeight.Bold, color = if (isDark) Color.White else Color.Black)

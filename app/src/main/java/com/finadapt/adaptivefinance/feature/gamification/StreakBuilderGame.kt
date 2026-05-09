@@ -153,7 +153,7 @@ fun StreakBuilderGame(
                     while (currentPhase == StreakPhase.PLAYING) {
                         delay(50) // Checks incredibly fast
                         if (chargeLevel > 0f && !isPressed) {
-                            // Drains rapidly if they aren't tapping the button!
+                            // Drains rapidly if they aren't tapping the button
                             chargeLevel = (chargeLevel - 0.015f).coerceAtLeast(0f)
                         }
                     }
