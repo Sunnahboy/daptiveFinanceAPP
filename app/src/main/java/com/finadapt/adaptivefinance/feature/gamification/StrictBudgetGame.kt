@@ -274,7 +274,7 @@ fun StrictBudgetGame(
                     isPlaying = true
                 )
 
-                // 🟢 NEW: The Live Terminal Typist Effect
+                //the Live Terminal Typist Effect
                 val terminalLogs = listOf(
                     "> SECURING VOLATILE FUNDS...",
                     "> REROUTING TO VAULT PROTOCOL...",
@@ -321,7 +321,7 @@ fun StrictBudgetGame(
 
                         Spacer(modifier = Modifier.height(48.dp))
 
-                        // 🟢 NEW: The Terminal Output Box (Fills the bottom space!)
+                        //The Terminal Output Box (Fills the bottom space
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -342,7 +342,7 @@ fun StrictBudgetGame(
                 }
             }
 
-            //  PHASE 3: THE VAULT SLAM (Single Master Card!)
+            //  PHASE 3: THE VAULT SLAM (Single Master Card
             StrictPhase.RESULT -> {
                 // 1. Pre-load Vault Lottie
                 val slamLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.vault_slam))
@@ -502,7 +502,7 @@ fun StrictBudgetGame(
     }
 }
 
-// 🟢 CUSTOM INDUSTRIAL COMPONENT: THE HEAVY DEADBOLT
+//CUSTOM INDUSTRIAL COMPONENT: THE HEAVY DEADBOLT
 @Composable
 fun HeavyDeadbolt(
     label: String,

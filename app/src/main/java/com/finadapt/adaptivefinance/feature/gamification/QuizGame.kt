@@ -297,6 +297,7 @@ fun QuizGame(
                 val bgGlow by infiniteTransition.animateFloat(
                     initialValue = 0.2f,
                     targetValue = 0.7f,
+
                     animationSpec = infiniteRepeatable(tween(2000, easing = EaseInOutSine), RepeatMode.Reverse),
                     label = "bg_glow"
                 )
