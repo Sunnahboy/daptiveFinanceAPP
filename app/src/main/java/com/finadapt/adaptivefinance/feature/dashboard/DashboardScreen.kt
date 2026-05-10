@@ -59,7 +59,6 @@ fun DashboardScreen(
     monthlyBudget: Float,
     todaySpend: Float,
     currentAiAction: String,
-    userXp: Int,
     currentStreak: Int,
     recentExpenses: List<ExpenseEntity>,
     levelUpTier: String?,
@@ -68,8 +67,11 @@ fun DashboardScreen(
     isDarkMode: Boolean = false,
     onDismissLevelUp: () -> Unit,
     onNavigateToSettings: () -> Unit,
-
-    // 🟢 NEW: We need a way to send game feedback to the server from the Dashboard now!
+    levelName: String,
+    tierColorHex: Long,
+    fillPercentage: Float,
+    xpText: String,
+    //send game feedback to the server from the Dashboard
     onGameFeedback: (String, String, Boolean) -> Unit
 ) {
     NotificationPermissionHandler()
@@ -152,7 +154,16 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                UnifiedMascotCard(userName = userName, userXp = userXp, currentStreak = currentStreak, playCoinDrop = playCoinDrop, onAnimationFinished = onAnimationFinished)
+                UnifiedMascotCard(
+                    userName = userName,
+                    currentStreak = currentStreak,
+                    playCoinDrop = playCoinDrop,
+                    onAnimationFinished = onAnimationFinished,
+                    levelName = levelName,
+                    tierColorHex = tierColorHex,
+                    fillPercentage = fillPercentage,
+                    xpText = xpText
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -362,13 +373,19 @@ fun DashboardScreen(
 @Composable
 fun UnifiedMascotCard(
     userName: String,
-    userXp: Int,
     currentStreak: Int,
     playCoinDrop: Boolean,
     onAnimationFinished: () -> Unit,
+    //come strictly from the ViewModel now
+    levelName: String,
+    tierColorHex: Long,
+    fillPercentage: Float,
+    xpText: String
 ) {
     val haptic = LocalHapticFeedback.current
+    val tierColor = Color(tierColorHex) // Convert the Long back into a Compose Color
 
+    // --- LOTTIE ANIMATION LOGIC (Stays the same) ---
     val currentLottieRes = when {
         playCoinDrop -> R.raw.piggy_feed
         currentStreak == 0 -> R.raw.piggy_broken
@@ -405,52 +422,14 @@ fun UnifiedMascotCard(
         }
     }
 
-    val levelName: String
-    val tierColor: Color
-    val currentLevelMin: Int
-    val nextLevelMax: Int
-
-    when {
-        userXp < 500 -> {
-            levelName = "Bronze Novice"
-            tierColor = Color(0xFFD97706)
-            currentLevelMin = 0
-            nextLevelMax = 500
-        }
-        userXp < 2000 -> {
-            levelName = "Silver Guardian"
-            tierColor = Color(0xFF94A3B8)
-            currentLevelMin = 500
-            nextLevelMax = 2000
-        }
-        userXp < 5000 -> {
-            levelName = "Gold Master"
-            tierColor = Color(0xFFF59E0B)
-            currentLevelMin = 2000
-            nextLevelMax = 5000
-        }
-        else -> {
-            levelName = "Platinum Legend"
-            tierColor = Color(0xFF34D399)
-            currentLevelMin = 5000
-            nextLevelMax = userXp
-        }
-    }
-
-    val rawFillPercentage = if (nextLevelMax > currentLevelMin) {
-        (userXp - currentLevelMin).toFloat() / (nextLevelMax - currentLevelMin).toFloat()
-    } else {
-        1f
-    }
-
+    // --- ANIMATED PROGRESS BAR LOGIC ---
     val animatedFill by animateFloatAsState(
-        targetValue = rawFillPercentage.coerceIn(0f, 1f),
+        targetValue = fillPercentage, // Uses the exact math from the ViewModel!
         animationSpec = tween(1500, delayMillis = 300),
         label = "XP"
     )
 
-    val xpText = if (userXp >= 5000) "$userXp XP (MAX LEVEL)" else "$userXp / $nextLevelMax XP"
-
+    // --- UI RENDERING ---
     Card(
         modifier = Modifier
             .fillMaxWidth()

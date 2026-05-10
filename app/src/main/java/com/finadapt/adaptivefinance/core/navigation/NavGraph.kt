@@ -164,28 +164,39 @@ fun NavGraph(
                 ) { pageIndex ->
                     when (tabScreens[pageIndex]) {
 
+//
                         Screen.Dashboard.route -> {
                             LaunchedEffect(Unit) { dashboardViewModel.loadDashboardData() }
                             val totalSpend by dashboardViewModel.totalSpend.collectAsState()
                             val monthlyBudget by dashboardViewModel.monthlyBudget.collectAsState()
                             val todaySpend by dashboardViewModel.todaySpend.collectAsState()
                             val recentExpenses by dashboardViewModel.recentExpenses.collectAsState()
-                            val userXp by dashboardViewModel.userXp.collectAsState()
                             val userName by dashboardViewModel.userName.collectAsState()
                             val currentStreak by dashboardViewModel.currentStreak.collectAsState()
                             val isDarkDashboard by dashboardViewModel.isDarkMode.collectAsState()
+                            val mascotState by dashboardViewModel.mascotState.collectAsState()
 
                             DashboardScreen(
-                                userName = userName, totalSpend = totalSpend, todaySpend = todaySpend,
-                                monthlyBudget = monthlyBudget, userXp = userXp, currentStreak = currentStreak,
-                                recentExpenses = recentExpenses, isDarkMode = isDarkDashboard,
-                                onNavigateToSettings = { scope.launch { pagerState.animateScrollToPage(6) } }, // Jumps to Settings
+                                userName = userName,
+                                totalSpend = totalSpend,
+                                todaySpend = todaySpend,
+                                monthlyBudget = monthlyBudget,
+                                currentStreak = currentStreak,
+                                recentExpenses = recentExpenses,
+                                isDarkMode = isDarkDashboard,
+                                onNavigateToSettings = { scope.launch { pagerState.animateScrollToPage(6) } },
                                 currentAiAction = dashboardViewModel.currentAiAction.collectAsState().value,
                                 levelUpTier = dashboardViewModel.showLevelUpCelebration.collectAsState().value,
                                 playCoinDrop = dashboardViewModel.playCoinDropAnimation.collectAsState().value,
                                 onAnimationFinished = { dashboardViewModel.resetCoinDropAnimation() },
                                 onDismissLevelUp = { dashboardViewModel.dismissLevelUpCelebration() },
-                                onGameFeedback = { id, s, a -> dashboardViewModel.submitFeedback(id, s, a) }
+                                onGameFeedback = { id, s, a -> dashboardViewModel.submitFeedback(id, s, a)},
+
+                                // These handle all the Mascot math now:
+                                levelName = mascotState.levelName,
+                                tierColorHex = mascotState.tierColorHex,
+                                fillPercentage = mascotState.fillPercentage,
+                                xpText = mascotState.xpText
                             )
                         }
 
@@ -212,13 +223,27 @@ fun NavGraph(
                         }
 
                         Screen.Community.route -> {
-                            LaunchedEffect(Unit) { communityViewModel.fetchLeaderboard() }
+
+                            //The ViewModel's init block handles the real-time stream automatically
+
                             val leaderboardData by communityViewModel.leaderboardData.collectAsState()
                             val isLoading by communityViewModel.isLoading.collectAsState()
                             val isDarkComm by dashboardViewModel.isDarkMode.collectAsState()
+                            val hallOfFameData by communityViewModel.hallOfFameData.collectAsState()
+                            val spendableCoins by communityViewModel.spendableCoins.collectAsState()
+
+
                             CommunityScreen(
-                                leaderboardData = leaderboardData, currentAnonName = communityViewModel.currentAnonName,
-                                isLoading = isLoading, isDarkMode = isDarkComm
+                                leaderboardData = leaderboardData,
+                                currentAnonName = communityViewModel.currentAnonName,
+                                isLoading = isLoading,
+                                isDarkMode = isDarkComm,
+                                hallOfFameData = hallOfFameData,
+                                spendableCoins = spendableCoins,
+                                        // onCheerClicked action to hook the UI button to the ViewModel!
+                                onCheerClicked = { targetUserId, targetAnonName ->
+                                    communityViewModel.sendCheerToUser(targetUserId, targetAnonName)
+                                }
                             )
                         }
 
