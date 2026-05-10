@@ -1,4 +1,3 @@
-
 package com.finadapt.adaptivefinance.feature.dashboard
 
 import android.content.SharedPreferences
@@ -17,6 +16,15 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
+
+
+
+data class MascotUiState(
+    val levelName: String = "Bronze Novice",
+    val tierColorHex: Long = 0xFFD97706, //We use Long so ViewModel doesn't need Compose imports
+    val fillPercentage: Float = 0f,
+    val xpText: String = "0 / 500 XP"
+)
 class DashboardViewModel(
     private val expenseDao: ExpenseDao,
     private val prefs: SharedPreferences,
@@ -64,6 +72,10 @@ class DashboardViewModel(
     private val _showLevelUpCelebration = MutableStateFlow<String?>(null)
     val showLevelUpCelebration: StateFlow<String?> = _showLevelUpCelebration.asStateFlow()
 
+    // Mascot state flow
+    private val _mascotState = MutableStateFlow(MascotUiState())
+    val mascotState: StateFlow<MascotUiState> = _mascotState.asStateFlow()
+
     val allExpenses: StateFlow<List<ExpenseEntity>> = expenseDao.getALLExpensesFlow()
         .stateIn(
             scope = viewModelScope,
@@ -93,6 +105,7 @@ class DashboardViewModel(
                 val currentXp = prefs.getInt("USER_XP", 0)
                 _userXp.value = currentXp
                 _userCoins.value = currentXp - prefs.getInt("SPENT_COINS", 0)
+                calculateMascotState(currentXp)
 
                 // 3. Check for level up and streak
                 _currentStreak.value = financeRepository.getLiveStreak()
@@ -142,8 +155,9 @@ class DashboardViewModel(
 
             _userXp.value = currentXp // Drives the Mountain Map
             _userCoins.value = currentXp - spentCoins // Drives the Shield Store
-
+            calculateMascotState(currentXp)
             checkForLevelUp(currentXp)
+
 
             _userName.value = prefs.getString("USER_NAME", "User") ?: "User"
             _shieldCount.value = prefs.getInt("STREAK_SHIELDS", 0)
@@ -183,7 +197,8 @@ class DashboardViewModel(
             val currentTier = when {
                 currentXp < 500 -> "Bronze Novice"
                 currentXp < 2000 -> "Silver Guardian"
-                else -> "Gold Master"
+                currentXp < 5000 -> "Gold Master"
+                else -> "Platinum Legend"
             }
 
             try {
@@ -230,7 +245,7 @@ class DashboardViewModel(
                 putInt("CURRENT_STREAK", 0)
                 putLong("LAST_LOGGED_MIDNIGHT", 0L)
                 putInt("USER_XP", 0)
-                putInt("SPENT_COINS", 0) // Reset spent coins too
+                putInt("SPENT_COINS", 0) //Reset spent coins
                 putInt("STREAK_SHIELDS", 0)
             }
 
@@ -256,7 +271,7 @@ class DashboardViewModel(
                 val currentShields = prefs.getInt("STREAK_SHIELDS", 0)
                 val newShieldTotal = currentShields + 1
 
-                // 2. Save directly to SharedPreferences (Bypassing the old repo method)
+                // 2. Save directly to SharedPreferences
                 prefs.edit {
                     putInt("SPENT_COINS", newSpentTotal)
                     putInt("STREAK_SHIELDS", newShieldTotal)
@@ -305,5 +320,67 @@ class DashboardViewModel(
         viewModelScope.launch {
             financeRepository.submitUserFeedback(predictionId, strategyName, userAccepted)
         }
+    }
+
+    private fun calculateMascotState(currentXp: Int) {
+        val levelName: String
+        val tierColorHex: Long
+        val currentLevelMin: Int
+        val nextLevelMax: Int
+
+        when {
+            currentXp < 500 -> {
+                levelName = "Bronze Novice"
+                tierColorHex = 0xFFD97706
+                currentLevelMin = 0
+                nextLevelMax = 500
+            }
+            currentXp < 2000 -> {
+                levelName = "Silver Guardian"
+                tierColorHex = 0xFF94A3B8
+                currentLevelMin = 500
+                nextLevelMax = 2000
+            }
+            currentXp < 5000 -> {
+                levelName = "Gold Master"
+                tierColorHex = 0xFFF59E0B
+                currentLevelMin = 2000
+                nextLevelMax = 5000
+            }
+            else -> {
+                levelName = "Platinum Legend"
+                tierColorHex = 0xFF34D399
+
+                // THE PRESTIGE LOOP
+                val excess = currentXp - 5000
+                currentLevelMin = 5000 + (excess / 1000) * 1000
+                nextLevelMax = currentLevelMin + 1000
+            }
+        }
+
+        val xpIntoCurrentLevel = currentXp - currentLevelMin
+        val xpRequiredForNextLevel = nextLevelMax - currentLevelMin
+
+        val rawFillPercentage = if (xpRequiredForNextLevel > 0) {
+            xpIntoCurrentLevel.toFloat() / xpRequiredForNextLevel.toFloat()
+        } else {
+            1f
+        }
+
+        val xpText = "$xpIntoCurrentLevel / $xpRequiredForNextLevel XP"
+
+        // Emit the final calculated state to the UI
+        _mascotState.value = MascotUiState(
+            levelName = levelName,
+            tierColorHex = tierColorHex,
+            fillPercentage = rawFillPercentage.coerceIn(0f, 1f),
+            xpText = xpText
+        )
+    }
+    //for refreshing coins in reward
+    fun refreshCoins() {
+        val currentXp = prefs.getInt("USER_XP", 0)
+        val spentCoins = prefs.getInt("SPENT_COINS", 0)
+        _userCoins.value = currentXp - spentCoins
     }
 }

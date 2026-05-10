@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
                     val dashboardViewModel: DashboardViewModel = viewModel(factory = dashboardFactory)
 
                     //Build the Community ViewModel
-                    val communityFactory = CommunityViewModelFactory(repository)
+                    val communityFactory = CommunityViewModelFactory(repository,dashboardViewModel)
                     val communityViewModel: CommunityViewModel = viewModel(factory = communityFactory)
                     val chatFactory = ChatViewModelFactory(database.expenseDao(), prefs)
                     val chatViewModel: ChatViewModel = viewModel(factory = chatFactory)
