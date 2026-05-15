@@ -29,3 +29,4 @@ local.properties
 .externalNativeBuild
 .cxx
 local.properties
+/app/release/

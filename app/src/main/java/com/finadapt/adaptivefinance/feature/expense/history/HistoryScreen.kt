@@ -7,7 +7,19 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -20,8 +32,32 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +73,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.finadapt.adaptivefinance.data.local.ExpenseEntity
-import com.finadapt.adaptivefinance.feature.chat.DraggableAiChatFab
 import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
@@ -48,9 +83,11 @@ import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
 import com.patrykandpatrick.vico.core.entry.entryModelOf
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
-// ... (Keep your getCategoryColor and TimeFilter enum exactly the same)
+
 fun getCategoryColor(category: String): Color {
     return when (category.lowercase()) {
         "food", "dining", "groceries" -> Color(0xFFEF4444)
@@ -71,10 +108,9 @@ enum class TimeFilter { DAILY, WEEKLY, MONTHLY }
 fun HistoryScreen(
     allExpenses: List<ExpenseEntity>,
     isDarkMode: Boolean = false,
-    // 🟢 NEW: Hooks to tell the ViewModel to Edit or Delete!
+    //Hooks to tell the ViewModel to Edit or Delete!
     onDeleteExpense: (ExpenseEntity) -> Unit,
     onEditExpense: (ExpenseEntity) -> Unit,
-    onNavigateToChat: () -> Unit
 ) {
     val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
     val cardBg = if (isDarkMode) Color(0xFF1E293B) else Color.White
@@ -90,10 +126,10 @@ fun HistoryScreen(
     var selectedExpenseForDetails by remember { mutableStateOf<ExpenseEntity?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // 🟢 NEW: State for the Edit Dialog
+    //State for the Edit Dialog
     var expenseToEdit by remember { mutableStateOf<ExpenseEntity?>(null) }
 
-    // ... (Keep your chart math and filtering logic exactly the same)
+
     val (safeChartData, chartLabels, cutoffTimestamp) = remember(allExpenses, selectedFilter) {
         val cal = Calendar.getInstance()
         cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
@@ -174,19 +210,19 @@ fun HistoryScreen(
     Scaffold(
         containerColor = bgColor,
     ) { innerPadding ->
-        // 🟢 1. Wrap the entire screen content in a Box
+        //Wrap the entire screen content in a Box
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
 
-            // 2. Your existing LazyColumn (Notice I removed padding(innerPadding) from here since the Box handles it now)
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 24.dp, start = 20.dp, end = 20.dp, bottom = 100.dp)
             ) {
-                // ... (Keep the Chart and Search bar items exactly the same)
+
                 item {
                     Text("Analytics", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = textColor)
                     Spacer(modifier = Modifier.height(24.dp))
@@ -309,21 +345,13 @@ fun HistoryScreen(
                         }
                     }
                 }
-            } // <-- End of LazyColumn
+            }
 
-            // 🟢 3. Drop the Draggable FAB at the bottom of the Box!
-            DraggableAiChatFab(
-                onClick = onNavigateToChat, // Ensure this parameter is added to your HistoryScreen signature!
-                modifier = Modifier
-                    .align(Alignment.BottomEnd) // Starts in the bottom right corner
-                    .padding(bottom = 32.dp, end = 16.dp)
-            )
-
-        } // <-- End of Box
-    } // <-- End of Scaffold
+        }
+    }
 
 
-        // --- 🟢 NEW: THE EDIT DIALOG ---
+        // --- THE EDIT DIALOG ---
         if (expenseToEdit != null) {
             var editAmount by remember { mutableStateOf(expenseToEdit!!.amount.toString()) }
             var editCategory by remember { mutableStateOf(expenseToEdit!!.category) }
@@ -378,7 +406,7 @@ fun HistoryScreen(
             )
         }
 
-        // ... (Keep the digital receipt Bottom Sheet perfectly identical)
+        //Keep the digital receipt Bottom Sheet perfectly identical
         if (selectedExpenseForDetails != null) {
             val expense = selectedExpenseForDetails!!
             ModalBottomSheet(onDismissRequest = { selectedExpenseForDetails = null }, sheetState = sheetState, containerColor = cardBg) {
@@ -433,7 +461,7 @@ fun HistoryScreen(
     }
 
 
-// ... CategoryDonutChart the same
+// CategoryDonutChart
 @Composable
 fun CategoryDonutChart(expenses: List<ExpenseEntity>, textColor: Color) {
     val categoryTotals = expenses.groupBy { it.category }.mapValues { entry -> entry.value.sumOf { it.amount.toDouble() }.toFloat() }.toList().sortedByDescending { it.second }

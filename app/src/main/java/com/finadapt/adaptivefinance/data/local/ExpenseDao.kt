@@ -47,12 +47,12 @@ interface ExpenseDao {
     @Query("DELETE FROM expenses")
     suspend fun deleteAllExpenses()
 
-    // 🟢 Restored: Fetch the Bandit AI's recent gamification actions
+    // Fetch the Bandit AI's recent gamification actions
     @Query("SELECT * FROM ai_interactions")
     suspend fun getRecentAiInteractions(): List<AiInteractionEntity>
 
     // ====================================================================
-    // 🤖 CHATBOT BOUNDED QUERIES (Using Exact Start and End Times)
+    //  CHATBOT BOUNDED QUERIES (Using Exact Start and End Times)
     // ====================================================================
 
     // 1. Total Spend Bounded
@@ -67,7 +67,7 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE timestamp BETWEEN :startTime AND :endTime ORDER BY timestamp DESC")
     suspend fun getExpensesSince(startTime: Long, endTime: Long): List<ExpenseEntity>
 
-    // NOTE: Kept your original single-parameter one just in case your Bar Charts are still using it!
+    //single-parameter for Bar Charts
     @Query("SELECT * FROM expenses WHERE timestamp >= :timeLimit ORDER BY timestamp ASC")
     suspend fun getExpensesSince(timeLimit: Long): List<ExpenseEntity>
 
@@ -77,10 +77,10 @@ interface ExpenseDao {
 
     @Query("SELECT category, SUM(amount) as total FROM expenses WHERE timestamp BETWEEN :startTime AND :endTime GROUP BY category")
     suspend fun getCategoryBreakdown(startTime: Long, endTime: Long): List<CategorySum>
-    // 🟢 NEW: Keyword Search Engine
+    //Keyword Search Engine
     @Query("SELECT * FROM expenses WHERE (merchantName LIKE '%' || :searchQuery || '%' OR category LIKE '%' || :searchQuery || '%') AND timestamp BETWEEN :startTime AND :endTime ORDER BY timestamp DESC")
     suspend fun searchExpenses(searchQuery: String, startTime: Long, endTime: Long): List<ExpenseEntity>
-    // 🟢 NEW: Finds the single most expensive item purchased in a given timeframe
+    //Finds the single most expensive item purchased in a given timeframe
     @Query("SELECT * FROM expenses WHERE timestamp BETWEEN :startTime AND :endTime ORDER BY amount DESC LIMIT 1")
     suspend fun getHighestExpense(startTime: Long, endTime: Long): ExpenseEntity?
 

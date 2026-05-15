@@ -28,7 +28,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -37,11 +39,10 @@ import java.util.UUID
 
 // 1. CUSTOM PREMIUM DARK PALETTE
 val ThemePrimary = Color(0xFF30E87A)
-val ThemeBgDark = Color(0xFF0F172A)
 val ThemeEmeraldAccent = Color(0xFF10B981)
-val Slate100 = Color(0xFFF1F5F9)
 val Slate500 = Color(0xFF64748B)
 val BorderDark = Color(0x66064E3B)
+val ErrorColor = Color(0xFFEF4444)
 
 @Composable
 fun OnboardingScreen(onFinish: () -> Unit) {
@@ -57,12 +58,33 @@ fun OnboardingScreen(onFinish: () -> Unit) {
     val bgColor = Color(0xFFF8FAFC) // The off-white Dashboard color
     val textColor = Color(0xFF0F172A) // Dark slate for readability
 
-    val isStepValid by remember(currentStep, nameInput, selectedGoal, budgetInput) {
+    // ================= STRICT VALIDATION LOGIC =================
+    val cleanName = nameInput.trim()
+    val parsedBudget = budgetInput.toFloatOrNull()
+
+    // Name Error States
+    val isNameError = nameInput.isNotEmpty() && (cleanName.isEmpty() || cleanName.length > 15)
+    val nameErrorMessage = when {
+        nameInput.isNotEmpty() && cleanName.isEmpty() -> "Name cannot be empty spaces."
+        cleanName.length > 15 -> "Keep it short (max 15 characters)."
+        else -> null
+    }
+
+    // Budget Error States
+    val isBudgetError = budgetInput.isNotEmpty() && (parsedBudget == null || parsedBudget <= 0f || parsedBudget > 1_000_000f)
+    val budgetErrorMessage = when {
+        budgetInput.isNotEmpty() && (parsedBudget == null || parsedBudget <= 0f) -> "Enter a valid amount greater than 0."
+        parsedBudget != null && parsedBudget > 1_000_000f -> "Budget exceeds maximum limit."
+        else -> null
+    }
+
+    // Overall Step Validity
+    val isStepValid by remember(currentStep, cleanName, selectedGoal, parsedBudget) {
         derivedStateOf {
             when (currentStep) {
-                1 -> nameInput.isNotBlank()
+                1 -> cleanName.isNotEmpty() && cleanName.length <= 15
                 2 -> selectedGoal.isNotBlank()
-                3 -> budgetInput.isNotBlank()
+                3 -> parsedBudget != null && parsedBudget > 0f && parsedBudget <= 1_000_000f
                 else -> false
             }
         }
@@ -77,6 +99,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
+            // Header
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -106,6 +129,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
 
             OnboardingProgressBar(currentStep)
 
+            // Step Content
             Crossfade(
                 targetState = currentStep,
                 modifier = Modifier.weight(1f),
@@ -114,7 +138,13 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 when (step) {
                     1 -> NameInputStep(
                         name = nameInput,
-                        onNameChange = { nameInput = it },
+                        onNameChange = { newValue ->
+                            // SANITIZATION: Actively strip out numbers, dots, commas, and emojis.
+                            val sanitized = newValue.filter { it.isLetter() || it.isWhitespace() || it == '-' || it == '\'' }
+                            nameInput = sanitized
+                        },
+                        isError = isNameError,
+                        errorMessage = nameErrorMessage,
                         textColor = textColor
                     )
                     2 -> GoalSelectionStep(
@@ -127,11 +157,24 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     )
                     3 -> BudgetInputStep(
                         budget = budgetInput,
-                        onBudgetChange = { budgetInput = it },
+                        onBudgetChange = { newValue ->
+                            // SANITIZATION: Fix European commas and filter out bad chars instantly
+                            val sanitized = newValue.replace(',', '.')
+                            if (sanitized.isEmpty()) {
+                                budgetInput = sanitized
+                            } else {
+                                val filtered = sanitized.filter { it.isDigit() || it == '.' }
+                                if (filtered.count { it == '.' } <= 1) {
+                                    budgetInput = filtered
+                                }
+                            }
+                        },
+                        isError = isBudgetError,
+                        errorMessage = budgetErrorMessage,
                         onDone = {
-                            if (budgetInput.isNotBlank()) {
+                            if (isStepValid) {
                                 coroutineScope.launch {
-                                    saveUserBaseline(context, nameInput, selectedGoal, budgetInput)
+                                    saveUserBaseline(context, cleanName, selectedGoal, budgetInput)
                                     onFinish()
                                 }
                             }
@@ -141,6 +184,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                 }
             }
 
+            // Footer
             OnboardingFooter(
                 currentStep = currentStep,
                 isValid = isStepValid,
@@ -148,7 +192,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     if (currentStep < 3) currentStep += 1
                     else {
                         coroutineScope.launch {
-                            saveUserBaseline(context, nameInput, selectedGoal, budgetInput)
+                            saveUserBaseline(context, cleanName, selectedGoal, budgetInput)
                             onFinish()
                         }
                     }
@@ -201,7 +245,13 @@ fun OnboardingProgressBar(step: Int) {
 }
 
 @Composable
-fun NameInputStep(name: String, onNameChange: (String) -> Unit, textColor: Color) {
+fun NameInputStep(
+    name: String,
+    onNameChange: (String) -> Unit,
+    isError: Boolean,
+    errorMessage: String?,
+    textColor: Color
+) {
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
         Text("Let's get to know you.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
         Spacer(modifier = Modifier.height(8.dp))
@@ -213,13 +263,22 @@ fun NameInputStep(name: String, onNameChange: (String) -> Unit, textColor: Color
             onValueChange = onNameChange,
             label = { Text("Your First Name") },
             singleLine = true,
+            isError = isError,
+            supportingText = {
+                if (errorMessage != null) {
+                    Text(errorMessage, color = ErrorColor)
+                }
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = ThemePrimary,
-                unfocusedBorderColor = Color(0xFFE2E8F0),// Light gray border
+                unfocusedBorderColor = Color(0xFFE2E8F0),
                 focusedTextColor = textColor,
-                unfocusedTextColor = textColor
+                unfocusedTextColor = textColor,
+                errorBorderColor = ErrorColor,
+                errorTextColor = ErrorColor,
+                errorLabelColor = ErrorColor
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -297,7 +356,14 @@ fun GoalCard(
 }
 
 @Composable
-fun BudgetInputStep(budget: String, onBudgetChange: (String) -> Unit, onDone: () -> Unit, textColor: Color) {
+fun BudgetInputStep(
+    budget: String,
+    onBudgetChange: (String) -> Unit,
+    isError: Boolean,
+    errorMessage: String?,
+    onDone: () -> Unit,
+    textColor: Color
+) {
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
         Text("Set your baseline.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
         Spacer(modifier = Modifier.height(8.dp))
@@ -307,9 +373,15 @@ fun BudgetInputStep(budget: String, onBudgetChange: (String) -> Unit, onDone: ()
         OutlinedTextField(
             value = budget,
             onValueChange = onBudgetChange,
-            label = { Text("Monthly Budget (RM)") }, // Adjusted to KES for your thesis context!
+            label = { Text("Monthly Budget (RM)") },
             prefix = { Text("RM ", fontWeight = FontWeight.Bold) },
             singleLine = true,
+            isError = isError,
+            supportingText = {
+                if (errorMessage != null) {
+                    Text(errorMessage, color = ErrorColor)
+                }
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { onDone() }),
             shape = RoundedCornerShape(16.dp),
@@ -317,7 +389,10 @@ fun BudgetInputStep(budget: String, onBudgetChange: (String) -> Unit, onDone: ()
                 focusedBorderColor = ThemePrimary,
                 unfocusedBorderColor = BorderDark,
                 focusedTextColor = textColor,
-                unfocusedTextColor = textColor
+                unfocusedTextColor = textColor,
+                errorBorderColor = ErrorColor,
+                errorTextColor = ErrorColor,
+                errorLabelColor = ErrorColor
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -327,6 +402,26 @@ fun BudgetInputStep(budget: String, onBudgetChange: (String) -> Unit, onDone: ()
 @Composable
 fun OnboardingFooter(currentStep: Int, isValid: Boolean, onContinue: () -> Unit) {
     Column(modifier = Modifier.padding(24.dp)) {
+
+        // DYNAMIC HELPER TEXT: Explains why the button is disabled to prevent user frustration
+        if (!isValid) {
+            val helperText = when (currentStep) {
+                1 -> "Please enter a valid name to continue"
+                2 -> "Please select a primary goal to continue"
+                3 -> "Please enter your monthly budget to finish"
+                else -> ""
+            }
+
+            Text(
+                text = helperText,
+                color = Slate500,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            )
+        }
+
         Button(
             onClick = onContinue,
             enabled = isValid,

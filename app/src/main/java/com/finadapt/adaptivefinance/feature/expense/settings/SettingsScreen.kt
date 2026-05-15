@@ -1,4 +1,3 @@
-
 package com.finadapt.adaptivefinance.feature.expense.settings
 
 import android.content.Intent
@@ -30,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airbnb.lottie.compose.*
 import com.finadapt.adaptivefinance.R
-import com.finadapt.adaptivefinance.data.local.ExpenseEntity // 🟢 NEW IMPORT
+import com.finadapt.adaptivefinance.data.local.ExpenseEntity
 import com.finadapt.adaptivefinance.feature.export.ReportGenerator
 import com.finadapt.adaptivefinance.worker.NotificationScheduler
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +37,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,7 +47,7 @@ fun SettingsScreen(
     currentName: String,
     currentBudget: Float,
     isDarkMode: Boolean = false,
-    allExpenses: List<ExpenseEntity>, // 🟢 NEW: We need the live data to export it!
+    allExpenses: List<ExpenseEntity>,
     onNameChanged: (String) -> Unit,
     onBudgetChanged: (Float) -> Unit,
     onThemeToggled: (Boolean) -> Unit,
@@ -55,26 +57,23 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     var nameInput by remember { mutableStateOf(currentName) }
-    var budgetInput by remember { mutableStateOf(currentBudget.toInt().toString()) }
-    // 🟢 NEW: State for our reminder times
+
+    // Using simple format to avoid trailing .0 if not needed
+    val initialBudgetString = if (currentBudget % 1 == 0f) currentBudget.toInt().toString() else currentBudget.toString()
+    var budgetInput by remember { mutableStateOf(initialBudgetString) }
+
     var reminderTimes by remember { mutableStateOf(NotificationScheduler.getTimesFromPrefs(context)) }
 
-    // 🟢 INDIVIDUAL BUTTON STATES
+    // INDIVIDUAL BUTTON STATES
     var nameActionState by remember { mutableStateOf("IDLE") }
     var budgetActionState by remember { mutableStateOf("IDLE") }
-    // 🟢 NEW: State for our reminder times
 
-
-    // 🟢 EXPORT STATES
+    // EXPORT STATES
     var selectedTimeframe by remember { mutableStateOf(ReportGenerator.Timeframe.MONTHLY) }
     var isGenerating by remember { mutableStateOf(false) }
 
-    // 🟢 VALIDATION STATES
-    var nameError by remember { mutableStateOf<String?>(null) }
-    var budgetError by remember { mutableStateOf<String?>(null) }
+    // DIALOG STATES
     var showValidationErrorDialog by remember { mutableStateOf(false) }
-
-    // 🟢 DIALOG STATES
     var showWipeDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
@@ -103,6 +102,27 @@ fun SettingsScreen(
         }
     }
 
+    // ================= REAL-TIME VALIDATION LOGIC =================
+
+    // Name Validation
+    val cleanName = nameInput.trim()
+    val isNameError = cleanName.isEmpty() || cleanName.length > 15
+    val nameErrorMessage = when {
+        cleanName.isEmpty() -> "Name cannot be empty."
+        cleanName.length > 15 -> "Keep it short (max 15 characters)."
+        else -> null
+    }
+
+    // Budget Validation
+    val parsedBudget = budgetInput.toFloatOrNull()
+    val isBudgetError = budgetInput.isNotEmpty() && (parsedBudget == null || parsedBudget <= 0f || parsedBudget > 1_000_000f)
+    val budgetErrorMessage = when {
+        budgetInput.isEmpty() -> "Budget cannot be empty."
+        parsedBudget == null || parsedBudget <= 0f -> "Enter a valid amount greater than 0."
+        parsedBudget > 1_000_000f -> "Budget exceeds maximum limit."
+        else -> null
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -129,7 +149,6 @@ fun SettingsScreen(
             // ─────────────────────────────────────────
             // 1. ACCOUNT & PROFILE
             // ─────────────────────────────────────────
-            // (Your existing Account & Profile code stays exactly the same)
             SettingsSectionHeader("Account & Profile", textColor)
 
             Card(
@@ -142,13 +161,22 @@ fun SettingsScreen(
 
                     OutlinedTextField(
                         value = nameInput,
-                        onValueChange = {
-                            nameInput = it; nameError = null; nameActionState = "IDLE"
+                        onValueChange = { newValue ->
+                            // SANITIZATION: Actively strip out numbers, dots, commas, and emojis.
+                            // Only allow letters, spaces, hyphens, and apostrophes.
+                            val sanitized = newValue.filter {
+                                it.isLetter() || it.isWhitespace() || it == '-' || it == '\''
+                            }
+
+                            nameInput = sanitized
+                            nameActionState = "IDLE"
                         },
                         label = { Text("Preferred Name") },
                         singleLine = true,
-                        isError = nameError != null,
-                        supportingText = { if (nameError != null) Text(nameError!!, color = errorColor) },
+                        isError = isNameError,
+                        supportingText = {
+                            if (nameErrorMessage != null) Text(nameErrorMessage, color = errorColor)
+                        },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
@@ -156,15 +184,15 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = {
-                            val cleanName = nameInput.trim()
                             keyboardController?.hide()
-                            when {
-                                cleanName.isEmpty() -> { nameError = "Name cannot be empty."; showValidationErrorDialog = true }
-                                cleanName.length > 20 -> { nameError = "Name is too long (max 20 chars)."; showValidationErrorDialog = true }
-                                cleanName == currentName -> { coroutineScope.launch { nameActionState = "NO_CHANGE"; delay(2000); nameActionState = "IDLE" } }
-                                else -> { onNameChanged(cleanName); coroutineScope.launch { nameActionState = "SUCCESS"; delay(2000); nameActionState = "IDLE" } }
+                            if (cleanName == currentName) {
+                                coroutineScope.launch { nameActionState = "NO_CHANGE"; delay(2000); nameActionState = "IDLE" }
+                            } else {
+                                onNameChanged(cleanName)
+                                coroutineScope.launch { nameActionState = "SUCCESS"; delay(2000); nameActionState = "IDLE" }
                             }
                         },
+                        enabled = !isNameError, // Prevents submission of invalid data
                         modifier = Modifier.align(Alignment.End),
                         colors = ButtonDefaults.buttonColors(containerColor = when (nameActionState) { "SUCCESS" -> successColor; "NO_CHANGE" -> infoColor; else -> primaryColor })
                     ) {
@@ -185,28 +213,42 @@ fun SettingsScreen(
 
                     OutlinedTextField(
                         value = budgetInput,
-                        onValueChange = { budgetInput = it; budgetError = null; budgetActionState = "IDLE" },
+                        onValueChange = { newValue ->
+                            // SANITIZATION: Fix European commas and filter out bad chars instantly
+                            val sanitized = newValue.replace(',', '.')
+                            if (sanitized.isEmpty()) {
+                                budgetInput = sanitized
+                            } else {
+                                val filtered = sanitized.filter { it.isDigit() || it == '.' }
+                                if (filtered.count { it == '.' } <= 1) {
+                                    budgetInput = filtered
+                                }
+                            }
+                            budgetActionState = "IDLE"
+                        },
                         label = { Text("Budget Limit (RM)") },
                         prefix = { Text("RM ", color = textColor) },
                         singleLine = true,
-                        isError = budgetError != null,
-                        supportingText = { if (budgetError != null) Text(budgetError!!, color = errorColor) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = isBudgetError || budgetInput.isEmpty(),
+                        supportingText = {
+                            if (budgetErrorMessage != null) Text(budgetErrorMessage, color = errorColor)
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = {
-                            val budgetVal = budgetInput.toFloatOrNull()
                             keyboardController?.hide()
-                            when {
-                                budgetVal == null || budgetVal <= 0 -> { budgetError = "Enter a valid amount."; showValidationErrorDialog = true }
-                                budgetVal > 1_000_000 -> { budgetError = "Budget exceeds maximum limit."; showValidationErrorDialog = true }
-                                budgetVal == currentBudget -> { coroutineScope.launch { budgetActionState = "NO_CHANGE"; delay(2000); budgetActionState = "IDLE" } }
-                                else -> { onBudgetChanged(budgetVal); coroutineScope.launch { budgetActionState = "SUCCESS"; delay(2000); budgetActionState = "IDLE" } }
+                            if (parsedBudget != null && parsedBudget == currentBudget) {
+                                coroutineScope.launch { budgetActionState = "NO_CHANGE"; delay(2000); budgetActionState = "IDLE" }
+                            } else if (parsedBudget != null) {
+                                onBudgetChanged(parsedBudget)
+                                coroutineScope.launch { budgetActionState = "SUCCESS"; delay(2000); budgetActionState = "IDLE" }
                             }
                         },
+                        enabled = !isBudgetError && budgetInput.isNotEmpty(), // Blocks null/negative saves
                         modifier = Modifier.align(Alignment.End),
                         colors = ButtonDefaults.buttonColors(containerColor = when (budgetActionState) { "SUCCESS" -> successColor; "NO_CHANGE" -> infoColor; else -> primaryColor })
                     ) {
@@ -241,7 +283,7 @@ fun SettingsScreen(
 
                     HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
 
-                    // 🟢 THE NOTIFICATION TIMES UI
+                    // THE NOTIFICATION TIMES UI
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -253,7 +295,7 @@ fun SettingsScreen(
                                 Text("When should the AI remind you?", color = subTextColor, fontSize = 12.sp)
                             }
                             // Add Time Button
-                            if (reminderTimes.size < 3) { // Let's limit to 3 reminders max to prevent spam
+                            if (reminderTimes.size < 3) { // limit to 3 reminders max to prevent spam
                                 IconButton(onClick = {
                                     val calendar = Calendar.getInstance()
                                     android.app.TimePickerDialog(
@@ -269,7 +311,7 @@ fun SettingsScreen(
                                         },
                                         calendar.get(Calendar.HOUR_OF_DAY),
                                         calendar.get(Calendar.MINUTE),
-                                        false // Set to true if you want 24-hour format
+                                        false
                                     ).show()
                                 }) {
                                     Icon(Icons.Default.Add, contentDescription = "Add Time", tint = primaryColor)
@@ -280,7 +322,6 @@ fun SettingsScreen(
                         // Display the chosen times
                         Spacer(modifier = Modifier.height(8.dp))
                         reminderTimes.forEachIndexed { index, time ->
-                            // Format to standard 12-hour AM/PM string
                             val cal = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, time.first); set(Calendar.MINUTE, time.second) }
                             val timeFormatted = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(cal.time)
 
@@ -323,7 +364,7 @@ fun SettingsScreen(
             }
 
             // ─────────────────────────────────────────
-            // 3. DATA & EXPORT (🟢 NEW RAG REPORT ENGINE)
+            // 3. DATA & EXPORT
             // ─────────────────────────────────────────
             SettingsSectionHeader("Data & Export", textColor)
 
@@ -462,8 +503,8 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(80.dp))
         }
 
-        // --- DIALOGS (Kept exactly as you had them) ---
-        // Validation Error Dialog (with Lottie)
+
+        // Validation Error Dialog (Kept as a fallback, though inline validation prevents it from being needed)
         if (showValidationErrorDialog) {
             val errorLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.error_alert))
             val errorLottie by errorLottieResult
@@ -488,13 +529,62 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { showHelpDialog = false },
                 containerColor = cardColor,
-                title = { Text("Help Center", fontWeight = FontWeight.Bold, color = textColor) },
+                title = {
+                    Text(
+                        "Help Center",
+                        fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+                },
                 text = {
-                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
-                        Text(text = """Q: How does the AI Bandit work?... (truncated for length, yours is still fully intact in code)""".trimIndent(), color = subTextColor, fontSize = 14.sp, lineHeight = 22.sp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp) //Keeps the dialog scrollable
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        val helpText = buildAnnotatedString {
+                            // Question 1
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("Q: How does the AI Bandit work?\n")
+                            }
+                            append("A: Our Contextual AI learns your spending habits. If you spend erratically, it adapts by offering stricter advice. If you spend safely, it rewards you with streak bonuses. It learns every time you accept or ignore its advice!\n\n")
+
+                            // Question 2
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("Q: How do I earn XP and level up?\n")
+                            }
+                            append("A: You earn XP by logging your expenses daily to keep your streak alive, and by following the AI's financial advice. Earning XP moves you up the tiers on the global leaderboard.\n\n")
+
+                            // Question 3
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("Q: Why did I receive a \"Strict Budget\" warning?\n")
+                            }
+                            append("A: The AI triggered this because it detected high \"Spending Volatility.\" This usually happens if you spend a large percentage of your monthly budget too quickly.\n\n")
+
+                            // Question 4
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("Q: Is my financial data secure?\n")
+                            }
+                            append("A: Yes. We do not connect to your bank or save any sensitive credentials. You appear on the leaderboard under a randomly generated anonymous name.")
+                        }
+
+                        Text(
+                            text = helpText,
+                            color = subTextColor,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp
+                        )
                     }
                 },
-                confirmButton = { Button(onClick = { showHelpDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = primaryColor)) { Text("Close", color = Color.White) } }
+                confirmButton = {
+                    Button(
+                        onClick = { showHelpDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                    ) {
+                        Text("Close", color = Color.White)
+                    }
+                }
             )
         }
 
@@ -503,13 +593,69 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { showPrivacyDialog = false },
                 containerColor = cardColor,
-                title = { Text("Privacy Policy", fontWeight = FontWeight.Bold, color = textColor) },
+                title = {
+                    Text(
+                        "Privacy Policy",
+                        fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+                },
                 text = {
-                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
-                        Text(text = """1. Data Collection & Cloud Sync...""".trimIndent(), color = subTextColor, fontSize = 14.sp, lineHeight = 22.sp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp) //Keeps the dialog from taking up the whole screen
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // Build the text with bold headers
+                        val privacyText = buildAnnotatedString {
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("Privacy by Design: Abstracted Reinforcement Learning\n\n")
+                            }
+                            append("Your privacy is our priority. Our AI learns from mathematical patterns, not personal identities.\n\n")
+
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("1. Financial Activity Data (The \"Context\")\n")
+                            }
+                            append("• We collect: Expense categories, transaction amounts, and timestamps.\n")
+                            append("• Why: To provide the Contextual Multi-Armed Bandit (CMAB) AI with the context needed for personalized advice.\n")
+                            append("• Note: We DO NOT connect to real bank accounts or collect sensitive banking credentials.\n\n")
+
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("2. AI Feedback Data (The \"Reward\")\n")
+                            }
+                            append("• We collect: The AI's predicted advice and your feedback score (+1.0 or -0.5).\n")
+                            append("• Why: To close the Reinforcement Learning loop, allowing our algorithm to adjust and improve its accuracy over time.\n\n")
+
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("3. Gamification & Progression Data\n")
+                            }
+                            append("• We collect: An anonymous username, a randomized device/user ID, XP, and tier.\n")
+                            append("• Why: To populate the global leaderboard and securely maintain your gamified progress without exposing your real identity.\n\n")
+
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append("4. Technical & Analytical Data\n")
+                            }
+                            append("• We collect: IP addresses and broad user segments.\n")
+                            append("• Why: IPs are used strictly for secure server routing. User segments group similar behaviors for AI improvements without identifying individuals.")
+                        }
+
+                        Text(
+                            text = privacyText,
+                            color = subTextColor,
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp
+                        )
                     }
                 },
-                confirmButton = { Button(onClick = { showPrivacyDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = primaryColor)) { Text("I Understand", color = Color.White) } }
+                confirmButton = {
+                    Button(
+                        onClick = { showPrivacyDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
+                    ) {
+                        Text("I Understand", color = Color.White)
+                    }
+                }
             )
         }
 
@@ -582,7 +728,7 @@ fun SettingsRowAction(
     }
 }
 
-// 🟢 NEW: Helper function to slice the data by timeframe for the Export
+//Helper function to slice the data by timeframe for the Export
 fun filterExpenses(allExpenses: List<ExpenseEntity>, timeframe: ReportGenerator.Timeframe): List<ExpenseEntity> {
     val cutoff = System.currentTimeMillis() - when (timeframe) {
         ReportGenerator.Timeframe.DAILY -> 24L * 60 * 60 * 1000

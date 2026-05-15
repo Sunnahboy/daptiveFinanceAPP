@@ -4,7 +4,9 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    id("com.google.devtools.ksp") version "2.0.21-1.0.27"//allows Android to auto generate the database code
+    alias(libs.plugins.ksp)
+
+
 }
 
 android {
@@ -15,8 +17,8 @@ android {
         applicationId = "com.finadapt.adaptivefinance"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 5
+        versionName = "1.0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -32,10 +34,6 @@ android {
         val token = properties.getProperty("API_TOKEN") ?: "MISSING_TOKEN"
         buildConfigField("String", "API_TOKEN", "\"$token\"")
 
-        //val apiKey = properties.getProperty("OPENROUTER_API_KEY") ?: ""
-        //buildConfigField("String", "OPENROUTER_API_KEY", "\"$apiKey\"")
-        val groqKey = properties.getProperty("GROQ_API_KEY") ?: ""
-        buildConfigField("String", "GROQ_API_KEY", "\"$groqKey\"")
     }
     buildFeatures {
         buildConfig = true
@@ -116,6 +114,8 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("org.apache.poi:poi:5.2.3")
     implementation("org.apache.poi:poi-ooxml:5.2.3")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
 
 
 
