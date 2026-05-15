@@ -19,8 +19,8 @@ class ExpenseViewModel(
     private val prefs: SharedPreferences,
 ): ViewModel() {
 
-    // 🟢 1. THE QUEUE MANAGER
-    // This holds our countdown timer so we can cancel it if they log rapidly.
+    // 1. THE QUEUE MANAGER
+    // This holds countdown timer so we can cancel it if they log rapidly.
     private var aiSyncJob: Job? = null
     //holds the total amount and categories of rapid fire logging
     private var accumulatedAmount = 0f
@@ -37,8 +37,8 @@ class ExpenseViewModel(
     ) {
         if (amount <= 0.0f) return
 
-        // --- STEP 1: INSTANT LOCAL SAVE & REWARD ---
-        // We launch this instantly. No delays.
+        //INSTANT LOCAL SAVE & REWARD
+        //launch this instantly. No delays.
         viewModelScope.launch {
             val newExpense = ExpenseEntity(
                 id = 0, // Room will auto-generate the actual ID
@@ -53,7 +53,7 @@ class ExpenseViewModel(
             )
             expenseDao.insertExpense(newExpense)
 
-            // Instant reward (Fix: We only do this once now!)
+            // Instant reward
             val currentXp = prefs.getInt("USER_XP", 0)
             prefs.edit {
                 putInt("USER_XP", currentXp + 50)
@@ -65,7 +65,6 @@ class ExpenseViewModel(
         accumulatedAmount += amount
         lastCategory = category
 
-        // --- STEP 2: THE DEBOUNCER ---
         // Cancel the previous countdown if they log another expense quickly
         aiSyncJob?.cancel()
 
@@ -78,7 +77,7 @@ class ExpenseViewModel(
             val categoryToSend = lastCategory
             accumulatedAmount = 0f
 
-            // --- STEP 3: SILENT BACKGROUND AI CHECK ---
+            // STEP 3: SILENT BACKGROUND AI CHECK
             val userId = prefs.getString("SILENT_USER_ID", "default_user") ?: "default_user"
             val result = repository.logExpenseAndGetStrategy(userId, amountToSend, categoryToSend)
 
@@ -90,7 +89,7 @@ class ExpenseViewModel(
                     val currentAmbush = prefs.getString("PENDING_AMBUSH_ACTION", null)
 
                     prefs.edit {
-                        // 🟢 STEP 4: THE SAFEGUARD
+                        //THE SAFEGUARD
                         if (aiAction != "zen" && aiAction != "Log_Only" && aiAction.isNotBlank()) {
                             // 1. It's a real game! Always overwrite and save it.
                             putString("LAST_AI_ACTION", aiAction)
@@ -112,14 +111,14 @@ class ExpenseViewModel(
         }
     }
 
-    // 🟢 Safely delete from the database in the background
+    //Safely delete from the database in the background
     fun deleteExpense(expense: ExpenseEntity) {
         viewModelScope.launch {
             expenseDao.deleteExpense(expense.id)
         }
     }
 
-    // 🟢 Safely update the database in the background
+    //Safely update the database in the background
     fun editExpense(expense: ExpenseEntity) {
         viewModelScope.launch {
             expenseDao.insertExpense(expense)
@@ -127,7 +126,7 @@ class ExpenseViewModel(
     }
 }
 
-// 🟢 THE FACTORY
+//THE FACTORY
 class ExpenseViewModelFactory(
     private val repository: FinanceRepository,
     private val expenseDao: ExpenseDao,

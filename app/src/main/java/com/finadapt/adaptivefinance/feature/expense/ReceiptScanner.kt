@@ -10,6 +10,7 @@ import androidx.activity.result.IntentSenderRequest
 import com.finadapt.adaptivefinance.feature.expense.ocr.OcrEngine
 import com.finadapt.adaptivefinance.feature.expense.ocr.ReceiptLayoutAnalyzer
 import com.finadapt.adaptivefinance.feature.expense.ocr.ReceiptParser
+import com.google.gson.annotations.SerializedName
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
@@ -21,15 +22,32 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 
-data class ReceiptItem(val name: String, val amount: Float, val category: String)
+data class ReceiptItem(
+    @SerializedName("name") private val _name: String? = null,
+    @SerializedName("amount") private val _amount: Float? = null,
+    @SerializedName("category") private val _category: String? = null
+) {
+
+    val name: String get() = _name ?: "Unknown Item"
+    val amount: Float get() = _amount ?: 0f
+    val category: String get() = _category ?: "General"
+}
+
 data class ParsedReceipt(
-    val merchantName: String,
-    val date: String,
-    val paymentMethod: String,
-    val items: List<ReceiptItem>,
-    val total: Float,
-    var localImagePath: String = ""
-)
+    @SerializedName("merchant_name") private val _merchantName: String? = null,
+    @SerializedName("date") private val _date: String? = null,
+    @SerializedName("payment_method") private val _paymentMethod: String? = null,
+    @SerializedName("items") private val _items: List<ReceiptItem>? = null,
+    @SerializedName("total") private val _total: Float? = null,
+
+    @Transient var localImagePath: String = ""
+) {
+    val merchantName: String get() = _merchantName ?: ""
+    val date: String get() = _date ?: ""
+    val paymentMethod: String get() = _paymentMethod ?: ""
+    val items: List<ReceiptItem> get() = _items ?: emptyList()
+    val total: Float get() = _total ?: 0f
+}
 
 object ReceiptScanner {
 
@@ -48,7 +66,7 @@ object ReceiptScanner {
         }
     }
 
-    suspend fun analyzeReceipt(context: Context, uri: Uri): ParsedReceipt {
+    suspend fun analyzeReceipt(context: Context, uri: Uri,userId:String): ParsedReceipt {
         val permanentPath = saveReceiptImageLocally(context, uri)
 
         return try {
@@ -68,7 +86,7 @@ object ReceiptScanner {
             Log.d("ReceiptScanner", "Cleaned Text sent to LLM:\n$cleanText")
 
             // 5. parse the data (with retries and defensive JSON)
-            val parsedData = ReceiptParser.parseWithGroq(cleanText)
+            val parsedData = ReceiptParser.parseWithLlm(cleanText, userId)
 
             parsedData.localImagePath = permanentPath
             parsedData
@@ -79,7 +97,7 @@ object ReceiptScanner {
             ParsedReceipt("", "", "", emptyList(), 0f, permanentPath)
         }
     }
-
+//from ReceiptScanner.kt
     private suspend fun saveReceiptImageLocally(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return@withContext ""
         val directory = File(context.filesDir, "receipts")

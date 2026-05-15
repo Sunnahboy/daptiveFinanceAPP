@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.sp
 fun AscensionAnimation() {
     val infiniteTransition = rememberInfiniteTransition(label = "ascension")
 
-    // 🟢 1. Float Upward Animation
+    // 1. Float Upward Animation
     val offsetY by infiniteTransition.animateFloat(
         initialValue = 40f,
         targetValue = -60f,
@@ -27,7 +27,7 @@ fun AscensionAnimation() {
         label = "offsetY"
     )
 
-    // 🟢 2. Fade In & Out Animation (Keyframes!)
+    //  2. Fade In & Out Animation (Keyframes!)
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -43,7 +43,7 @@ fun AscensionAnimation() {
         label = "alpha"
     )
 
-    // 🟢 3. The UI Element
+    //  3. The UI Element
     Box(contentAlignment = Alignment.Center) {
         Text(
             text = "🔥",

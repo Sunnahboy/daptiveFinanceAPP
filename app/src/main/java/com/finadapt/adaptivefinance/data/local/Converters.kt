@@ -8,13 +8,13 @@ import com.google.gson.reflect.TypeToken
 class Converters {
     private val gson = Gson()
 
-    // When saving TO the database (List -> String)
+    //When saving TO the database (List -> String)
     @TypeConverter
     fun fromReceiptItemList(items: List<ReceiptItem>): String {
         return gson.toJson(items)
     }
 
-    // When reading FROM the database (String -> List)
+    //When reading FROM the database (String -> List)
     @TypeConverter
     fun toReceiptItemList(itemsString: String): List<ReceiptItem> {
         if (itemsString.isEmpty()) return emptyList()

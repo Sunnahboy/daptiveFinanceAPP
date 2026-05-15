@@ -18,6 +18,7 @@ import java.util.Calendar
 import java.util.Calendar.getInstance
 import kotlin.math.ln
 import kotlin.math.sqrt
+import com.finadapt.adaptivefinance.data.remote.CheerRequest
 
 class FinanceRepository(
     private val expenseDao: ExpenseDao,
@@ -42,36 +43,69 @@ class FinanceRepository(
                 var currentStreak = prefs.getInt("CURRENT_STREAK", 0)
                 val daysDifference = (todayMidnight - lastLoggedMidnight) / (1000 * 60 * 60 * 24)
 
-                when (daysDifference) {
-                    0L -> { /* Already logged today */ }
-                    1L -> { currentStreak += 1 }
-                    else -> { currentStreak = 1 }
+                when {
+                    daysDifference == 0L -> {
+                        /* Already logged today, do nothing */
+                    }
+                    daysDifference == 1L -> {
+                        currentStreak += 1 // Logged consecutively
+                    }
+                    daysDifference > 1L -> {
+                        // Subtract the days missed (daysDifference - 1)
+                        val missedDays = (daysDifference - 1).toInt()
+
+                        // Deduct from streak, but never drop below 0
+                        currentStreak = maxOf(0, currentStreak - missedDays)
+
+                        // Add 1 because they successfully logged today
+                        currentStreak += 1
+                    }
                 }
                 prefs.edit {
                     putLong("LAST_LOGGED_MIDNIGHT", todayMidnight)
                     putInt("CURRENT_STREAK", currentStreak)
                 }
 
-                // 2. FETCH RAW DATA FROM DAO
+
+                // 2. FETCH RAW DATA FROM DAO (Strict 30-Day Rolling Window)
                 val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
-                val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
-                val totalSpend = expenseDao.getTotalSpendTimeBounded(
-                    timeLimit,
-                    System.currentTimeMillis()
-                ) ?: 0f
+                val currentCycleStart = System.currentTimeMillis() - thirtyDaysInMillis
+
+                // Only grab the total spend from THIS cycle, ignoring lifetime spend
+                val totalSpend = expenseDao.getTotalSpendTimeBounded(currentCycleStart, System.currentTimeMillis()) ?: 0f
                 val txCount = expenseDao.getTransactionCount().toFloat()
 
-                // 3. EDGE FEATURE ENGINEERING
+                // 3. EDGE FEATURE ENGINEERING (Cycle-Based Pace System)
                 val monthlyBudget = prefs.getFloat("MONTHLY_BUDGET", 1000f)
+
+                // Figure out exactly what day we are on in the 30-day cycle
                 val installTimestamp = prefs.getLong("INSTALL_TIMESTAMP", System.currentTimeMillis())
                 val millisActive = System.currentTimeMillis() - installTimestamp
-                val daysActive = maxOf(1f, millisActive / (1000f * 60f * 60f * 24f))
+                val totalDaysActive = millisActive / (1000f * 60f * 60f * 24f)
+                val daysIntoCurrentCycle = (totalDaysActive % 30f).coerceAtLeast(1f)
+                val daysRemaining = (30f - daysIntoCurrentCycle).coerceAtLeast(1f)
 
-                val projectedSpend = if (daysActive < 30f) (totalSpend / daysActive) * 30f else totalSpend
-                val macroDrift = if (monthlyBudget > 0f) (projectedSpend / monthlyBudget) else 0.5f
+                val remainingBudget = maxOf(0f, monthlyBudget - totalSpend)
 
-                val dailyAllowance = if (monthlyBudget > 0f) monthlyBudget / 30f else 50f
-                val transactionSpikeRatio = amount / dailyAllowance
+                //Floor-Bounded Dynamic Allowance
+                val baseDailyAllowance = if (monthlyBudget > 0f) monthlyBudget / 30f else 50f
+                val strictRollingAllowance = remainingBudget / daysRemaining
+
+                //The allowance adjusts down, but never drops below 40%
+                // of their base allowance, unless their remaining budget is completely gone.
+                val safeDailyAllowance = if (remainingBudget > 0) {
+                    maxOf(strictRollingAllowance, baseDailyAllowance * 0.40f)
+                } else {
+                    10f //Absolute floor so the natural log math below doesn't explode
+                }
+
+                // PACE CALCULATION (Macro Drift)
+                // Are they burning budget too fast relative to what day of the cycle it is?
+                val expectedSpendByToday = baseDailyAllowance * daysIntoCurrentCycle
+                val macroDrift = if (expectedSpendByToday > 0f) (totalSpend / expectedSpendByToday) else 0.5f
+
+                // VOLATILITY CALCULATION (Micro Anomaly)
+                val transactionSpikeRatio = amount / safeDailyAllowance
                 val microAnomaly = ln(1.0 + transactionSpikeRatio).toFloat()
 
                 val synthesizedRisk = sqrt((macroDrift * macroDrift) + (microAnomaly * microAnomaly))
@@ -80,6 +114,9 @@ class FinanceRepository(
                 val pastTotalSpend = maxOf(0f, totalSpend - amount)
                 val pastTxCount = maxOf(1f, txCount - 1f)
                 val avgTxValue = if (pastTxCount > 0f) pastTotalSpend / pastTxCount else 0f
+
+                // The impulse modifier (scales to 1.0)
+                val calculatedImpulse = (transactionSpikeRatio * 0.10f).coerceIn(0.0f, 1.0f)
 
                 // 4. PREPARE PAYLOAD
                 val request = ContextRequest(
@@ -90,13 +127,15 @@ class FinanceRepository(
                     features = mapOf(
                         "total_spend" to totalSpend,
                         "spending_volatility" to finalVolatility,
-                        "return_rate" to 0.05f,
+                        "return_rate" to calculatedImpulse,
                         "transaction_count" to txCount,
                         "avg_transaction_value" to avgTxValue
                     )
                 )
+                //Logs fo debugging
+                Log.d("MATH_CHECK", "App is sending Volatility: $finalVolatility | Return Rate (Impulse): $calculatedImpulse")
 
-                // 5. SEND TO AWS (With Graceful Offline Fallback!)
+                // 5. SEND TO server
                 val response = try {
                     apiService.getAiGamification(ApiClient.API_TOKEN, request)
                 } catch (_: Exception) {
@@ -112,7 +151,7 @@ class FinanceRepository(
                     )
                 }
 
-                // --- 🛑 START OF AI GUARDRAIL ---
+                //START OF bandit GUARDRAIL
                 var finalResponse = response
 
                 if (finalVolatility >= 4.0f && response.action?.contains("Streak", ignoreCase = true) == true) {
@@ -138,7 +177,7 @@ class FinanceRepository(
                         visualTheme = "Danger"
                     )
                 }
-                // --- 🛑 END OF AI GUARDRAIL ---
+                // END OF bandit  GUARDRAIL
 
                 // 6. SAVE INTERACTION TO MEMORY
                 val currentPredictionId = finalResponse.predictionId ?: "fallback_${java.util.UUID.randomUUID()}"
@@ -166,7 +205,7 @@ class FinanceRepository(
                 val finalReward: Float
 
                 if (userAccepted) {
-                    // 🟢 THEY ACCEPTED
+                    //THEY ACCEPTED
                     finalReward = 2.0f
                     prefs.edit { putInt(strikeKey, 0) }
 
@@ -174,16 +213,16 @@ class FinanceRepository(
                     prefs.edit { putInt("USER_XP", currentXp + 50) }
 
                 } else {
-                    // 🔴 THEY DECLINED
+                    //THEY DECLINED
                     var currentStrikes = prefs.getInt(strikeKey, 0)
                     currentStrikes += 1
 
                     if (currentStrikes >= 3) {
-                        // 🛑 3 STRIKES: Massive punishment to force the Bandit to switch arms!
+                        //3 STRIKES: Massive punishment to force the Bandit to switch arms
                         finalReward = -5.0f
                         prefs.edit { putInt(strikeKey, 0) }
                     } else {
-                        // 🟡 SOFT IGNORE: A slight negative nudge so it starts losing confidence
+                        //SOFT IGNORE: A slight negative nudge so it starts losing confidence
                         finalReward = -0.5f
                         prefs.edit { putInt(strikeKey, currentStrikes) }
                     }
@@ -194,7 +233,7 @@ class FinanceRepository(
                 expenseDao.markFeedbackAsSent(predictionId)
 
             } catch (e: Exception) {
-                println("⚠️ Feedback Sync Paused. Reason: ${e.localizedMessage}")
+                println(" Feedback Sync Paused. Reason: ${e.localizedMessage}")
             }
         }
     }
@@ -210,21 +249,25 @@ class FinanceRepository(
         return cal.timeInMillis
     }
 
-    //Read the Streak safely for the UI
+    // Read the Streak safely for the UI
     fun getLiveStreak(): Int {
         val todayMidnight = getMidnightTimestamp()
         val lastLoggedMidnight = prefs.getLong("LAST_LOGGED_MIDNIGHT", 0L)
         val currentStreak = prefs.getInt("CURRENT_STREAK", 0)
 
+        // If they have never logged an expense, streak is 0
+        if (lastLoggedMidnight == 0L) return 0
+
         // Calculate how many days it has been since their last log
         val daysDifference = (todayMidnight - lastLoggedMidnight) / (1000 * 60 * 60 * 24)
 
         return if (daysDifference <= 1L) {
-            //They logged today (0) or yesterday (1). The streak is alive!
+            // They logged today (0) or yesterday (1). The streak is fully intact!
             currentStreak
         } else {
-            // It has been 2 or more days. The streak is broken!
-            0
+            // It has been 2 or more days. Deduct 1 point for every missed day.
+            val missedDays = (daysDifference - 1).toInt()
+            maxOf(0, currentStreak - missedDays)
         }
     }
 
@@ -258,7 +301,8 @@ class FinanceRepository(
         return name
     }
 
-    //silently sync users Xp to the supabase
+
+    // silently sync users Xp to the supabase
     suspend fun syncLeaderboard(xp: Int, tier: String){
         try{
             val currentUserId = prefs.getString("SILENT_USER_ID", "fallback_id") ?: "fallback_id"
@@ -277,18 +321,73 @@ class FinanceRepository(
         }
     }
 
-    // fetches the top 50 users
-    suspend fun getTopLeaderboard(): List<LeaderboardEntry> {
-        return try {
-            val response = ApiClient.fastApiService.getLeaderboardTop()
-            if (response.isSuccessful) {
-                response.body()?.data ?: emptyList()
-            } else {
+    // 🟢 PASTE THE NEW FEATURES RIGHT HERE!
+
+    // 1. The "Live" Stream (Polls every 5 seconds for the Community UI)
+    fun getLiveLeaderboardStream(): kotlinx.coroutines.flow.Flow<List<LeaderboardEntry>> = kotlinx.coroutines.flow.flow {
+        while (true) {
+            try {
+                val response = ApiClient.fastApiService.getLeaderboardTop(ApiClient.API_TOKEN)
+                if (response.isSuccessful) {
+                    emit(response.body()?.data ?: emptyList())
+                }
+            } catch (e: Exception) {
+                Log.e("LeaderboardStream", "Fetch failed in stream", e)
+            }
+            kotlinx.coroutines.delay(5000) // Wait 5 seconds, then fetch again!
+        }
+    }
+
+    suspend fun getHallOfFame(): List<LeaderboardEntry> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = ApiClient.fastApiService.getLeaderboardHistory(ApiClient.API_TOKEN)
+                if (response.isSuccessful) {
+                    // Map HallOfFameEntry to LeaderboardEntry to resolve type mismatch
+                    response.body()?.data?.map { historyItem ->
+                        LeaderboardEntry(
+                            userId = "", // Hall of Fame entries don't have a userId
+                            anonymousName = historyItem.anonymousName,
+                            xp = historyItem.xp,
+                            tier = historyItem.tier
+                        )
+                    } ?: emptyList()
+                } else {
+                    Log.e("HallOfFame", "Server error: ${response.code()}")
+                    emptyList()
+                }
+            } catch (e: Exception) {
+                Log.e("HallOfFame", "Failed to fetch Hall of Fame: ${e.message}")
                 emptyList()
             }
-        }catch (e: Exception){
-            Log.e("Leaderboard", "Fetch failed", e)
-            emptyList()
         }
+    }
+
+    // 2. The Coin Deductor (For when they click the "Send Cheer" button)
+    fun deductCoins(amount: Int): Boolean {
+        // Since spendable coins = (USER_XP - SPENT_COINS),
+        // to deduct coins, we just add to the SPENT_COINS tally!
+        val currentSpent = prefs.getInt("SPENT_COINS", 0)
+        prefs.edit { putInt("SPENT_COINS", currentSpent + amount) }
+        return true
+    }
+
+    // 3. The Cheer API Call
+    suspend fun sendAnonymousCheer(targetUserId: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                val request = CheerRequest(targetUserId = targetUserId)
+                apiService.sendCheer(ApiClient.API_TOKEN, request)
+                Log.d("CommunityRepo", "Cheer successfully sent for user: $targetUserId")
+            } catch (e: Exception) {
+                Log.e("CommunityRepo", "Failed to send cheer: ${e.message}")
+            }
+        }
+    }
+
+    fun getSpendableCoins(): Int {
+        val totalXp = prefs.getInt("USER_XP", 0)
+        val spentCoins = prefs.getInt("SPENT_COINS", 0)
+        return (totalXp - spentCoins).coerceAtLeast(0)
     }
 }

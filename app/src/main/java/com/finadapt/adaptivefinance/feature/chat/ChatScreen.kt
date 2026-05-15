@@ -6,32 +6,55 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.roundToInt
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,7 +69,7 @@ fun ChatScreen(
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
-    // 🟢 NEW: Our Predefined Smart Questions
+    // Predefined Smart Questions
     val suggestedQuestions = listOf(
         "What did I spend today?",
         "What was my highest purchase?",
@@ -133,7 +156,7 @@ fun ChatScreen(
                 }
             }
 
-            // 🟢 2. THE SUGGESTION CHIPS (Predefined Questions)
+            // 2. THE SUGGESTION CHIPS (Predefined Questions)
             // They gracefully disappear if the user starts typing manually
             AnimatedVisibility(
                 visible = inputText.isEmpty(),
@@ -321,89 +344,3 @@ fun ChatBubble(message: ChatMessage, isDark: Boolean) {
 
 }
 
-
-
-
-@Composable
-fun DraggableAiChatFab(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var offsetX by remember { mutableFloatStateOf(0f) }
-    var offsetY by remember { mutableFloatStateOf(0f) }
-
-    // 🟢 CALL TO ACTION LOGIC
-    val fullText = "Ask AI..."
-    var displayedText by remember { mutableStateOf("") }
-    var isLabelVisible by remember { mutableStateOf(false) } // Start hidden
-
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(1500) // Wait for dashboard to settle
-        isLabelVisible = true
-        fullText.forEachIndexed { index, _ ->
-            displayedText = fullText.substring(0, index + 1)
-            kotlinx.coroutines.delay(80)
-        }
-        kotlinx.coroutines.delay(4000) // Show for 4 seconds
-        isLabelVisible = false
-    }
-
-    // Wrap the whole thing in a Box so the text doesn't "push" other UI elements
-    Box(
-        modifier = modifier
-            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-            .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    offsetX += dragAmount.x
-                    offsetY += dragAmount.y
-                }
-            }
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End // Keeps circle as the anchor
-        ) {
-            // THE SPEECH BUBBLE
-            AnimatedVisibility(
-                visible = isLabelVisible && displayedText.isNotEmpty(),
-                enter = fadeIn() + expandHorizontally(),
-                exit = fadeOut() + shrinkHorizontally()
-            ) {
-                Surface(
-                    color = Color(0xFF0284C7),
-                    // Bubble shape pointing towards the button
-                    shape = RoundedCornerShape(20.dp, 20.dp, 0.dp, 20.dp),
-                    modifier = Modifier.padding(end = 8.dp),
-                    shadowElevation = 6.dp
-                ) {
-                    Text(
-                        text = displayedText,
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                    )
-                }
-            }
-
-            // THE MAIN BUTTON
-            Surface(
-                onClick = onClick,
-                modifier = Modifier.size(56.dp),
-                shape = CircleShape,
-                color = Color.White,
-                shadowElevation = 8.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = "AI Assistant",
-                        tint = Color(0xFF0284C7),
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
-        }
-    }
-}

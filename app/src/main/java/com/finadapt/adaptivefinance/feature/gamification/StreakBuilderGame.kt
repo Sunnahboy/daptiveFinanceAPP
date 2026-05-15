@@ -55,7 +55,7 @@ fun StreakBuilderGame(
         Spacer(modifier = Modifier.height(24.dp))
 
         when (currentPhase) {
-            // 🟢 PHASE 1: PREMIUM INTRO
+            // PHASE 1: PREMIUM INTRO
             StreakPhase.INTRO -> {
                 val introLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.streak_intro))
                 val introLottie by introLottieResult
@@ -118,7 +118,7 @@ fun StreakBuilderGame(
                         Text("INITIATE CHARGE SEQUENCE", fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 1.sp)
                     }
                 }
-                // 🟢 ADDED: THE DECLINE BUTTON FOR THE BANDIT (Sends 0)
+                // THE DECLINE BUTTON FOR THE BANDIT (Sends 0)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedButton(
@@ -135,7 +135,7 @@ fun StreakBuilderGame(
                 }
             }
 
-            // 🟢 PHASE 2: THE REACTIVE RAPID TAP MINIGAME
+            // PHASE 2: THE REACTIVE RAPID TAP MINIGAME
             StreakPhase.PLAYING -> {
                 var chargeLevel by remember { mutableFloatStateOf(0f) }
                 val interactionSource = remember { MutableInteractionSource() }
@@ -148,12 +148,12 @@ fun StreakBuilderGame(
                     label = "charge_bar"
                 )
 
-                // 🟢 CONSTANT DRAIN MECHANIC
+                //  CONSTANT DRAIN MECHANIC
                 LaunchedEffect(currentPhase) {
                     while (currentPhase == StreakPhase.PLAYING) {
                         delay(50) // Checks incredibly fast
                         if (chargeLevel > 0f && !isPressed) {
-                            // Drains rapidly if they aren't tapping the button!
+                            // Drains rapidly if they aren't tapping the button
                             chargeLevel = (chargeLevel - 0.015f).coerceAtLeast(0f)
                         }
                     }
@@ -165,7 +165,7 @@ fun StreakBuilderGame(
 
                 Box(modifier = Modifier.size(180.dp), contentAlignment = Alignment.Center) {
                     if (chargeLottie != null) {
-                        // 🟢 FIXED: The Lottie frame is now physically tied to the battery percentage!
+                        // The Lottie frame is physically tied to the battery percentage!
                         LottieAnimation(
                             composition = chargeLottie,
                             progress = { animatedCharge },
@@ -190,7 +190,7 @@ fun StreakBuilderGame(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // 🟢 THE NEW PUMP ACTION LOTTIE FOR THE BUTTON
+                //  PUMP ACTION LOTTIE FOR THE BUTTON
                 val pumpLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.pump_action))
                 val pumpLottie by pumpLottieResult
                 val pumpProgress by animateLottieCompositionAsState(
@@ -220,7 +220,7 @@ fun StreakBuilderGame(
                     modifier = Modifier.fillMaxWidth().height(72.dp).scale(buttonScale),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    // 🟢 Put the Lottie and Text together in a Row!
+                    //  Put the Lottie and Text together in a Row!
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
@@ -229,7 +229,7 @@ fun StreakBuilderGame(
                             LottieAnimation(
                                 composition = pumpLottie,
                                 progress = { pumpProgress },
-                                modifier = Modifier.size(40.dp) // Perfectly sized for the button!
+                                modifier = Modifier.size(40.dp) // Perfectly sized for the button
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                         }
@@ -245,7 +245,7 @@ fun StreakBuilderGame(
                 }
             }
 
-            // 🟢 PHASE 3: THE EXPLOSIVE RESULT
+            //  PHASE 3: THE EXPLOSIVE RESULT
             StreakPhase.RESULT -> {
                 val flameLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.streak_flame))
                 val flameLottie by flameLottieResult
