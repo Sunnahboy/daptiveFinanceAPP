@@ -1,4 +1,3 @@
-
 package com.finadapt.adaptivefinance.feature.expense
 
 import android.content.Context
@@ -45,21 +44,24 @@ fun AddExpenseScreen(
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    //UI STATES
+    // ================= UI STATES =================
     var amountInput by remember { mutableStateOf("") }
     var merchantInput by remember { mutableStateOf("") }
     var categoryInput by remember { mutableStateOf("") }
+
+    // Feedback & Loading States
     var voiceFeedbackMsg by remember { mutableStateOf("") }
     var isScanning by remember { mutableStateOf(false) }
+    var isSubmitting by remember { mutableStateOf(false) }
 
+    // Bottom Sheet States (Receipt OCR)
     var showReceiptSheet by remember { mutableStateOf(false) }
     var scannedReceipt by remember { mutableStateOf<ParsedReceipt?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var isSubmitting by remember { mutableStateOf(false) }
-
     val commonCategories = listOf("Food", "Transport", "Groceries", "Shopping", "Entertainment")
 
+    // ================= TTS INITIALIZATION =================
     var tts by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     var isTtsReady by remember { mutableStateOf(false) }
 
@@ -78,6 +80,7 @@ fun AddExpenseScreen(
 
     val coroutineScope = rememberCoroutineScope()
 
+    // ================= SCANNER LAUNCHER =================
     val scannerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -91,8 +94,9 @@ fun AddExpenseScreen(
 
                 coroutineScope.launch {
                     try {
-                        val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE) // Note: change "AppPrefs" if your app uses a different preference file name!
+                        val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
                         val userId = prefs.getString("USER_ID", "default_user") ?: "default_user"
+
                         val receipt = ReceiptScanner.analyzeReceipt(context, uri, userId)
                         scannedReceipt = receipt
                         showReceiptSheet = true
@@ -114,14 +118,21 @@ fun AddExpenseScreen(
         }
     }
 
-
+    // ================= THEME COLORS =================
     val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
     val cardColor = if (isDarkMode) Color(0xFF1E293B) else Color.White
     val textColor = if (isDarkMode) Color.White else Color(0xFF0F172A)
     val primaryColor = Color(0xFF0284C7)
+    val errorColor = Color(0xFFEF4444)
 
-    // Validation only requires Amount and Category. Merchant remains optional!
-    val isValid = amountInput.isNotBlank() && categoryInput.isNotBlank() && amountInput.toFloatOrNull() != null
+    // ================= VALIDATION LOGIC =================
+    val parsedAmount = amountInput.toFloatOrNull()
+
+    // Flags true if user typed something but it's invalid (e.g., "-50", "0", "abc")
+    val isAmountError = amountInput.isNotEmpty() && (parsedAmount == null || parsedAmount <= 0f)
+
+    // Overall form validity ensures the submit button only activates when safe
+    val isValid = parsedAmount != null && parsedAmount > 0f && categoryInput.isNotBlank()
 
     Scaffold(
         topBar = {
@@ -145,7 +156,7 @@ fun AddExpenseScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // 1. AMOUNT INPUT
+                // ---------------- 1. AMOUNT INPUT SECTION ----------------
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = cardColor),
@@ -153,12 +164,15 @@ fun AddExpenseScreen(
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(32.dp).fillMaxWidth(),
+                        modifier = Modifier
+                            .padding(32.dp)
+                            .fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text("How much did you spend?", color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        // Voice and Camera Actions
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -167,7 +181,9 @@ fun AddExpenseScreen(
                             VoiceInputButton(
                                 onResult = { spokenString ->
                                     val parsedData = VoiceExpenseParser.parse(spokenString)
-                                    if (parsedData.first != null) amountInput = parsedData.first.toString()
+                                    if (parsedData.first != null && parsedData.first!! > 0f) {
+                                        amountInput = parsedData.first.toString()
+                                    }
                                     categoryInput = parsedData.second
 
                                     if (isTtsReady) {
@@ -185,7 +201,10 @@ fun AddExpenseScreen(
                             Box(modifier = Modifier.size(72.dp), contentAlignment = Alignment.Center) {
                                 IconButton(
                                     onClick = { ReceiptScanner.startScanUI(context as android.app.Activity, scannerLauncher) },
-                                    modifier = Modifier.size(64.dp).clip(CircleShape).background(Color(0xFF8B5CF6))
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF8B5CF6))
                                 ) {
                                     if (isScanning) {
                                         CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
@@ -196,11 +215,12 @@ fun AddExpenseScreen(
                             }
                         }
 
+                        // Voice/Scan Status Messages
                         if (voiceFeedbackMsg.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = voiceFeedbackMsg,
-                                color = if (voiceFeedbackMsg.contains("error", true)) Color.Red else Color.Gray,
+                                color = if (voiceFeedbackMsg.contains("error", true)) errorColor else Color.Gray,
                                 fontSize = 14.sp,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
@@ -209,9 +229,24 @@ fun AddExpenseScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        // The Core Amount Field (With Error Handling)
                         OutlinedTextField(
                             value = amountInput,
-                            onValueChange = { amountInput = it },
+                            onValueChange = { newValue ->
+                                // FIX: Convert commas to dots so international keyboards don't break the app
+                                val sanitized = newValue.replace(',', '.')
+
+                                if (sanitized.isEmpty()) {
+                                    amountInput = sanitized
+                                } else {
+                                    // Keep the strict filtering, but apply it to the sanitized string
+                                    val filtered = sanitized.filter { it.isDigit() || it == '.' }
+                                    if (filtered.count { it == '.' } <= 1) {
+                                        amountInput = filtered
+                                    }
+                                }
+                            },
+                            isError = isAmountError,
                             prefix = { Text("RM ", fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = primaryColor) },
                             textStyle = LocalTextStyle.current.copy(fontSize = 32.sp, fontWeight = FontWeight.Bold),
                             singleLine = true,
@@ -222,12 +257,25 @@ fun AddExpenseScreen(
                                 unfocusedTextColor = textColor,
                                 focusedBorderColor = Color.Transparent,
                                 unfocusedBorderColor = Color.Transparent,
-                            )
+                                errorBorderColor = errorColor,
+                                errorTextColor = errorColor
+                            ),
+                            // Explicit UI Feedback if the user inputs a bad value (-50, 0, etc.)
+                            supportingText = {
+                                if (isAmountError) {
+                                    Text(
+                                        text = "Please enter a valid amount greater than 0",
+                                        color = errorColor,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
                         )
                     }
                 }
 
-                // 2. MERCHANT INPUT
+                // ---------------- 2. MERCHANT INPUT ----------------
                 Text("Merchant (Optional)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
 
                 OutlinedTextField(
@@ -242,10 +290,9 @@ fun AddExpenseScreen(
                         focusedTextColor = textColor,
                         unfocusedTextColor = textColor
                     )
-
                 )
 
-                // 3. CATEGORY SELECTION
+                // ---------------- 3. CATEGORY SELECTION ----------------
                 Text("Category", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor)
 
                 OutlinedTextField(
@@ -276,20 +323,15 @@ fun AddExpenseScreen(
                             label = {
                                 Text(
                                     text = category,
-                                    //Explicitly set text color so it never vanishes
                                     color = if (isSelected) primaryColor else textColor
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                // Selected State
                                 selectedContainerColor = primaryColor.copy(alpha = 0.1f),
                                 selectedLabelColor = primaryColor,
-
-                                // Unselected State (Forces contrast against the background)
                                 containerColor = Color.Transparent,
                                 labelColor = textColor
                             ),
-                            //Explicitly set the border so you can always see the outline of the chip
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = isSelected,
@@ -304,13 +346,35 @@ fun AddExpenseScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // ---------------- 4. SUBMIT ACTION & UX FEEDBACK ----------------
+
+            // FIX: Dynamic helper text that explicitly tells the user EXACTLY what is missing
+            if (!isValid) {
+                val missingRequirement = when {
+                    amountInput.isBlank() -> "Please enter an amount"
+                    isAmountError -> "Please fix the invalid amount"
+                    categoryInput.isBlank() -> "Please select a category to continue"
+                    else -> ""
+                }
+
+                if (missingRequirement.isNotEmpty()) {
+                    Text(
+                        text = missingRequirement,
+                        color = errorColor, // Stand out so the user sees why the button is locked
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    )
+                }
+            }
+
             Button(
                 onClick = {
                     if (isValid && !isSubmitting) {
                         isSubmitting = true
                         keyboardController?.hide()
 
-                        //SMART FALLBACK: Use what they typed. If blank, use Category.
                         val finalMerchant = merchantInput.takeIf { it.isNotBlank() } ?: categoryInput
 
                         onLogExpense(
@@ -323,7 +387,7 @@ fun AddExpenseScreen(
                             scannedReceipt?.items ?: emptyList()
                         )
 
-                        // Reset the form state for the next time
+                        // Clear form
                         isSubmitting = false
                         amountInput = ""
                         merchantInput = ""
@@ -335,7 +399,9 @@ fun AddExpenseScreen(
                     }
                 },
                 enabled = isValid && !isSubmitting,
-                modifier = Modifier.fillMaxWidth().height(60.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
                 shape = RoundedCornerShape(30.dp)
             ) {
@@ -343,7 +409,7 @@ fun AddExpenseScreen(
             }
         }
 
-        //  DIGITAL RECEIPT BOTTOM SHEET
+        // ================= BOTTOM SHEET: DIGITAL RECEIPT =================
         if (showReceiptSheet && scannedReceipt != null) {
             val receipt = scannedReceipt!!
             ModalBottomSheet(
@@ -360,12 +426,22 @@ fun AddExpenseScreen(
 
                         if (receipt.localImagePath.isNotEmpty()) {
                             var showFullImage by remember { mutableStateOf(false) }
-                            AsyncImage(model = File(receipt.localImagePath), contentDescription = "Receipt Thumbnail", contentScale = ContentScale.Crop, modifier = Modifier.size(60.dp).clip(RoundedCornerShape(8.dp)).clickable { showFullImage = true })
+                            AsyncImage(
+                                model = File(receipt.localImagePath),
+                                contentDescription = "Receipt Thumbnail",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showFullImage = true }
+                            )
                             if (showFullImage) {
                                 Dialog(onDismissRequest = { showFullImage = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
                                     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))) {
                                         AsyncImage(model = File(receipt.localImagePath), contentDescription = "Full Receipt", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-                                        IconButton(onClick = { showFullImage = false }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) { Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White) }
+                                        IconButton(onClick = { showFullImage = false }, modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                                        }
                                     }
                                 }
                             }
@@ -409,8 +485,6 @@ fun AddExpenseScreen(
                         onClick = {
                             if (receipt.total > 0f) amountInput = receipt.total.toString()
                             if (dominantCategory != "General") categoryInput = dominantCategory
-
-                            // SMART AUTO-FILL: Puts the scanned merchant into the text box
                             if (receipt.merchantName.isNotBlank()) merchantInput = receipt.merchantName
 
                             showReceiptSheet = false
