@@ -43,10 +43,23 @@ class FinanceRepository(
                 var currentStreak = prefs.getInt("CURRENT_STREAK", 0)
                 val daysDifference = (todayMidnight - lastLoggedMidnight) / (1000 * 60 * 60 * 24)
 
-                when (daysDifference) {
-                    0L -> { /* Already logged today */ }
-                    1L -> { currentStreak += 1 }
-                    else -> { currentStreak = 1 }
+                when {
+                    daysDifference == 0L -> {
+                        /* Already logged today, do nothing */
+                    }
+                    daysDifference == 1L -> {
+                        currentStreak += 1 // Logged consecutively
+                    }
+                    daysDifference > 1L -> {
+                        // Subtract the days missed (daysDifference - 1)
+                        val missedDays = (daysDifference - 1).toInt()
+
+                        // Deduct from streak, but never drop below 0
+                        currentStreak = maxOf(0, currentStreak - missedDays)
+
+                        // Add 1 because they successfully logged today
+                        currentStreak += 1
+                    }
                 }
                 prefs.edit {
                     putLong("LAST_LOGGED_MIDNIGHT", todayMidnight)
@@ -236,21 +249,25 @@ class FinanceRepository(
         return cal.timeInMillis
     }
 
-    //Read the Streak safely for the UI
+    // Read the Streak safely for the UI
     fun getLiveStreak(): Int {
         val todayMidnight = getMidnightTimestamp()
         val lastLoggedMidnight = prefs.getLong("LAST_LOGGED_MIDNIGHT", 0L)
         val currentStreak = prefs.getInt("CURRENT_STREAK", 0)
 
+        // If they have never logged an expense, streak is 0
+        if (lastLoggedMidnight == 0L) return 0
+
         // Calculate how many days it has been since their last log
         val daysDifference = (todayMidnight - lastLoggedMidnight) / (1000 * 60 * 60 * 24)
 
         return if (daysDifference <= 1L) {
-            //They logged today (0) or yesterday (1). The streak is alive!
+            // They logged today (0) or yesterday (1). The streak is fully intact!
             currentStreak
         } else {
-            // It has been 2 or more days. The streak is broken!
-            0
+            // It has been 2 or more days. Deduct 1 point for every missed day.
+            val missedDays = (daysDifference - 1).toInt()
+            maxOf(0, currentStreak - missedDays)
         }
     }
 

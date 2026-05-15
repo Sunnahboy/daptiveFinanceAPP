@@ -1,4 +1,3 @@
-
 package com.finadapt.adaptivefinance.feature.expense.settings
 
 import android.content.Intent
@@ -30,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airbnb.lottie.compose.*
 import com.finadapt.adaptivefinance.R
-import com.finadapt.adaptivefinance.data.local.ExpenseEntity // 🟢 NEW IMPORT
+import com.finadapt.adaptivefinance.data.local.ExpenseEntity
 import com.finadapt.adaptivefinance.feature.export.ReportGenerator
 import com.finadapt.adaptivefinance.worker.NotificationScheduler
 import kotlinx.coroutines.Dispatchers
@@ -41,13 +40,14 @@ import java.util.Calendar
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     currentName: String,
     currentBudget: Float,
     isDarkMode: Boolean = false,
-    allExpenses: List<ExpenseEntity>, //live data to export it
+    allExpenses: List<ExpenseEntity>,
     onNameChanged: (String) -> Unit,
     onBudgetChanged: (Float) -> Unit,
     onThemeToggled: (Boolean) -> Unit,
@@ -57,26 +57,23 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     var nameInput by remember { mutableStateOf(currentName) }
-    var budgetInput by remember { mutableStateOf(currentBudget.toInt().toString()) }
-    // State for our reminder times
+
+    // Using simple format to avoid trailing .0 if not needed
+    val initialBudgetString = if (currentBudget % 1 == 0f) currentBudget.toInt().toString() else currentBudget.toString()
+    var budgetInput by remember { mutableStateOf(initialBudgetString) }
+
     var reminderTimes by remember { mutableStateOf(NotificationScheduler.getTimesFromPrefs(context)) }
 
     // INDIVIDUAL BUTTON STATES
     var nameActionState by remember { mutableStateOf("IDLE") }
     var budgetActionState by remember { mutableStateOf("IDLE") }
-    // State for our reminder times
-
 
     // EXPORT STATES
     var selectedTimeframe by remember { mutableStateOf(ReportGenerator.Timeframe.MONTHLY) }
     var isGenerating by remember { mutableStateOf(false) }
 
-    // VALIDATION STATES
-    var nameError by remember { mutableStateOf<String?>(null) }
-    var budgetError by remember { mutableStateOf<String?>(null) }
-    var showValidationErrorDialog by remember { mutableStateOf(false) }
-
     // DIALOG STATES
+    var showValidationErrorDialog by remember { mutableStateOf(false) }
     var showWipeDialog by remember { mutableStateOf(false) }
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
@@ -103,6 +100,27 @@ fun SettingsScreen(
         } catch (_: Exception) {
             "1.0.0"
         }
+    }
+
+    // ================= REAL-TIME VALIDATION LOGIC =================
+
+    // Name Validation
+    val cleanName = nameInput.trim()
+    val isNameError = cleanName.isEmpty() || cleanName.length > 15
+    val nameErrorMessage = when {
+        cleanName.isEmpty() -> "Name cannot be empty."
+        cleanName.length > 15 -> "Keep it short (max 15 characters)."
+        else -> null
+    }
+
+    // Budget Validation
+    val parsedBudget = budgetInput.toFloatOrNull()
+    val isBudgetError = budgetInput.isNotEmpty() && (parsedBudget == null || parsedBudget <= 0f || parsedBudget > 1_000_000f)
+    val budgetErrorMessage = when {
+        budgetInput.isEmpty() -> "Budget cannot be empty."
+        parsedBudget == null || parsedBudget <= 0f -> "Enter a valid amount greater than 0."
+        parsedBudget > 1_000_000f -> "Budget exceeds maximum limit."
+        else -> null
     }
 
     Scaffold(
@@ -143,13 +161,22 @@ fun SettingsScreen(
 
                     OutlinedTextField(
                         value = nameInput,
-                        onValueChange = {
-                            nameInput = it; nameError = null; nameActionState = "IDLE"
+                        onValueChange = { newValue ->
+                            // SANITIZATION: Actively strip out numbers, dots, commas, and emojis.
+                            // Only allow letters, spaces, hyphens, and apostrophes.
+                            val sanitized = newValue.filter {
+                                it.isLetter() || it.isWhitespace() || it == '-' || it == '\''
+                            }
+
+                            nameInput = sanitized
+                            nameActionState = "IDLE"
                         },
                         label = { Text("Preferred Name") },
                         singleLine = true,
-                        isError = nameError != null,
-                        supportingText = { if (nameError != null) Text(nameError!!, color = errorColor) },
+                        isError = isNameError,
+                        supportingText = {
+                            if (nameErrorMessage != null) Text(nameErrorMessage, color = errorColor)
+                        },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
@@ -157,15 +184,15 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = {
-                            val cleanName = nameInput.trim()
                             keyboardController?.hide()
-                            when {
-                                cleanName.isEmpty() -> { nameError = "Name cannot be empty."; showValidationErrorDialog = true }
-                                cleanName.length > 20 -> { nameError = "Name is too long (max 20 chars)."; showValidationErrorDialog = true }
-                                cleanName == currentName -> { coroutineScope.launch { nameActionState = "NO_CHANGE"; delay(2000); nameActionState = "IDLE" } }
-                                else -> { onNameChanged(cleanName); coroutineScope.launch { nameActionState = "SUCCESS"; delay(2000); nameActionState = "IDLE" } }
+                            if (cleanName == currentName) {
+                                coroutineScope.launch { nameActionState = "NO_CHANGE"; delay(2000); nameActionState = "IDLE" }
+                            } else {
+                                onNameChanged(cleanName)
+                                coroutineScope.launch { nameActionState = "SUCCESS"; delay(2000); nameActionState = "IDLE" }
                             }
                         },
+                        enabled = !isNameError, // Prevents submission of invalid data
                         modifier = Modifier.align(Alignment.End),
                         colors = ButtonDefaults.buttonColors(containerColor = when (nameActionState) { "SUCCESS" -> successColor; "NO_CHANGE" -> infoColor; else -> primaryColor })
                     ) {
@@ -186,28 +213,42 @@ fun SettingsScreen(
 
                     OutlinedTextField(
                         value = budgetInput,
-                        onValueChange = { budgetInput = it; budgetError = null; budgetActionState = "IDLE" },
+                        onValueChange = { newValue ->
+                            // SANITIZATION: Fix European commas and filter out bad chars instantly
+                            val sanitized = newValue.replace(',', '.')
+                            if (sanitized.isEmpty()) {
+                                budgetInput = sanitized
+                            } else {
+                                val filtered = sanitized.filter { it.isDigit() || it == '.' }
+                                if (filtered.count { it == '.' } <= 1) {
+                                    budgetInput = filtered
+                                }
+                            }
+                            budgetActionState = "IDLE"
+                        },
                         label = { Text("Budget Limit (RM)") },
                         prefix = { Text("RM ", color = textColor) },
                         singleLine = true,
-                        isError = budgetError != null,
-                        supportingText = { if (budgetError != null) Text(budgetError!!, color = errorColor) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = isBudgetError || budgetInput.isEmpty(),
+                        supportingText = {
+                            if (budgetErrorMessage != null) Text(budgetErrorMessage, color = errorColor)
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
                         onClick = {
-                            val budgetVal = budgetInput.toFloatOrNull()
                             keyboardController?.hide()
-                            when {
-                                budgetVal == null || budgetVal <= 0 -> { budgetError = "Enter a valid amount."; showValidationErrorDialog = true }
-                                budgetVal > 1_000_000 -> { budgetError = "Budget exceeds maximum limit."; showValidationErrorDialog = true }
-                                budgetVal == currentBudget -> { coroutineScope.launch { budgetActionState = "NO_CHANGE"; delay(2000); budgetActionState = "IDLE" } }
-                                else -> { onBudgetChanged(budgetVal); coroutineScope.launch { budgetActionState = "SUCCESS"; delay(2000); budgetActionState = "IDLE" } }
+                            if (parsedBudget != null && parsedBudget == currentBudget) {
+                                coroutineScope.launch { budgetActionState = "NO_CHANGE"; delay(2000); budgetActionState = "IDLE" }
+                            } else if (parsedBudget != null) {
+                                onBudgetChanged(parsedBudget)
+                                coroutineScope.launch { budgetActionState = "SUCCESS"; delay(2000); budgetActionState = "IDLE" }
                             }
                         },
+                        enabled = !isBudgetError && budgetInput.isNotEmpty(), // Blocks null/negative saves
                         modifier = Modifier.align(Alignment.End),
                         colors = ButtonDefaults.buttonColors(containerColor = when (budgetActionState) { "SUCCESS" -> successColor; "NO_CHANGE" -> infoColor; else -> primaryColor })
                     ) {
@@ -270,7 +311,7 @@ fun SettingsScreen(
                                         },
                                         calendar.get(Calendar.HOUR_OF_DAY),
                                         calendar.get(Calendar.MINUTE),
-                                        false // Set to true if you want 24-hour format
+                                        false
                                     ).show()
                                 }) {
                                     Icon(Icons.Default.Add, contentDescription = "Add Time", tint = primaryColor)
@@ -281,7 +322,6 @@ fun SettingsScreen(
                         // Display the chosen times
                         Spacer(modifier = Modifier.height(8.dp))
                         reminderTimes.forEachIndexed { index, time ->
-                            // Format to standard 12-hour AM/PM string
                             val cal = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, time.first); set(Calendar.MINUTE, time.second) }
                             val timeFormatted = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(cal.time)
 
@@ -464,7 +504,7 @@ fun SettingsScreen(
         }
 
 
-        // Validation Error Dialog (with Lottie)
+        // Validation Error Dialog (Kept as a fallback, though inline validation prevents it from being needed)
         if (showValidationErrorDialog) {
             val errorLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.error_alert))
             val errorLottie by errorLottieResult
