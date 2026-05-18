@@ -20,10 +20,6 @@ data class AiIntentResponse(
     @SerializedName(value = "search_term", alternate = ["searchTerm", "search"])
     val searchTerm: String = ""
 ) {
-    //SQLite case-sensitivity ("transport" becomes "Transport")
-    val dbSafeCategory: String
-        get() = if (category.equals("ALL", ignoreCase = true)) "ALL"
-        else category.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 }
 
 fun Float.toCurrency(): String {

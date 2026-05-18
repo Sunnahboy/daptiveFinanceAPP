@@ -158,7 +158,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     3 -> BudgetInputStep(
                         budget = budgetInput,
                         onBudgetChange = { newValue ->
-                            // SANITIZATION: Fix European commas and filter out bad chars instantly
+                            // SANITIZATION: European commas and filter out bad chars instantly
                             val sanitized = newValue.replace(',', '.')
                             if (sanitized.isEmpty()) {
                                 budgetInput = sanitized

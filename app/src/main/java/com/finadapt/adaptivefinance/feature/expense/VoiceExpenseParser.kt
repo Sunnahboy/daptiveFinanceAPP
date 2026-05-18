@@ -9,7 +9,7 @@ object VoiceExpenseParser {
      */
     fun parse(spokenText: String): Pair<Float?, String> {
         // 1. EXTRACT THE AMOUNT (Bulletproof Regex)
-        // Matches digits and optional decimals, plus handles commas (e.g., "1,250.50")
+        // Matches digits and optional decimals, plus handles commas ( "1,250.50")
         val amountRegex = Regex("([\\d,]+(\\.\\d{1,2})?)")
         val amountMatch = amountRegex.find(spokenText)
 

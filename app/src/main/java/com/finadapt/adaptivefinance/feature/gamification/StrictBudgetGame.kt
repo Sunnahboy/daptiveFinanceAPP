@@ -108,8 +108,6 @@ fun StrictBudgetGame(
         Spacer(modifier = Modifier.height(24.dp))
 
         when (currentPhase) {
-            // PHASE 1: THE COMMAND TERMINAL
-            // PHASE 1: THE THREAT DETECTION INTRO (Premium & Alive!)
             StrictPhase.INTRO -> {
                 // 1. Load the "Consequence" Lottie (Burning money, empty wallet, etc.)
                 val dangerLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.danger_broke))
@@ -207,7 +205,7 @@ fun StrictBudgetGame(
                         interactionSource = startInteraction,
                         colors = ButtonDefaults.buttonColors(containerColor = neonCyan.copy(alpha = 0.2f)), // Glassy Cyan Base
                         shape = RoundedCornerShape(4.dp),
-                        contentPadding = PaddingValues(0.dp), // Remove default padding to allow the background brush to fill!
+                        contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.fillMaxWidth().height(64.dp).scale(startScale)
                     ) {
                         // We build the button background manually to apply the sweeping shimmer effect
@@ -255,7 +253,7 @@ fun StrictBudgetGame(
                             .fillMaxWidth()
                             .height(56.dp)
                             .scale(skipScale)
-                            .offset(x = glitchShake.dp), // Physically shakes occasionally!
+                            .offset(x = glitchShake.dp),
                         shape = RoundedCornerShape(4.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray.copy(alpha = 0.3f))
                     ) {
@@ -286,7 +284,7 @@ fun StrictBudgetGame(
 
                 LaunchedEffect(Unit) {
                     while (true) {
-                        delay(1200) // Change the terminal text every 1.2 seconds!
+                        delay(1200)
                         currentLogIndex = (currentLogIndex + 1) % terminalLogs.size
                     }
                 }
@@ -333,7 +331,7 @@ fun StrictBudgetGame(
                             Text(
                                 text = terminalLogs[currentLogIndex],
                                 color = neonCyan.copy(alpha = 0.8f),
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, // Hacker font!
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -400,12 +398,12 @@ fun StrictBudgetGame(
                                 LottieAnimation(
                                     composition = slamLottie,
                                     progress = { slamProgress },
-                                    modifier = Modifier.size(vaultSize), // Uses the fast-shrink math!
+                                    modifier = Modifier.size(vaultSize),
                                     contentScale = androidx.compose.ui.layout.ContentScale.Fit
                                 )
                             }
 
-                            //  THE INSTANT SUCCESS UI (No slow fades, just snaps in!)
+
                             if (isSecured) {
                                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -551,18 +549,17 @@ fun HeavyDeadbolt(
                     Brush.verticalGradient(listOf(thumbColor, thumbColor.copy(alpha = 0.7f))),
                     RoundedCornerShape(6.dp)
                 )
-                .pointerInput(isLocked) { // Disable input if already locked!
+                .pointerInput(isLocked) { // Disable input if already locked
                     if (isLocked) return@pointerInput
 
                     detectHorizontalDragGestures(
                         onDragStart = { soundEngine.play("click") },
                         onDragEnd = {
                             coroutineScope.launch {
-                                // Must drag 85% of the way to lock it! (Heavy friction)
+                                // Must drag 85% of the way to lock it(Heavy friction)
                                 if (dragOffset.value > maxSwipePx * 0.85f) {
                                     dragOffset.animateTo(maxSwipePx, animationSpec = spring(stiffness = Spring.StiffnessMedium))
 
-                                    // 🟢 HEAVY MAGNETIC SNAP HAPTIC
                                     if (vibrator.hasVibrator()) {
                                         @Suppress("DEPRECATION")
                                         vibrator.vibrate(100)
@@ -570,7 +567,6 @@ fun HeavyDeadbolt(
                                     soundEngine.play("click")
                                     onLock()
                                 } else {
-                                    // ❌ SLIPS BACK (Error!)
                                     if (vibrator.hasVibrator()) {
                                         @Suppress("DEPRECATION")
                                         vibrator.vibrate(50)

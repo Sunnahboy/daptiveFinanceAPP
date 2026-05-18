@@ -27,7 +27,6 @@ class CommunityViewModel(
     val hallOfFameData: StateFlow<List<LeaderboardEntry>> = _hallOfFameData.asStateFlow()
     // ← ADD THIS: Exposes spendable coins to the UI
     private val _spendableCoins = MutableStateFlow(repository.getSpendableCoins())
-    val spendableCoins: StateFlow<Int> = _spendableCoins.asStateFlow()
 
 
     val currentAnonName: String = repository.getAnonymousName()
@@ -41,7 +40,6 @@ class CommunityViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Now that the repository function exists, the compiler knows this is a Flow<List<LeaderboardEntry>>!
                 repository.getLiveLeaderboardStream().collect { liveData ->
 
                     val fairData = liveData.filter { it.xp < 15000 }
@@ -76,7 +74,6 @@ class CommunityViewModel(
                     repository.sendAnonymousCheer(targetUserId)
                     _spendableCoins.value = repository.getSpendableCoins()
                     dashboardViewModel.refreshCoins()
-                    // Logging it silences the "unused parameter" warning!
                     Log.d("CommunityVM", "Successfully spent 10 coins to cheer for $targetAnonName")
                 }
             } catch (e: Exception) {

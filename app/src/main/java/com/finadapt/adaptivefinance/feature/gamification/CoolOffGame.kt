@@ -261,7 +261,7 @@ fun CoolOffGame(
                         modifier = Modifier.scale(skipScale)
                     ) {
                         Text(
-                            text = "Nah, I lack discipline 📉",
+                            text = "Nah, I lack discipline \uD83E\uDD79",
                             color = warningRed.copy(alpha = 0.8f),
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp

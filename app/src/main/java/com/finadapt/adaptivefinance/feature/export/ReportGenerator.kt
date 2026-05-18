@@ -22,7 +22,7 @@ object ReportGenerator {
 
     enum class Timeframe { DAILY, WEEKLY, MONTHLY }
 
-    // --- 🟢 HELPER: Map Categories to Native Canvas Colors ---
+    //Map Categories to Native Canvas Colors
     private fun getNativeCategoryColor(category: String): Int {
         return when (category.lowercase()) {
             "food", "dining", "groceries" -> Color.rgb(239, 68, 68) // Red
@@ -35,11 +35,11 @@ object ReportGenerator {
         }
     }
 
-    // --- 🟢 PREMIUM EXCEL GENERATION ---
-    fun generateExcelReport(context: Context, expenses: List<ExpenseEntity>, timeframe: Timeframe): File? {
+    // PREMIUM EXCEL GENERATION
+    fun generateExcelReport(context: Context, expenses: List<ExpenseEntity>, periodLabel: String): File? {
         return try {
             val workbook = XSSFWorkbook()
-            val sheet = workbook.createSheet("${timeframe.name} Summary")
+            val sheet = workbook.createSheet("Summary")
 
             // 1. Create Premium Styles
             val headerStyle = workbook.createCellStyle().apply {
@@ -66,7 +66,8 @@ object ReportGenerator {
             val totalAmount = expenses.sumOf { it.amount.toDouble() }
 
             val titleRow = sheet.createRow(0)
-            titleRow.createCell(0).apply { setCellValue("Adaptive Finance - ${timeframe.name} Report"); cellStyle = boldStyle }
+            //Dynamically injects the chosen month/week
+            titleRow.createCell(0).apply { setCellValue("Adaptive Finance - $periodLabel Report"); cellStyle = boldStyle }
 
             val generatedRow = sheet.createRow(1)
             generatedRow.createCell(0).setCellValue("Generated On:")
@@ -109,12 +110,15 @@ object ReportGenerator {
             sheet.setColumnWidth(3, 15 * 256) // Amount
             sheet.setColumnWidth(4, 40 * 256) // Itemized Breakdown
 
-            sheet.createFreezePane(0, 5) // Freezes everything above the table headers when scrolling!
+            sheet.createFreezePane(0, 5) // Freezes everything above the table headers when scrolling
 
-            // 6. Save File
+            // 6. Save File with exact date string
             val reportsDir = File(context.cacheDir, "reports")
             if (!reportsDir.exists()) reportsDir.mkdirs()
-            val file = File(reportsDir, "AdaptiveFinance_${timeframe.name}_Report.xlsx")
+
+            val safeFileName = periodLabel.replace(" ", "_")
+            val file = File(reportsDir, "AdaptiveFinance_${safeFileName}_Report.xlsx")
+
             val outputStream = FileOutputStream(file)
             workbook.write(outputStream)
             workbook.close()
@@ -128,7 +132,8 @@ object ReportGenerator {
 
     //  ULTIMATE PDF GENERATION (Pie Chart + Bar Graph + Table)
     @SuppressLint("DefaultLocale")
-    fun generatePdfReport(context: Context, expenses: List<ExpenseEntity>, timeframe: Timeframe): File? {
+    // FIXED: Now accepts periodLabel String
+    fun generatePdfReport(context: Context, expenses: List<ExpenseEntity>, periodLabel: String): File? {
         return try {
             val document = PdfDocument()
             val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 Size
@@ -150,7 +155,8 @@ object ReportGenerator {
             paint.textSize = 16f
             paint.isFakeBoldText = false
             paint.color = Color.rgb(148, 163, 184)
-            canvas.drawText("${timeframe.name} SPENDING REPORT", 40f, 90f, paint)
+            //Dynamically injects the uppercase custom label
+            canvas.drawText("${periodLabel.uppercase()} SPENDING REPORT", 40f, 90f, paint)
 
             paint.color = Color.WHITE
             paint.textSize = 28f
@@ -198,7 +204,10 @@ object ReportGenerator {
                     paint.color = Color.DKGRAY
                     paint.textSize = 12f
                     paint.isFakeBoldText = true
-                    canvas.drawText(category, 240f, legendY, paint)
+
+                    // Truncate the category name to 14 characters for the Pie Legend
+                    val legendCategory = if (category.length > 14) category.substring(0, 12) + "..." else category
+                    canvas.drawText(legendCategory, 240f, legendY, paint)
 
                     paint.isFakeBoldText = false
                     canvas.drawText(String.format("RM %.2f (%.1f%%)", amount, percentage), 340f, legendY, paint)
@@ -221,7 +230,10 @@ object ReportGenerator {
                     paint.color = Color.DKGRAY
                     paint.textSize = 12f
                     paint.isFakeBoldText = true
-                    canvas.drawText(category, 40f, currentY + 12f, paint)
+
+                    // Truncate the category name to 14 characters for the Bar Graph
+                    val barCategory = if (category.length > 14) category.substring(0, 12) + "..." else category
+                    canvas.drawText(barCategory, 40f, currentY + 12f, paint)
 
                     val barWidth = (amount / maxAmount) * maxBarWidth
                     paint.color = getNativeCategoryColor(category)
@@ -285,11 +297,13 @@ object ReportGenerator {
 
             document.finishPage(page)
 
-            // Save File
+            // Save File with exact date string
             val reportsDir = File(context.cacheDir, "reports")
             if (!reportsDir.exists()) reportsDir.mkdirs()
 
-            val file = File(reportsDir, "AdaptiveFinance_${timeframe.name}_Report.pdf")
+            val safeFileName = periodLabel.replace(" ", "_")
+            val file = File(reportsDir, "AdaptiveFinance_${safeFileName}_Report.pdf")
+
             document.writeTo(FileOutputStream(file))
             document.close()
 
@@ -300,7 +314,7 @@ object ReportGenerator {
         }
     }
 
-    //  SHARE INTENT FIREWALL -
+    //  SHARE INTENT FIREWALL
     fun shareFile(context: Context, file: File, mimeType: String) {
         val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {

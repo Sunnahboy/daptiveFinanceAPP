@@ -1,5 +1,6 @@
 package com.finadapt.adaptivefinance.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -29,7 +30,7 @@ fun AnimatedDraggableFab(
     buttonContentColor: Color,
     delayMillis: Long = 1500L, // Allows us to stagger the animations
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
 ) {
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }

@@ -122,7 +122,7 @@ fun QuizGame(
     }
 
     //3.THE 3D FLIP DELAY MANAGER
-    //When they click an answer, we wait 1.2 seconds to let the card physically flip before changing screens!
+    //When they click an answer, we wait 1.2 seconds to let the card physically flip before changing screens
     LaunchedEffect(selectedAnswer) {
         if (selectedAnswer != null) {
             soundEngine.stopAllTicking()
@@ -146,7 +146,7 @@ fun QuizGame(
         modifier = Modifier.padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("🧠 Trivia Duel", fontSize = 24.sp, fontWeight = FontWeight.Black, color = brandPurple)
+        Text("\uD83E\uDDE0 Trivia Duel", fontSize = 24.sp, fontWeight = FontWeight.Black, color = brandPurple)
         Spacer(modifier = Modifier.height(16.dp))
 
         when (currentPhase) {
@@ -517,7 +517,7 @@ fun QuizGame(
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text("You fell asleep at the wheel.", color = subTextColor)
                             } else if (isCorrect) {
-                                Text("Brilliant! ✨", fontWeight = FontWeight.Black, fontSize = 28.sp, color = Color(0xFF10B981))
+                                Text("Brilliant! \uD83D\uDE0D", fontWeight = FontWeight.Black, fontSize = 28.sp, color = Color(0xFF10B981))
                                 Spacer(modifier = Modifier.height(16.dp))
                                 // XP Badge
                                 Card(
@@ -533,7 +533,7 @@ fun QuizGame(
                                     )
                                 }
                             } else {
-                                Text("Ouch! ❌", fontWeight = FontWeight.Black, fontSize = 28.sp, color = Color.Red)
+                                Text("Ouch! \uD83D\uDE2D", fontWeight = FontWeight.Black, fontSize = 28.sp, color = Color.Red)
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text("The right answer was:", color = subTextColor, fontWeight = FontWeight.Medium)
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -614,7 +614,7 @@ fun FlipAnswerCard(
                 // Back of Card (Needs to be flipped -180 degrees so the text isn't backwards)
                 Box(modifier = Modifier.graphicsLayer { rotationY = 180f }) {
                     Text(
-                        text = if (isCorrect) "✨ Correct!" else "❌ Wrong!",
+                        text = if (isCorrect) "\uD83D\uDC4A Correct!" else "❌ Wrong!",
                         color = Color.White,
                         fontWeight = FontWeight.Black,
                         fontSize = 18.sp

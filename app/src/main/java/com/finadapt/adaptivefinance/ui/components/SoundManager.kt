@@ -38,7 +38,6 @@ class SoundEngine(context: Context) {
 
     fun play(soundName: String) {
         soundMap[soundName]?.let { soundId ->
-            //Add to list instead of overwriting
             val streamId = soundPool.play(soundId, 1f, 1f, 0, 0, 1f)
             activeStreams.getOrPut(soundName) { mutableListOf() }.add(streamId)
         }
@@ -61,7 +60,4 @@ class SoundEngine(context: Context) {
         stop("tick3")
     }
 
-    fun release() {
-        soundPool.release()
-    }
 }

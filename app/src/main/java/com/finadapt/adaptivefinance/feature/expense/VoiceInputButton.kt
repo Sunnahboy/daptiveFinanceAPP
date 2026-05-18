@@ -82,7 +82,7 @@ fun VoiceInputButton(
         }
     }
 
-    // UI Animations (Pulses when listening!)
+    // UI Animations (Pulses when listening)
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,

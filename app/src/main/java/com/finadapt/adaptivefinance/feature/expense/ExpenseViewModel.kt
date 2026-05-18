@@ -1,4 +1,3 @@
-
 package com.finadapt.adaptivefinance.feature.expense
 
 import android.content.SharedPreferences
@@ -37,8 +36,8 @@ class ExpenseViewModel(
     ) {
         if (amount <= 0.0f) return
 
-        //INSTANT LOCAL SAVE & REWARD
-        //launch this instantly. No delays.
+        // INSTANT LOCAL SAVE and REWARD
+        // launch this instantly. No delays.
         viewModelScope.launch {
             val newExpense = ExpenseEntity(
                 id = 0, // Room will auto-generate the actual ID
@@ -53,10 +52,13 @@ class ExpenseViewModel(
             )
             expenseDao.insertExpense(newExpense)
 
-            // Instant reward
-            val currentXp = prefs.getInt("USER_XP", 0)
+            //Calculate the streak the exact millisecond they log
+            repository.processInstantStreak()
+
+            //Give 50 coins and trigger the animation drop
+            val currentCoins = prefs.getInt("USER_COINS", 0)
             prefs.edit {
-                putInt("USER_XP", currentXp + 50)
+                putInt("USER_COINS", currentCoins + 50)
                 putBoolean("PENDING_COIN_DROP", true)
             }
         }
@@ -65,7 +67,7 @@ class ExpenseViewModel(
         accumulatedAmount += amount
         lastCategory = category
 
-        // Cancel the previous countdown if they log another expense quickly
+        //Cancel the previous countdown if they log another expense quickly
         aiSyncJob?.cancel()
 
         // Start a new countdown
@@ -77,7 +79,7 @@ class ExpenseViewModel(
             val categoryToSend = lastCategory
             accumulatedAmount = 0f
 
-            // STEP 3: SILENT BACKGROUND AI CHECK
+            // SILENT BACKGROUND AI CHECK
             val userId = prefs.getString("SILENT_USER_ID", "default_user") ?: "default_user"
             val result = repository.logExpenseAndGetStrategy(userId, amountToSend, categoryToSend)
 
@@ -91,7 +93,7 @@ class ExpenseViewModel(
                     prefs.edit {
                         //THE SAFEGUARD
                         if (aiAction != "zen" && aiAction != "Log_Only" && aiAction.isNotBlank()) {
-                            // 1. It's a real game! Always overwrite and save it.
+                            // 1. It's a real game Always overwrite and save it.
                             putString("LAST_AI_ACTION", aiAction)
                             putString("PENDING_AMBUSH_ACTION", aiAction)
                             putString("PENDING_AMBUSH_MESSAGE", response.gamificationMessage ?: "Time for a challenge!")
@@ -101,7 +103,7 @@ class ExpenseViewModel(
                             // 2. It's "zen" AND there are no ambushes waiting. Safe to update.
                             putString("LAST_AI_ACTION", aiAction)
                         }
-                        // 3. If it's "zen" but an ambush IS waiting, we do NOTHING to protect the ambush!
+                        // 3. If it's "zen" but an ambush IS waiting, we do NOTHING to protect the ambush
                     }
                 },
                 onFailure = {

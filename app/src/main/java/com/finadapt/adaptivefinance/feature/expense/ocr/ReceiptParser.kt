@@ -8,7 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object ReceiptParser {
-//from ReceiptParser android app
+
     suspend fun parseWithLlm(formattedText: String, userId: String): ParsedReceipt = withContext(Dispatchers.IO) {
         try {
             // 1. Send the messy OCR text to  secure Ktor backend
