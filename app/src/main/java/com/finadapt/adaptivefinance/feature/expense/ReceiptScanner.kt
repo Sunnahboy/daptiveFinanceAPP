@@ -97,7 +97,7 @@ object ReceiptScanner {
             ParsedReceipt("", "", "", emptyList(), 0f, permanentPath)
         }
     }
-//from ReceiptScanner.kt
+
     private suspend fun saveReceiptImageLocally(context: Context, uri: Uri): String = withContext(Dispatchers.IO) {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return@withContext ""
         val directory = File(context.filesDir, "receipts")

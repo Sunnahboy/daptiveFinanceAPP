@@ -229,11 +229,11 @@ fun AddExpenseScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // The Core Amount Field (With Error Handling)
+                        //The Core Amount Field (With Error Handling)
                         OutlinedTextField(
                             value = amountInput,
                             onValueChange = { newValue ->
-                                // FIX: Convert commas to dots so international keyboards don't break the app
+                                //Convert commas to dots so international keyboards don't break the app
                                 val sanitized = newValue.replace(',', '.')
 
                                 if (sanitized.isEmpty()) {
@@ -348,7 +348,7 @@ fun AddExpenseScreen(
 
             // ---------------- 4. SUBMIT ACTION & UX FEEDBACK ----------------
 
-            // FIX: Dynamic helper text that explicitly tells the user EXACTLY what is missing
+            //Dynamic helper text
             if (!isValid) {
                 val missingRequirement = when {
                     amountInput.isBlank() -> "Please enter an amount"
@@ -360,7 +360,7 @@ fun AddExpenseScreen(
                 if (missingRequirement.isNotEmpty()) {
                     Text(
                         text = missingRequirement,
-                        color = errorColor, // Stand out so the user sees why the button is locked
+                        color = errorColor,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         textAlign = TextAlign.Center,

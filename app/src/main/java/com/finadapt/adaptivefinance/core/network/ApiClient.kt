@@ -19,10 +19,10 @@ object ApiClient {
     private const val BACKUP_URL = "https://adaptive-finance-backend.onrender.com/"
     private const val RATE_LIMITER_URL = "https://finadapt-ratelimiter-service-production.up.railway.app/"
 
-    //Safely pulled from local.properties at compile time!
+    //Safely pulled from local.properties at compile time
     const val API_TOKEN = BuildConfig.API_TOKEN
     // LOGGER DEFINITION
-    // print the exact JSON payload to Logcat
+    //print the exact JSON payload to Logcat
     private val loggingInterceptor = HttpLoggingInterceptor { message ->
         Log.d("NETWORK_PAYLOAD", message)
     }.apply {

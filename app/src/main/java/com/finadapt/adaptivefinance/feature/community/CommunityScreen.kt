@@ -1,6 +1,7 @@
-
 package com.finadapt.adaptivefinance.feature.community
 
+import android.media.MediaPlayer
+import androidx.compose.animation.*
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -33,17 +36,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.finadapt.adaptivefinance.data.remote.LeaderboardEntry
-import kotlinx.coroutines.launch
-import java.util.Calendar
-import android.media.MediaPlayer
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.zIndex
 import com.airbnb.lottie.compose.*
 import com.finadapt.adaptivefinance.R
-import androidx.compose.ui.zIndex
+import com.finadapt.adaptivefinance.data.remote.LeaderboardEntry
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.util.Calendar
 
 // ============================================================================
-// 1. MAIN SCREEN ORCHESTRATOR (Notice how clean this is now!)
+// 1. MAIN SCREEN ORCHESTRATOR
 // ============================================================================
 @Composable
 fun CommunityScreen(
@@ -53,68 +55,118 @@ fun CommunityScreen(
     isDarkMode: Boolean = false,
     onCheerClicked: (String, String) -> Unit,
     hallOfFameData: List<LeaderboardEntry> = emptyList(),
-    spendableCoins: Int = 0
+    spendableCoins: Int = 0,
+    shieldCount: Int = 0
 ) {
     val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFE2E8F0)
     val listContainerColor = if (isDarkMode) Color(0xFF1E293B).copy(alpha = 0.8f) else Color.White.copy(alpha = 0.6f)
     val textColor = if (isDarkMode) Color.White else Color(0xFF0F172A)
     val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B)
 
-    if (isLoading) {
-        LoadingState(bgColor)
-    } else if (leaderboardData.isEmpty()) {
-        EmptyState(bgColor, subTextColor)
-    } else {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().background(bgColor),
-            contentPadding = PaddingValues(top = 48.dp, bottom = 120.dp)
+    //state to trigger our custom alert
+    var showBrokeAlert by remember { mutableStateOf(false) }
+
+    //Auto hide the alert after 2.5 seconds
+    LaunchedEffect(showBrokeAlert) {
+        if (showBrokeAlert) {
+            delay(2500)
+            showBrokeAlert = false
+        }
+    }
+
+    //Wrap everything in a Box so the alert can float on top
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (isLoading) {
+            LoadingState(bgColor)
+        } else if (leaderboardData.isEmpty()) {
+            EmptyState(bgColor, subTextColor)
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().background(bgColor),
+                contentPadding = PaddingValues(top = 48.dp, bottom = 120.dp)
+            ) {
+                // 1. Hall of Fame
+                if (hallOfFameData.isNotEmpty()) {
+                    item { HallOfFameSection(hallOfFameData, textColor, subTextColor) }
+                }
+
+                // 2. Podium
+                item { PodiumSection(leaderboardData.take(3), textColor) }
+
+                // 3. League Info Banner
+                item {
+                    LeagueInfoBanner(
+                        topPlayer = leaderboardData.firstOrNull(),
+                        currentAnonName = currentAnonName,
+                        spendableCoins = spendableCoins,
+                        shieldCount = shieldCount, // NEW: Pass to banner
+                        textColor = textColor
+                    )
+                }
+
+                // 4. List Header
+                item { LeaderboardListHeader(listContainerColor, subTextColor) }
+
+                // 5. The Players List (Grouped by Tier)
+                val grouped = leaderboardData.groupBy { it.tier }
+                val tierOrder = listOf("Platinum Legend", "Gold Master", "Silver Guardian", "Bronze Novice")
+
+                tierOrder.forEach { tier ->
+                    val players = grouped[tier] ?: return@forEach
+
+                    item { TierDivider(tier, listContainerColor) }
+
+                    itemsIndexed(items = players, key = { _, p -> p.userId }) { index, player ->
+                        val isMe = player.anonymousName == currentAnonName
+                        LeaderboardPlayerRow(
+                            player = player,
+                            rank = index + 1,
+                            isMe = isMe,
+                            listContainerColor = listContainerColor,
+                            textColor = textColor,
+                            subTextColor = subTextColor,
+                            spendableCoins = spendableCoins,
+                            onCheerClicked = onCheerClicked,
+                            onBroke = { showBrokeAlert = true }
+                        )
+                    }
+                }
+
+                // 6. List Footer
+                item { LeaderboardListFooter(listContainerColor) }
+            }
+        }
+
+        // THE CUSTOM POPUP
+        //will slide down from the top of the screen
+        AnimatedVisibility(
+            visible = showBrokeAlert,
+            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 32.dp) //Pushes it down below the status bar
+                .zIndex(50f)
         ) {
-            // 1. Hall of Fame
-            if (hallOfFameData.isNotEmpty()) {
-                item { HallOfFameSection(hallOfFameData, textColor, subTextColor) }
-            }
-
-            // 2. Podium
-            item { PodiumSection(leaderboardData.take(3), textColor) }
-
-            // 3. League Info Banner
-            item {
-                LeagueInfoBanner(
-                    topPlayer = leaderboardData.firstOrNull(),
-                    currentAnonName = currentAnonName,
-                    spendableCoins = spendableCoins,
-                    textColor = textColor
-                )
-            }
-
-            // 4. List Header
-            item { LeaderboardListHeader(listContainerColor, subTextColor) }
-
-            // 5. The Players List (Grouped by Tier)
-            val grouped = leaderboardData.groupBy { it.tier }
-            val tierOrder = listOf("Platinum Legend", "Gold Master", "Silver Guardian", "Bronze Novice")
-
-            tierOrder.forEach { tier ->
-                val players = grouped[tier] ?: return@forEach
-
-                item { TierDivider(tier, listContainerColor) }
-
-                itemsIndexed(items = players, key = { _, p -> p.userId }) { index, player ->
-                    val isMe = player.anonymousName == currentAnonName
-                    LeaderboardPlayerRow(
-                        player = player,
-                        rank = index + 1,
-                        isMe = isMe,
-                        listContainerColor = listContainerColor,
-                        textColor = textColor,
-                        subTextColor = subTextColor,
-                        onCheerClicked = onCheerClicked
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFFEF4444), // Danger Red color
+                shadowElevation = 8.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("😢", fontSize = 22.sp) // The crying emoji!
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Not enough coins! Need 10 \uD83D\uDCB0",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
                     )
                 }
             }
-
-            // 6. List Footer
-            item { LeaderboardListFooter(listContainerColor) }
         }
     }
 }
@@ -183,7 +235,13 @@ private fun PodiumSection(top3: List<LeaderboardEntry>, textColor: Color) {
 }
 
 @Composable
-private fun LeagueInfoBanner(topPlayer: LeaderboardEntry?, currentAnonName: String, spendableCoins: Int, textColor: Color) {
+private fun LeagueInfoBanner(
+    topPlayer: LeaderboardEntry?, 
+    currentAnonName: String, 
+    spendableCoins: Int, 
+    shieldCount: Int,
+    textColor: Color
+) {
     val daysUntilReset = remember {
         val calendar = Calendar.getInstance()
         val currentDay = calendar.get(Calendar.DAY_OF_WEEK)
@@ -217,11 +275,22 @@ private fun LeagueInfoBanner(topPlayer: LeaderboardEntry?, currentAnonName: Stri
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Surface(color = Color(0xFF10B981).copy(alpha = 0.1f), shape = RoundedCornerShape(50)) {
-            Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("💰", fontSize = 14.sp)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("$spendableCoins Coins Available", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        
+        //Row to hold both Coins and Shields side-by-side
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(color = Color(0xFF10B981).copy(alpha = 0.1f), shape = RoundedCornerShape(50)) {
+                Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("💰", fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("$spendableCoins", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
+            Surface(color = Color(0xFF06B6D4).copy(alpha = 0.1f), shape = RoundedCornerShape(50)) {
+                Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Shield, contentDescription = null, tint = Color(0xFF06B6D4), modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("x$shieldCount", color = Color(0xFF06B6D4), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
             }
         }
     }
@@ -265,7 +334,8 @@ private fun TierDivider(tier: String, containerColor: Color) {
 @Composable
 private fun LeaderboardPlayerRow(
     player: LeaderboardEntry, rank: Int, isMe: Boolean, listContainerColor: Color,
-    textColor: Color, subTextColor: Color, onCheerClicked: (String, String) -> Unit
+    textColor: Color, subTextColor: Color, spendableCoins: Int, onCheerClicked: (String, String) -> Unit,
+    onBroke: () -> Unit
 ) {
     val rowBg = if (isMe) Color(0xFF0284C7).copy(alpha = 0.15f) else Color.Transparent
     var hasCheered by remember { mutableStateOf(false) }
@@ -294,6 +364,8 @@ private fun LeaderboardPlayerRow(
                     if (!isMe) {
                         InteractiveCheerButton(
                             hasCheered = hasCheered,
+                            spendableCoins = spendableCoins,
+                            onBroke = onBroke,
                             onCheer = {
                                 hasCheered = true
                                 onCheerClicked(player.userId, player.anonymousName)
@@ -311,7 +383,12 @@ private fun LeaderboardPlayerRow(
 }
 
 @Composable
-private fun InteractiveCheerButton(hasCheered: Boolean, onCheer: () -> Unit) {
+private fun InteractiveCheerButton(
+    hasCheered: Boolean, 
+    spendableCoins: Int, 
+    onBroke: () -> Unit,
+    onCheer: () -> Unit
+) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
@@ -323,12 +400,12 @@ private fun InteractiveCheerButton(hasCheered: Boolean, onCheer: () -> Unit) {
     val lottieComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.confetti))
     var isPlayingLottie by remember { mutableStateOf(false) }
 
-    // This drives the animation forward when isPlayingLottie becomes true
+    //drives the animation forward when isPlayingLottie becomes true
     val lottieProgress by animateLottieCompositionAsState(
         composition = lottieComposition,
         isPlaying = isPlayingLottie,
         iterations = 1,
-        speed = 1.2f // Speeds up the explosion slightly for better game-feel!
+        speed = 1.2f //Speeds up the explosion slightly for better game-feel
     )
 
     // Reset the Lottie state when it finishes so it doesn't get stuck
@@ -338,37 +415,43 @@ private fun InteractiveCheerButton(hasCheered: Boolean, onCheer: () -> Unit) {
         }
     }
 
-    // Use contentAlignment = Center so the explosion happens right over the button
+    //contentAlignment = Center so the explosion happens right over the button
     Box(contentAlignment = Alignment.Center) {
 
-        // --- LAYER 1: THE BUTTON (Bottom Layer) ---
+        //  LAYER 1: THE BUTTON (Bottom Layer)
         TextButton(
             onClick = {
                 if (!hasCheered) {
-                    onCheer()
+                    if (spendableCoins >= 10) {
+                        onCheer()
 
-                    // 1. Vibrate
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        // 1. Vibrate
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
 
-                    // 2. Play Sound Effect
-                    try {
-                        val mediaPlayer = MediaPlayer.create(context, R.raw.cheer_sound)
-                        mediaPlayer.start()
-                        mediaPlayer.setOnCompletionListener { it.release() }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                        // 2. Play Sound Effect
+                        try {
+                            val mediaPlayer = MediaPlayer.create(context, R.raw.cheer_sound)
+                            mediaPlayer.start()
+                            mediaPlayer.setOnCompletionListener { it.release() }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
 
-                    // 3. Trigger Lottie Explosion
-                    isPlayingLottie = true
+                        // 3. Trigger Lottie Explosion
+                        isPlayingLottie = true
 
-                    // 4. Bounce the Button
-                    coroutineScope.launch {
-                        cheerScale.animateTo(1.4f, animationSpec = tween(100))
-                        cheerScale.animateTo(1f, animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessLow
-                        ))
+                        // 4. Bounce the Button
+                        coroutineScope.launch {
+                            cheerScale.animateTo(1.4f, animationSpec = tween(100))
+                            cheerScale.animateTo(1f, animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessLow
+                            ))
+                        }
+                    } else {
+                        // custom Compose popup instead of the Toast
+                        onBroke()
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     }
                 }
             },
@@ -376,23 +459,21 @@ private fun InteractiveCheerButton(hasCheered: Boolean, onCheer: () -> Unit) {
             modifier = Modifier.height(24.dp)
         ) {
             Text(
-                text = if (hasCheered) "❤\uFE0F Cheered!" else "\uD83D\uDC4F -10 coins",
+                text = if (hasCheered) "❤️ Cheered!" else "👏 -10 coins",
                 fontSize = 11.sp,
                 fontWeight = if (hasCheered) FontWeight.Black else FontWeight.Normal,
-                color = if (hasCheered) Color(0xFF10B981) else Color(0xFF0284C7),
+                color = if (hasCheered) Color(0xFF10B981) else if (spendableCoins < 10) Color.Gray else Color(0xFF0284C7), // Grey out if broke
                 modifier = Modifier.scale(cheerScale.value)
             )
         }
 
-        // --- LAYER 2: THE LOTTIE EXPLOSION (Top Layer) ---
+        //  LAYER 2: THE LOTTIE EXPLOSION (Top Layer)
         if (isPlayingLottie || lottieProgress in 0.01f..0.99f) {
             LottieAnimation(
                 composition = lottieComposition,
                 progress = { lottieProgress },
                 modifier = Modifier
-                    // requiredSize forces it to be big, even if the parent Box is small!
                     .requiredSize(150.dp)
-                    // zIndex forces it to draw OVER the text and avatars!
                     .zIndex(10f)
             )
         }

@@ -2,6 +2,7 @@ package com.finadapt.adaptivefinance
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -21,15 +22,14 @@ import com.finadapt.adaptivefinance.feature.dashboard.DashboardViewModelFactory
 import com.finadapt.adaptivefinance.feature.expense.ExpenseViewModel
 import com.finadapt.adaptivefinance.feature.expense.ExpenseViewModelFactory
 import com.finadapt.adaptivefinance.worker.NotificationScheduler
-
-// 🟢 NEW: Make sure to import your custom theme!
 import com.finadapt.adaptivefinance.ui.theme.AdaptiveFinanceTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
-        //  Load the user's saved times and schedule them all!
+        // Load the user's saved times and schedule them all
         val savedTimes = NotificationScheduler.getTimesFromPrefs(this)
         NotificationScheduler.scheduleDailyReminders(this, savedTimes)
 
@@ -41,7 +41,6 @@ class MainActivity : ComponentActivity() {
         val repository = FinanceRepository(database.expenseDao(), prefs)
 
         setContent {
-            //Replaced 'MaterialTheme' with your custom 'AdaptiveFinanceTheme'
             AdaptiveFinanceTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -56,13 +55,13 @@ class MainActivity : ComponentActivity() {
                     val dashboardFactory = DashboardViewModelFactory(database.expenseDao(), prefs)
                     val dashboardViewModel: DashboardViewModel = viewModel(factory = dashboardFactory)
 
-                    //Build the Community ViewModel
+                    // Build the Community ViewModel
                     val communityFactory = CommunityViewModelFactory(repository,dashboardViewModel)
                     val communityViewModel: CommunityViewModel = viewModel(factory = communityFactory)
                     val chatFactory = ChatViewModelFactory(database.expenseDao(), prefs)
                     val chatViewModel: ChatViewModel = viewModel(factory = chatFactory)
 
-                    // 5. Launch the App via NavGraph!
+                    // 5. Launch the App via NavGraph
                     NavGraph(
                         navController = navController,
                         dashboardViewModel = dashboardViewModel,

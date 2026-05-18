@@ -42,7 +42,6 @@ fun LevelUpOverlay(
             .setAudioAttributes(audioAttributes)
             .build()
 
-        // Load the sound into memory (Make sure you have level_up.mp3 in res/raw!)
         // Load the sound into memory
         soundPool.load(context, R.raw.level_up, 1)
 

@@ -260,13 +260,13 @@ fun TypewriterText(
 ) {
     var textToDisplay by remember { mutableStateOf("") }
 
-    // 🟢 CRITICAL: rememberSaveable ensures that once a message finishes typing,
+    //rememberSavable ensures that once a message finishes typing,
     // it stays fully typed even if the user scrolls it off the screen and back.
     var animationFinished by androidx.compose.runtime.saveable.rememberSaveable(text) { mutableStateOf(false) }
 
     LaunchedEffect(text) {
         if (!animationFinished) {
-            // Speed: 15 milliseconds per character is a very natural reading speed!
+            //Speed: 15 milliseconds per character is a very natural reading speed
             for (i in text.indices) {
                 textToDisplay = text.substring(0, i + 1)
                 kotlinx.coroutines.delay(15)
@@ -286,7 +286,7 @@ fun TypewriterText(
     )
 }
 
-// 🟢 Custom UI Component for the Chat Bubbles
+//Custom UI Component for the Chat Bubbles
 @Composable
 fun ChatBubble(message: ChatMessage, isDark: Boolean) {
     val isUser = message.isFromUser
@@ -303,9 +303,9 @@ fun ChatBubble(message: ChatMessage, isDark: Boolean) {
 
     // Colors
     val bubbleColor = if (isUser) {
-        Color(0xFF0284C7) // Adaptive Finance Blue
+        Color(0xFF0284C7) //Adaptive Finance Blue
     } else {
-        if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0) // Gray for AI
+        if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
     }
 
     val textColor = if (isUser) Color.White else (if (isDark) Color.White else Color.Black)
@@ -330,7 +330,7 @@ fun ChatBubble(message: ChatMessage, isDark: Boolean) {
                     lineHeight = 22.sp
                 )
             } else {
-                // AI messages get the cool Typewriter Effect!
+                // AI messages get the cool Typewriter Effect
                 TypewriterText(
                     text = message.text,
                     color = textColor,

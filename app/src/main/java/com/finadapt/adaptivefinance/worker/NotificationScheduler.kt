@@ -46,7 +46,7 @@ object NotificationScheduler {
         }
     }
 
-    // Helper to save the string to SharedPreferences (e.g. "09:00,20:30")
+    // Helper to save the string to SharedPreferences ("09:00,20:30")
     fun saveTimesToPrefs(context: Context, times: List<Pair<Int, Int>>) {
         val prefs = context.getSharedPreferences("AdaptiveFinancePrefs", Context.MODE_PRIVATE)
         val timeString = times.joinToString(",") { "${it.first}:${it.second}" }

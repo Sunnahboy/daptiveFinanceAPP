@@ -176,7 +176,10 @@ fun NavGraph(
                             val isDarkDashboard by dashboardViewModel.isDarkMode.collectAsState()
                             val mascotState by dashboardViewModel.mascotState.collectAsState()
 
+                            // 🟢 DELETED the dynamic variables from here (they belong inside DashboardScreen.kt!)
+
                             DashboardScreen(
+                                dashboardViewModel = dashboardViewModel, // 🟢 FIXED: Passed the ViewModel!
                                 userName = userName,
                                 totalSpend = totalSpend,
                                 todaySpend = todaySpend,
@@ -192,7 +195,6 @@ fun NavGraph(
                                 onDismissLevelUp = { dashboardViewModel.dismissLevelUpCelebration() },
                                 onGameFeedback = { id, s, a -> dashboardViewModel.submitFeedback(id, s, a)},
 
-                                // These handle all the Mascot math now:
                                 levelName = mascotState.levelName,
                                 tierColorHex = mascotState.tierColorHex,
                                 fillPercentage = mascotState.fillPercentage,
@@ -224,14 +226,15 @@ fun NavGraph(
 
                         Screen.Community.route -> {
 
-                            //The ViewModel's init block handles the real-time stream automatically
-
+                            //ViewModel's init block handles the real time stream automatically
                             val leaderboardData by communityViewModel.leaderboardData.collectAsState()
                             val isLoading by communityViewModel.isLoading.collectAsState()
                             val isDarkComm by dashboardViewModel.isDarkMode.collectAsState()
                             val hallOfFameData by communityViewModel.hallOfFameData.collectAsState()
-                            val spendableCoins by communityViewModel.spendableCoins.collectAsState()
 
+                            //Collect these from the dashboardViewModel so they match the Rewards Screen exactly
+                            val spendableCoins by dashboardViewModel.userCoins.collectAsState()
+                            val shieldCount by dashboardViewModel.shieldCount.collectAsState()
 
                             CommunityScreen(
                                 leaderboardData = leaderboardData,
@@ -240,7 +243,9 @@ fun NavGraph(
                                 isDarkMode = isDarkComm,
                                 hallOfFameData = hallOfFameData,
                                 spendableCoins = spendableCoins,
-                                        // onCheerClicked action to hook the UI button to the ViewModel!
+                                shieldCount = shieldCount, //Pass the shields into the screen
+
+                                // hook the UI button to the ViewModel
                                 onCheerClicked = { targetUserId, targetAnonName ->
                                     communityViewModel.sendCheerToUser(targetUserId, targetAnonName)
                                 }
@@ -252,16 +257,23 @@ fun NavGraph(
                             val shieldCount by dashboardViewModel.shieldCount.collectAsState()
                             val userCoins by dashboardViewModel.userCoins.collectAsState()
                             val isDarkRewards by dashboardViewModel.isDarkMode.collectAsState()
+                            //Collect the ascension level from your ViewModel
+                            val ascensionLevel by dashboardViewModel.ascensionLevel.collectAsState()
                             RewardsScreen(
-                                userXp = userXp, shieldCount = shieldCount, userCoins = userCoins,
-                                isDarkMode = isDarkRewards, onBuyShield = { dashboardViewModel.onBuyStreakShield() }
+                                userXp = userXp,
+                                shieldCount = shieldCount,
+                                userCoins = userCoins,
+                                ascensionLevel = ascensionLevel,
+                                isDarkMode = isDarkRewards,
+                                onBuyShield = { dashboardViewModel.onBuyStreakShield() },
+                                onAscend = { dashboardViewModel.onAscend() }
                             )
                         }
 
                         Screen.Chat.route -> {
                             ChatScreen(
                                 viewModel = chatViewModel,
-                                onNavigateBack = { scope.launch { pagerState.animateScrollToPage(0) } } // Back to Home
+                                onNavigateBack = { scope.launch { pagerState.animateScrollToPage(0) } }
                             )
                         }
 

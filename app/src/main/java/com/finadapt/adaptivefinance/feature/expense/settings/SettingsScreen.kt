@@ -69,8 +69,21 @@ fun SettingsScreen(
     var budgetActionState by remember { mutableStateOf("IDLE") }
 
     // EXPORT STATES
-    var selectedTimeframe by remember { mutableStateOf(ReportGenerator.Timeframe.MONTHLY) }
     var isGenerating by remember { mutableStateOf(false) }
+    var reportType by remember { mutableStateOf(ReportGenerator.Timeframe.MONTHLY) } //Using Enum again
+
+    val currentCal = Calendar.getInstance()
+    var selectedMonth by remember { mutableIntStateOf(currentCal.get(Calendar.MONTH)) }
+    var selectedYear by remember { mutableIntStateOf(currentCal.get(Calendar.YEAR)) }
+    var selectedWeek by remember { mutableIntStateOf(currentCal.get(Calendar.WEEK_OF_MONTH)) }
+    var selectedDay by remember { mutableIntStateOf(currentCal.get(Calendar.DAY_OF_MONTH)) } // Day Tracker
+
+    var monthExpanded by remember { mutableStateOf(false) }
+    var weekExpanded by remember { mutableStateOf(false) }
+    var dayExpanded by remember { mutableStateOf(false) }
+
+    val monthsList = listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+    val weeksList = listOf("Week 1", "Week 2", "Week 3", "Week 4", "Week 5")
 
     // DIALOG STATES
     var showValidationErrorDialog by remember { mutableStateOf(false) }
@@ -179,7 +192,16 @@ fun SettingsScreen(
                         },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = textColor,
+                            unfocusedTextColor = textColor,
+                            cursorColor = primaryColor,
+                            focusedBorderColor = primaryColor,
+                            unfocusedBorderColor = subTextColor.copy(alpha = 0.5f),
+                            focusedLabelColor = primaryColor,
+                            unfocusedLabelColor = subTextColor
+                        )
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
@@ -214,7 +236,7 @@ fun SettingsScreen(
                     OutlinedTextField(
                         value = budgetInput,
                         onValueChange = { newValue ->
-                            // SANITIZATION: Fix European commas and filter out bad chars instantly
+                            //Fix European commas and filter out bad chars instantly
                             val sanitized = newValue.replace(',', '.')
                             if (sanitized.isEmpty()) {
                                 budgetInput = sanitized
@@ -235,7 +257,17 @@ fun SettingsScreen(
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        // Add this inside BOTH OutlinedTextFields (Name and Budget):
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = textColor,
+                            unfocusedTextColor = textColor,
+                            cursorColor = primaryColor,
+                            focusedBorderColor = primaryColor,
+                            unfocusedBorderColor = subTextColor.copy(alpha = 0.5f),
+                            focusedLabelColor = primaryColor,
+                            unfocusedLabelColor = subTextColor
+                        )
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Button(
@@ -342,7 +374,7 @@ fun SettingsScreen(
                                     newTimes.removeAt(index)
                                     reminderTimes = newTimes
 
-                                    // Save & Reschedule!
+                                    // Save and  Reschedule
                                     NotificationScheduler.saveTimesToPrefs(context, newTimes)
                                     NotificationScheduler.scheduleDailyReminders(context, newTimes)
                                 }) {
@@ -376,57 +408,163 @@ fun SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
+                    // TYPE TOGGLE (Now has 3 options)
                     Text("Select Timeframe:", color = subTextColor, fontSize = 14.sp)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ReportGenerator.Timeframe.entries.forEach { timeframe ->
                             FilterChip(
-                                selected = selectedTimeframe == timeframe,
-                                onClick = { selectedTimeframe = timeframe },
+                                selected = reportType == timeframe,
+                                onClick = { reportType = timeframe },
                                 label = { Text(timeframe.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = primaryColor,
-                                    selectedLabelColor = Color.White
-                                )
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryColor, selectedLabelColor = Color.White)
                             )
                         }
                     }
 
-                    // EXCEL EXPORT
+                    // MONTH DROPDOWN (Always visible)
+                    ExposedDropdownMenuBox(expanded = monthExpanded, onExpandedChange = { monthExpanded = !monthExpanded }) {
+                        OutlinedTextField(
+                            value = "${monthsList[selectedMonth]} $selectedYear",
+                            onValueChange = {}, readOnly = true, label = { Text("Select Month") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = monthExpanded) },
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = textColor, unfocusedTextColor = textColor,
+                                focusedBorderColor = primaryColor, unfocusedBorderColor = subTextColor.copy(alpha = 0.5f)
+                            )
+                        )
+                        ExposedDropdownMenu(expanded = monthExpanded, onDismissRequest = { monthExpanded = false }, containerColor = cardColor) {
+                            monthsList.forEachIndexed { index, monthName ->
+                                DropdownMenuItem(
+                                    text = { Text("$monthName $selectedYear", color = textColor) },
+                                    onClick = { selectedMonth = index; monthExpanded = false }
+                                )
+                            }
+                        }
+                    }
+
+                    // WEEK DROPDOWN (Only visible if Weekly is selected)
+                    if (reportType == ReportGenerator.Timeframe.WEEKLY) {
+                        ExposedDropdownMenuBox(expanded = weekExpanded, onExpandedChange = { weekExpanded = !weekExpanded }) {
+                            OutlinedTextField(
+                                value = "Week $selectedWeek",
+                                onValueChange = {}, readOnly = true, label = { Text("Select Week") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = weekExpanded) },
+                                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = textColor, unfocusedTextColor = textColor,
+                                    focusedBorderColor = primaryColor, unfocusedBorderColor = subTextColor.copy(alpha = 0.5f)
+                                )
+                            )
+                            ExposedDropdownMenu(expanded = weekExpanded, onDismissRequest = { weekExpanded = false }, containerColor = cardColor) {
+                                weeksList.forEachIndexed { index, weekName ->
+                                    DropdownMenuItem(
+                                        text = { Text(weekName, color = textColor) },
+                                        onClick = { selectedWeek = index + 1; weekExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    //DAY DROPDOWN (Only visible if Daily is selected)
+                    if (reportType == ReportGenerator.Timeframe.DAILY) {
+                        ExposedDropdownMenuBox(expanded = dayExpanded, onExpandedChange = { dayExpanded = !dayExpanded }) {
+                            OutlinedTextField(
+                                value = "Day $selectedDay",
+                                onValueChange = {}, readOnly = true, label = { Text("Select Day") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dayExpanded) },
+                                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = textColor, unfocusedTextColor = textColor,
+                                    focusedBorderColor = primaryColor, unfocusedBorderColor = subTextColor.copy(alpha = 0.5f)
+                                )
+                            )
+                            ExposedDropdownMenu(expanded = dayExpanded, onDismissRequest = { dayExpanded = false }, containerColor = cardColor) {
+                                (1..31).forEach { day ->
+                                    DropdownMenuItem(
+                                        text = { Text("Day $day", color = textColor) },
+                                        onClick = { selectedDay = day; dayExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    //EXCEL EXPORT
                     Button(
                         onClick = {
                             isGenerating = true
                             coroutineScope.launch {
-                                val filteredData = filterExpenses(allExpenses, selectedTimeframe)
-                                val file = withContext(Dispatchers.IO) {
-                                    ReportGenerator.generateExcelReport(context, filteredData, selectedTimeframe)
+                                // 1. Map choices to the calendar
+                                val targetCal = Calendar.getInstance().apply {
+                                    set(Calendar.YEAR, selectedYear)
+                                    set(Calendar.MONTH, selectedMonth)
+                                    if (reportType == ReportGenerator.Timeframe.WEEKLY) set(Calendar.WEEK_OF_MONTH, selectedWeek)
+                                    if (reportType == ReportGenerator.Timeframe.DAILY) set(Calendar.DAY_OF_MONTH, selectedDay)
                                 }
+
+                                // 2. Filter data
+                                val filteredData = filterExpensesByCustomDate(allExpenses, reportType, selectedMonth, selectedYear, selectedWeek, selectedDay)
+
+                                // 3. 🟢 THE SAFETY CHECK: Stop if no data!
+                                if (filteredData.isEmpty()) {
+                                    isGenerating = false
+                                    android.widget.Toast.makeText(context, "No expenses logged for this period!", android.widget.Toast.LENGTH_SHORT).show()
+                                    return@launch // Abort generation
+                                }
+
+                                // 4. Generate report
+                                val periodLabel = getFormattedPeriodLabel(reportType, targetCal.timeInMillis)
+                                val file = withContext(Dispatchers.IO) {
+                                    ReportGenerator.generateExcelReport(context, filteredData, periodLabel)
+                                }
+
                                 isGenerating = false
                                 if (file != null) ReportGenerator.shareFile(context, file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = successColor) // Excel Green
+                        modifier = Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = successColor)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.List, contentDescription = null)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("Export as Excel (.xlsx)")
                     }
 
-                    // PDF EXPORT
+                    //PDF EXPORT
                     Button(
                         onClick = {
                             isGenerating = true
                             coroutineScope.launch {
-                                val filteredData = filterExpenses(allExpenses, selectedTimeframe)
-                                val file = withContext(Dispatchers.IO) {
-                                    ReportGenerator.generatePdfReport(context, filteredData, selectedTimeframe)
+                                // 1. Map choices to the calendar
+                                val targetCal = Calendar.getInstance().apply {
+                                    set(Calendar.YEAR, selectedYear)
+                                    set(Calendar.MONTH, selectedMonth)
+                                    if (reportType == ReportGenerator.Timeframe.WEEKLY) set(Calendar.WEEK_OF_MONTH, selectedWeek)
+                                    if (reportType == ReportGenerator.Timeframe.DAILY) set(Calendar.DAY_OF_MONTH, selectedDay)
                                 }
+
+                                // 2. Filter data
+                                val filteredData = filterExpensesByCustomDate(allExpenses, reportType, selectedMonth, selectedYear, selectedWeek, selectedDay)
+
+                                // 3. THE SAFETY CHECK: Stop if no data
+                                if (filteredData.isEmpty()) {
+                                    isGenerating = false
+                                    android.widget.Toast.makeText(context, "No expenses logged for this period!", android.widget.Toast.LENGTH_SHORT).show()
+                                    return@launch // Abort generation
+                                }
+
+                                // 4. Generate report
+                                val periodLabel = getFormattedPeriodLabel(reportType, targetCal.timeInMillis)
+                                val file = withContext(Dispatchers.IO) {
+                                    ReportGenerator.generatePdfReport(context, filteredData, periodLabel)
+                                }
+
                                 isGenerating = false
                                 if (file != null) ReportGenerator.shareFile(context, file, "application/pdf")
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = errorColor) // PDF Red
+                        modifier = Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = errorColor)
                     ) {
                         Icon(Icons.Default.Assessment, contentDescription = null)
                         Spacer(modifier = Modifier.width(12.dp))
@@ -674,7 +812,7 @@ fun SettingsScreen(
 }
 
 // ─────────────────────────────────────────
-// HELPER COMPOSABLES & FUNCTIONS
+// HELPER COMPOSABLE & FUNCTIONS
 // ─────────────────────────────────────────
 
 @Composable
@@ -728,12 +866,42 @@ fun SettingsRowAction(
     }
 }
 
-//Helper function to slice the data by timeframe for the Export
-fun filterExpenses(allExpenses: List<ExpenseEntity>, timeframe: ReportGenerator.Timeframe): List<ExpenseEntity> {
-    val cutoff = System.currentTimeMillis() - when (timeframe) {
-        ReportGenerator.Timeframe.DAILY -> 24L * 60 * 60 * 1000
-        ReportGenerator.Timeframe.WEEKLY -> 7L * 24 * 60 * 60 * 1000
-        ReportGenerator.Timeframe.MONTHLY -> 30L * 24 * 60 * 60 * 1000
+// Formatting the custom string for the ReportGenerator
+fun getFormattedPeriodLabel(type: ReportGenerator.Timeframe, timestamp: Long): String {
+    val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
+    val monthYearFormat = java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault())
+
+    return when (type) {
+        ReportGenerator.Timeframe.DAILY -> {
+            java.text.SimpleDateFormat("MMM dd, yyyy", java.util.Locale.getDefault()).format(calendar.time)
+        }
+        ReportGenerator.Timeframe.WEEKLY -> {
+            val weekOfMonth = calendar.get(Calendar.WEEK_OF_MONTH)
+            "Week $weekOfMonth of ${monthYearFormat.format(calendar.time)}"
+        }
+        ReportGenerator.Timeframe.MONTHLY -> {
+            monthYearFormat.format(calendar.time)
+        }
     }
-    return allExpenses.filter { it.timestamp >= cutoff }
+}
+
+// slicing the database based on UI Dropdown choices
+fun filterExpensesByCustomDate(
+    allExpenses: List<ExpenseEntity>,
+    type: ReportGenerator.Timeframe,
+    targetMonth: Int,
+    targetYear: Int,
+    targetWeek: Int,
+    targetDay: Int
+): List<ExpenseEntity> {
+    return allExpenses.filter { expense ->
+        val expCal = Calendar.getInstance().apply { timeInMillis = expense.timestamp }
+        val matchesMonth = expCal.get(Calendar.MONTH) == targetMonth && expCal.get(Calendar.YEAR) == targetYear
+
+        when (type) {
+            ReportGenerator.Timeframe.DAILY -> matchesMonth && expCal.get(Calendar.DAY_OF_MONTH) == targetDay
+            ReportGenerator.Timeframe.WEEKLY -> matchesMonth && expCal.get(Calendar.WEEK_OF_MONTH) == targetWeek
+            ReportGenerator.Timeframe.MONTHLY -> matchesMonth
+        }
+    }
 }

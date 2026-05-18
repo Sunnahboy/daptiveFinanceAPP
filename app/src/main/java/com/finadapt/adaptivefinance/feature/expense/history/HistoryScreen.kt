@@ -108,7 +108,7 @@ enum class TimeFilter { DAILY, WEEKLY, MONTHLY }
 fun HistoryScreen(
     allExpenses: List<ExpenseEntity>,
     isDarkMode: Boolean = false,
-    //Hooks to tell the ViewModel to Edit or Delete!
+    //tells the ViewModel to Edit or Delete
     onDeleteExpense: (ExpenseEntity) -> Unit,
     onEditExpense: (ExpenseEntity) -> Unit,
 ) {
@@ -265,7 +265,7 @@ fun HistoryScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // --- LIST SECTION ---
+                //  LIST SECTION
                 if (filteredExpenses.isEmpty()) {
                     item { Text(if (searchQuery.isBlank()) "No expenses logged in this timeframe." else "No results found.", color = subTextColor, modifier = Modifier.padding(16.dp)) }
                 } else {
@@ -351,7 +351,7 @@ fun HistoryScreen(
     }
 
 
-        // --- THE EDIT DIALOG ---
+        //  THE EDIT DIALOG
         if (expenseToEdit != null) {
             var editAmount by remember { mutableStateOf(expenseToEdit!!.amount.toString()) }
             var editCategory by remember { mutableStateOf(expenseToEdit!!.category) }
@@ -406,7 +406,7 @@ fun HistoryScreen(
             )
         }
 
-        //Keep the digital receipt Bottom Sheet perfectly identical
+        // Bottom Sheet for the digital receipt
         if (selectedExpenseForDetails != null) {
             val expense = selectedExpenseForDetails!!
             ModalBottomSheet(onDismissRequest = { selectedExpenseForDetails = null }, sheetState = sheetState, containerColor = cardBg) {

@@ -30,7 +30,7 @@ fun VictoryScreen(
                 .background(Color(0xFF10B981).copy(alpha = 0.2f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            Text("✨", fontSize = 40.sp)
+            Text("\uD83E\uDD70", fontSize = 40.sp)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -44,7 +44,7 @@ fun VictoryScreen(
             shape = RoundedCornerShape(12.dp)
         ) {
             Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("💎", fontSize = 20.sp)
+                Text("\uD83D\uDC8E", fontSize = 20.sp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("+$xpEarned XP", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0F172A))
             }

@@ -27,8 +27,35 @@ class FinanceRepository(
 
     private val apiService = ApiClient.fastApiService
 
-    // "fire-and-forget" background tasks
+    //"fire-and-forget" background tasks
     private val repositoryScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+
+    //Instant Streak Calculator
+    fun processInstantStreak() {
+        val todayMidnight = getMidnightTimestamp()
+        val lastLoggedMidnight = prefs.getLong("LAST_LOGGED_MIDNIGHT", 0L)
+        var currentStreak = prefs.getInt("CURRENT_STREAK", 0)
+        val daysDifference = (todayMidnight - lastLoggedMidnight) / (1000 * 60 * 60 * 24)
+
+        when {
+            daysDifference == 0L -> {
+                /* Already logged today, do nothing */
+            }
+            daysDifference == 1L -> {
+                currentStreak += 1 // Logged consecutively
+            }
+            daysDifference > 1L -> {
+                val missedDays = (daysDifference - 1).toInt()
+                currentStreak = maxOf(0, currentStreak - missedDays)
+                currentStreak += 1
+            }
+        }
+        
+        prefs.edit {
+            putLong("LAST_LOGGED_MIDNIGHT", todayMidnight)
+            putInt("CURRENT_STREAK", currentStreak)
+        }
+    }
 
     suspend fun logExpenseAndGetStrategy(
         userId: String,
@@ -37,34 +64,19 @@ class FinanceRepository(
     ): Result<AiResponse> {
         return withContext(Dispatchers.IO) {
             try {
-                // 1. STREAK MANAGEMENT
-                val todayMidnight = getMidnightTimestamp()
-                val lastLoggedMidnight = prefs.getLong("LAST_LOGGED_MIDNIGHT", 0L)
-                var currentStreak = prefs.getInt("CURRENT_STREAK", 0)
-                val daysDifference = (todayMidnight - lastLoggedMidnight) / (1000 * 60 * 60 * 24)
+                // Award 3 XP for logging an expense
+                val currentXp = prefs.getInt("USER_XP", 0)
+                val newXp = currentXp + 3
+                prefs.edit { putInt("USER_XP", newXp) }
 
-                when {
-                    daysDifference == 0L -> {
-                        /* Already logged today, do nothing */
-                    }
-                    daysDifference == 1L -> {
-                        currentStreak += 1 // Logged consecutively
-                    }
-                    daysDifference > 1L -> {
-                        // Subtract the days missed (daysDifference - 1)
-                        val missedDays = (daysDifference - 1).toInt()
-
-                        // Deduct from streak, but never drop below 0
-                        currentStreak = maxOf(0, currentStreak - missedDays)
-
-                        // Add 1 because they successfully logged today
-                        currentStreak += 1
-                    }
+                val currentTier = when {
+                    newXp < 500  -> "Bronze Novice"
+                    newXp < 2000 -> "Silver Guardian"
+                    newXp < 5000 -> "Gold Master"
+                    else         -> "Platinum Legend"
                 }
-                prefs.edit {
-                    putLong("LAST_LOGGED_MIDNIGHT", todayMidnight)
-                    putInt("CURRENT_STREAK", currentStreak)
-                }
+
+                syncLeaderboard(xp = newXp, tier = currentTier)
 
 
                 // 2. FETCH RAW DATA FROM DAO (Strict 30-Day Rolling Window)
@@ -205,35 +217,33 @@ class FinanceRepository(
                 val finalReward: Float
 
                 if (userAccepted) {
-                    //THEY ACCEPTED
+                    //THEY ACCEPTED: Update the AI Multi-Armed Bandit model parameters
                     finalReward = 2.0f
                     prefs.edit { putInt(strikeKey, 0) }
 
-                    val currentXp = prefs.getInt("USER_XP", 0)
-                    prefs.edit { putInt("USER_XP", currentXp + 50) }
-
                 } else {
-                    //THEY DECLINED
+                    // THEY DECLINED
                     var currentStrikes = prefs.getInt(strikeKey, 0)
                     currentStrikes += 1
 
                     if (currentStrikes >= 3) {
-                        //3 STRIKES: Massive punishment to force the Bandit to switch arms
+                        // 3 STRIKES: Massive punishment to force the Bandit to switch arms
                         finalReward = -5.0f
                         prefs.edit { putInt(strikeKey, 0) }
                     } else {
-                        //SOFT IGNORE: A slight negative nudge so it starts losing confidence
+                        // SOFT IGNORE: A slight negative nudge so it starts losing confidence
                         finalReward = -0.5f
                         prefs.edit { putInt(strikeKey, currentStrikes) }
                     }
                 }
 
+                // Send the feedback reward signal to train the FastAPI Contextual Bandit
                 val feedback = FeedbackRequest(predictionId, finalReward)
                 apiService.sendFeedback(ApiClient.API_TOKEN, feedback)
                 expenseDao.markFeedbackAsSent(predictionId)
 
             } catch (e: Exception) {
-                println(" Feedback Sync Paused. Reason: ${e.localizedMessage}")
+                println("Feedback Sync Paused. Reason: ${e.localizedMessage}")
             }
         }
     }
@@ -262,7 +272,7 @@ class FinanceRepository(
         val daysDifference = (todayMidnight - lastLoggedMidnight) / (1000 * 60 * 60 * 24)
 
         return if (daysDifference <= 1L) {
-            // They logged today (0) or yesterday (1). The streak is fully intact!
+            // They logged today (0) or yesterday (1).The streak is fully intact
             currentStreak
         } else {
             // It has been 2 or more days. Deduct 1 point for every missed day.
@@ -314,14 +324,12 @@ class FinanceRepository(
                 xp = xp,
                 tier = tier
             )
-            ApiClient.fastApiService.syncLeaderboardXp(request)
+            ApiClient.fastApiService.syncLeaderboardXp(ApiClient.API_TOKEN,request)
 
         }catch (e: Exception){
             Log.e("TAG", "Failed to process data", e)
         }
     }
-
-    // 🟢 PASTE THE NEW FEATURES RIGHT HERE!
 
     // 1. The "Live" Stream (Polls every 5 seconds for the Community UI)
     fun getLiveLeaderboardStream(): kotlinx.coroutines.flow.Flow<List<LeaderboardEntry>> = kotlinx.coroutines.flow.flow {
@@ -334,7 +342,7 @@ class FinanceRepository(
             } catch (e: Exception) {
                 Log.e("LeaderboardStream", "Fetch failed in stream", e)
             }
-            kotlinx.coroutines.delay(5000) // Wait 5 seconds, then fetch again!
+            kotlinx.coroutines.delay(5000) //Wait 5 seconds, then fetch again
         }
     }
 
@@ -363,12 +371,12 @@ class FinanceRepository(
         }
     }
 
-    // 2. The Coin Deductor (For when they click the "Send Cheer" button)
+    //Directly deducts from the live wallet balance
     fun deductCoins(amount: Int): Boolean {
-        // Since spendable coins = (USER_XP - SPENT_COINS),
-        // to deduct coins, we just add to the SPENT_COINS tally!
-        val currentSpent = prefs.getInt("SPENT_COINS", 0)
-        prefs.edit { putInt("SPENT_COINS", currentSpent + amount) }
+        val currentCoins = getSpendableCoins()
+        if (currentCoins < amount) return false
+
+        prefs.edit { putInt("USER_COINS", currentCoins - amount) }
         return true
     }
 
@@ -385,9 +393,8 @@ class FinanceRepository(
         }
     }
 
+    //Reads directly from the independent wallet balance
     fun getSpendableCoins(): Int {
-        val totalXp = prefs.getInt("USER_XP", 0)
-        val spentCoins = prefs.getInt("SPENT_COINS", 0)
-        return (totalXp - spentCoins).coerceAtLeast(0)
+        return prefs.getInt("USER_COINS", 0).coerceAtLeast(0)
     }
 }

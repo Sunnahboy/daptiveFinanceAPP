@@ -7,6 +7,20 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 
+
+
+/**
+ * =====================================
+ * REMOTE API CONTRACT (NETWORK LAYER)
+ * ==========================================
+ * This file acts as the bridge between the Android app and the remote cloud server (FastAPI).
+ * * 1. DATA MODELS: It defines the JSON structures (Requests and Responses) so Retrofit knows
+ * how to pack and unpack data when talking to the server.
+ * 2. FAST API INTERFACE: It maps standard Kotlin functions to actual HTTP endpoints
+ * (GET, POST) to handle AI predictions, Leaderboard syncing, and Chat features.
+ */
+
+
 //Data sent to the server instance
 data class ContextRequest(
     @SerializedName("user_id")
@@ -134,7 +148,9 @@ interface FastApiInterface {
     )
 
     @POST("gamification/v1/leaderboard/update")
-    suspend fun syncLeaderboardXp(@Body request: LeaderboardUpdateRequest): Response<Unit>
+    suspend fun syncLeaderboardXp(
+        @Header("X-API-Token") token: String,
+        @Body request: LeaderboardUpdateRequest): Response<Unit>
 
     @GET("gamification/v1/leaderboard/top")
     suspend fun getLeaderboardTop(

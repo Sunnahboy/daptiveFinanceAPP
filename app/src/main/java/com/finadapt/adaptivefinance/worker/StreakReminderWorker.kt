@@ -24,16 +24,34 @@ class StreakReminderWorker (
         val todayMidnight = getMidnightTimestamp()
         val hasLoggedToday = (todayMidnight == lastLoggedMidnight)
 
-        // Trigger notification if they haven't logged today, regardless of streak!
+        //Check what day of the week it is for League Events
+        val currentDayOfWeek = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
+
+        // --- 1. LEAGUE NOTIFICATIONS (Runs independently of the streak) ---
+        if (currentDayOfWeek == Calendar.SUNDAY) {
+            // Sunday Evening: Urgency to secure their rank
+            showNotification(
+                title = "League Ends Tonight! 🏆",
+                message = "The weekly leaderboard resets at midnight. Log any final expenses to secure your tier!",
+                notificationId = 1002 // Separate ID so it doesn't overwrite the streak notification
+            )
+        } else if (currentDayOfWeek == Calendar.MONDAY && !hasLoggedToday) {
+            // Monday: Fresh start motivation (Only if they haven't already logged today)
+            showNotification(
+                title = "New League Week! 🌍",
+                message = "The global leaderboard just reset. Log your first expense of the week to jump ahead!",
+                notificationId = 1002
+            )
+        }
+
+        // --- 2. STREAK NOTIFICATIONS
         if (!hasLoggedToday) {
             val title: String
             val message: String
 
             if (currentStreak > 0) {
-                // They have a streak to protect
                 if (shieldCount > 0) {
-                    // SHIELD IMMINENT - Randomize warning
-                    val titles = listOf("Shield Activation Imminent! 🛡️", "Auto-Protect Engaging! 🛡️", "Shield Standby! 🛡️")
+                    val titles = listOf("Shield Activation Imminent! \uD83D\uDEE1\uFE0F", "Auto-Protect Engaging! \uD83D\uDEE1\uFE0F", "Shield Standby! \uD83D\uDEE1\uFE0F")
                     val messages = listOf(
                         "Your $currentStreak-day streak is cooling off. A Shield will be consumed at midnight to protect it!",
                         "Don't waste your shield! Log an expense to protect your $currentStreak-day streak natively.",
@@ -42,8 +60,7 @@ class StreakReminderWorker (
                     title = titles.random()
                     message = messages.random()
                 } else {
-                    // STREAK IN DANGER - Randomize warning
-                    val titles = listOf("Streak in Danger! 🔥", "Don't break the chain! 🔗", "Midnight is approaching! ⏰")
+                    val titles = listOf("Streak in Danger! \uD83D\uDD25", "Don't break the chain! \uD83D\uDD17", "Midnight is approaching! \u23F0")
                     val messages = listOf(
                         "Don't lose your $currentStreak-day streak! Log an expense before midnight.",
                         "Your $currentStreak-day streak is hanging by a thread. Take 10 seconds to log your daily spend!",
@@ -53,8 +70,7 @@ class StreakReminderWorker (
                     message = messages.random()
                 }
             } else {
-                // ZERO STREAK (MOTIVATION) - Randomize encouragement
-                val titles = listOf("Time to check in! 📝", "Blank slate! 🚀", "Ready to track? 📊")
+                val titles = listOf("Time to check in! \uD83D\uDCDD", "Blank slate! \uD83D\uDE80", "Ready to track? \uD83D\uDCCA")
                 val messages = listOf(
                     "You haven't logged any expenses today. Start your saving streak now!",
                     "Every master was once a beginner. Start your Day 1 streak today!",
@@ -64,16 +80,17 @@ class StreakReminderWorker (
                 message = messages.random()
             }
 
-            showNotification(title, message)
+            // Call with the default streak ID
+            showNotification(title, message, 1001)
         }
         return Result.success()
     }
 
 
-    private fun showNotification(title: String, message: String) {
+    private fun showNotification(title: String, message: String, notificationId: Int = 1001) {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = "streak_reminder"
+        val channelId = "gamification_alerts" // Renamed to be more generic
 
         //Android 8.0+ requires a Notification channel
         val channel = NotificationChannel(
@@ -81,9 +98,10 @@ class StreakReminderWorker (
             "Gamification Alerts",
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Reminders to keep your financial streak alive"
+            description = "Reminders to keep your financial streak alive and league updates"
         }
         notificationManager.createNotificationChannel(channel)
+
         // Make the notification clickable
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -92,14 +110,16 @@ class StreakReminderWorker (
             context, 0, intent, PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert) // will add app icon later
+            .setSmallIcon(android.R.drawable.ic_dialog_alert) //will add app icon later
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()
-        notificationManager.notify(1001, notification)
+
+        //specific ID here so notifications don't overwrite each other
+        notificationManager.notify(notificationId, notification)
     }
 
 
