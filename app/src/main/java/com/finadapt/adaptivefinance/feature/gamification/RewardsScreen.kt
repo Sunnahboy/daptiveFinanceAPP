@@ -1,5 +1,6 @@
 package com.finadapt.adaptivefinance.feature.gamification
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -70,17 +71,18 @@ fun RewardsScreen(
         else -> Color(0xFF8B5CF6) // Mythic Purple (Ascension 3+)
     }
 
+    //Lenient progression curve (perfect for FYP demonstration)
     val mapStops = listOf(
         MapStop(0, "Base Camp", isBuilding = true, swingOffset = 0f, uniqueLottieRes = R.raw.camp_node),
-        MapStop(100, "Slime Ambush", isBuilding = false, swingOffset = -0.35f, uniqueLottieRes = R.raw.fight_slime),
-        MapStop(250, "The First Gate", isBuilding = true, swingOffset = 0.3f, uniqueLottieRes = R.raw.boss_gate_node),
-        MapStop(500, "Crystal Cavern", isBuilding = false, swingOffset = -0.2f, uniqueLottieRes = R.raw.crystal_glow),
-        MapStop(1000, "Skybridge", isBuilding = true, swingOffset = 0.4f, uniqueLottieRes = R.raw.boss_gate_node),
-        MapStop(1500, "Frozen Falls", isBuilding = false, swingOffset = -0.42f, uniqueLottieRes = R.raw.camp_node),
-        MapStop(2000, "Dragon's Peak", isBuilding = true, swingOffset = 0.25f, uniqueLottieRes = R.raw.boss_gate_node),
-        MapStop(2500, "Cloud Temple", isBuilding = false, swingOffset = -0.3f, uniqueLottieRes = R.raw.crystal_glow),
-        MapStop(3500, "Astral Observatory", isBuilding = true, swingOffset = 0.35f, uniqueLottieRes = R.raw.boss_gate_node),
-        MapStop(5000, "Summit of Prosperity", isBuilding = true, swingOffset = 0f, uniqueLottieRes = R.raw.boss_gate_node)
+        MapStop(15, "Slime Ambush", isBuilding = false, swingOffset = -0.35f, uniqueLottieRes = R.raw.fight_slime),
+        MapStop(30, "The First Gate", isBuilding = true, swingOffset = 0.3f, uniqueLottieRes = R.raw.boss_gate_node),
+        MapStop(60, "Crystal Cavern", isBuilding = false, swingOffset = -0.2f, uniqueLottieRes = R.raw.crystal_glow),
+        MapStop(100, "Skybridge", isBuilding = true, swingOffset = 0.4f, uniqueLottieRes = R.raw.boss_gate_node),
+        MapStop(150, "Frozen Falls", isBuilding = false, swingOffset = -0.42f, uniqueLottieRes = R.raw.camp_node),
+        MapStop(200, "Dragon's Peak", isBuilding = true, swingOffset = 0.25f, uniqueLottieRes = R.raw.boss_gate_node),
+        MapStop(250, "Cloud Temple", isBuilding = false, swingOffset = -0.3f, uniqueLottieRes = R.raw.crystal_glow),
+        MapStop(350, "Astral Observatory", isBuilding = true, swingOffset = 0.35f, uniqueLottieRes = R.raw.boss_gate_node),
+        MapStop(500, "Summit of Prosperity", isBuilding = true, swingOffset = 0f, uniqueLottieRes = R.raw.boss_gate_node)
     )
 
     Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(bgColorTop, bgColorBottom)))) {
@@ -186,6 +188,9 @@ fun MountainRoadmap(
         label = "scale"
     )
 
+    //State to track which node was just tapped
+    var tappedNodeIndex by remember { mutableStateOf<Int?>(null) }
+
     BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(mapHeight)) {
         val widthPx = maxWidth.value
 
@@ -267,8 +272,15 @@ fun MountainRoadmap(
                                 indication = null
                             ) {
                                 coroutineScope.launch {
+                                    //Show required XP, animate bounce, delay 2.5s, then reset text
+                                    tappedNodeIndex = index
                                     tapScale.animateTo(targetValue = 1.3f, animationSpec = tween(100, easing = FastOutSlowInEasing))
                                     tapScale.animateTo(targetValue = 1f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+
+                                    kotlinx.coroutines.delay(2500)
+                                    if (tappedNodeIndex == index) {
+                                        tappedNodeIndex = null
+                                    }
                                 }
                             },
                         contentAlignment = Alignment.Center
@@ -276,7 +288,7 @@ fun MountainRoadmap(
                         LottieAnimation(composition = composition, progress = { progress }, modifier = Modifier.fillMaxSize(0.65f))
 
                         if (isCurrent) {
-                            // PRESTIGE LOGIC: If they are at the very top, offer the Ascension Button
+                            //If they are at the very top, offer the Ascension Button
                             if (index == mapStops.size - 1) {
                                 Button(
                                     onClick = onAscend,
@@ -314,7 +326,28 @@ fun MountainRoadmap(
                         color = nodeLabelColor.copy(alpha = 0.95f), shape = RoundedCornerShape(10.dp), shadowElevation = if (isDarkMode) 0.dp else 4.dp,
                         border = BorderStroke(1.dp, if (isDarkMode) Color(0xFF334155) else Color(0xFFE2E8F0))
                     ) {
-                        Text(text = stop.title, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
+                        //Logic to swap the text if this node was just tapped
+                        val displayText = when {
+                            tappedNodeIndex == index && isUnlocked -> "Unlocked!"
+                            tappedNodeIndex == index && !isUnlocked -> "Need ${stop.xpRequired - userXp} more XP"
+                            else -> stop.title
+                        }
+
+                        //apply an animation to the text color so it feels smooth
+                        val animatedTextColor by animateColorAsState(
+                            targetValue = if (tappedNodeIndex == index && !isUnlocked) Color(0xFFE23636) // Red text for locked
+                            else if (tappedNodeIndex == index && isUnlocked) trailColor // Green/Blue for unlocked
+                            else textColor,
+                            label = "textColor"
+                        )
+
+                        Text(
+                            text = displayText,
+                            color = animatedTextColor,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                        )
                     }
                 }
             }

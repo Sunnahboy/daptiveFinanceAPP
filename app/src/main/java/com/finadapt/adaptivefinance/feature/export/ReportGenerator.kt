@@ -132,7 +132,6 @@ object ReportGenerator {
 
     //  ULTIMATE PDF GENERATION (Pie Chart + Bar Graph + Table)
     @SuppressLint("DefaultLocale")
-    // FIXED: Now accepts periodLabel String
     fun generatePdfReport(context: Context, expenses: List<ExpenseEntity>, periodLabel: String): File? {
         return try {
             val document = PdfDocument()
