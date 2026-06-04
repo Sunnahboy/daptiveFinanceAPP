@@ -87,6 +87,17 @@ class DashboardViewModel(
     private val _dynamicSubtitle = mutableStateOf("Let's stay on budget today.")
     val dynamicSubtitle: State<String> = _dynamicSubtitle
 
+    // Helper to calculate the exact millisecond the current month started
+    private fun getStartOfMonthMillis(): Long {
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
+    }
+
     //reacts to EVERYTHING instantly
     private val prefChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
@@ -137,11 +148,11 @@ class DashboardViewModel(
         prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
         viewModelScope.launch {
             allExpenses.collect { expenses ->
-                // instantly recalculate the exact millisecond a new expense is saved
-                val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
-                val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
+                // Calculate start of calendar month
+                val startOfMonth = getStartOfMonthMillis()
+                
                 _totalSpend.value = expenseDao.getTotalSpendTimeBounded(
-                    timeLimit,
+                    startOfMonth,
                     System.currentTimeMillis()
                 ) ?: 0f
 
@@ -191,10 +202,10 @@ class DashboardViewModel(
             _shieldCount.value = prefs.getInt("STREAK_SHIELDS", 0)
             _currentStreak.value = financeRepository.getLiveStreak()
 
-            val thirtyDaysInMillis = 30L * 24L * 60L * 60L * 1000L
-            val timeLimit = System.currentTimeMillis() - thirtyDaysInMillis
+            //Calculate start of calendar month
+            val startOfMonth = getStartOfMonthMillis()
             _totalSpend.value = expenseDao.getTotalSpendTimeBounded(
-                timeLimit,
+                startOfMonth,
                 System.currentTimeMillis()
             ) ?: 0f
 
@@ -239,14 +250,18 @@ class DashboardViewModel(
     fun calculateBehavioralGreeting(expenses: List<ExpenseEntity>, userName: String) {
         val cleanName = userName.ifEmpty { "Player" }
         
-        if (expenses.isEmpty()) {
+        // Filter to ONLY current month so AI comments reset with the month
+        val startOfMonth = getStartOfMonthMillis()
+        val currentMonthExpenses = expenses.filter { it.timestamp >= startOfMonth }
+
+        if (currentMonthExpenses.isEmpty()) {
             _dynamicTitle.value = "Hey $cleanName 👋"
             _dynamicSubtitle.value = "A fresh canvas! Log an expense to start your journey. 🌱"
             return
         }
 
-        // 1. Find the top spending category and its total sum
-        val topCategory = expenses.groupBy { it.category }
+        // 1. Find the top spending category and its total sum for THIS month
+        val topCategory = currentMonthExpenses.groupBy { it.category }
             .mapValues { entry -> entry.value.sumOf { it.amount.toDouble() }.toFloat() }
             .maxByOrNull { it.value }
 
@@ -255,7 +270,14 @@ class DashboardViewModel(
             val totalSpent = topCategory.value
             val formattedAmount = String.format("%.0f", totalSpent)
 
-            //Dynamically swap text based on behavior
+            //Check if it's just a small amount first
+            if (totalSpent < 100f) {
+                _dynamicTitle.value = "Off to a great start, $cleanName! 🚀"
+                _dynamicSubtitle.value = "You've spent RM $formattedAmount on $category so far. Keeping it light!"
+                return
+            }
+
+            //If it's over RM 100, THEN hit them with the behavioral warnings
             when (category.lowercase()) {
                 "food", "dining", "groceries" -> {
                     _dynamicTitle.value = "Hey Foodie Boss $cleanName! 🍔"
