@@ -11,7 +11,7 @@ This repository contains the **Thin Client / Edge-Compute Android Application**.
 * **Decoupled Feedback Loop:** User rewards are explicitly decoupled from the inference request. The app uses Android's `WorkManager` to silently sync pending reinforcement learning rewards (`+1.0` or `0.0`) to the cloud backend whenever an internet connection is re-established.
 * **Dynamic UI Generation:** The UI is completely decoupled from hardcoded logic. Colors, text, and gamification strategies are dynamically rendered in real-time based on the exact JSON schema provided by the cloud LinUCB model.
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 * **Language:** Kotlin
 * **UI Toolkit:** Jetpack Compose (Material 3)
