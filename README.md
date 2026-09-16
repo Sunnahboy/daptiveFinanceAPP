@@ -1,10 +1,10 @@
-# 🚀 Adaptive Finance AI (Android Client)
+#  Adaptive Finance AI (Android Client)
 
 An intelligent, offline-first personal finance application that utilizes reinforcement learning to provide dynamic gamification and adaptive budgeting strategies.
 
 This repository contains the **Thin Client / Edge-Compute Android Application**. It is designed to work in tandem with a Python FastAPI backend running a customized LinUCB Contextual Bandit algorithm.
 
-## 🧠 Architectural Highlights
+##  Architectural Highlights
 
 * **Edge Feature Engineering:** To preserve data privacy and reduce latency, the raw transaction data is never sent to the cloud. Instead, the local SQLite database calculates mathematical user contexts (like `spending_volatility` and `transaction_count`) on the edge device and sends an anonymized context vector to the AI.
 * **Offline-First Resilience:** Network failures are treated as an expected state. If the AI is unreachable, or if a user engages with a gamification strategy while offline, the app queues the feedback telemetry locally.
@@ -20,7 +20,7 @@ This repository contains the **Thin Client / Edge-Compute Android Application**.
 * **Network Client:** Retrofit 2 & OkHttp
 * **Background Processing:** Android WorkManager & Kotlin Coroutines
 
-## 📂 Project Structure
+##  Project Structure
 
 * `core/network/` - Retrofit configuration and singleton API client.
 * `data/local/` - Room DAOs, Entities, and local edge-compute queries.
@@ -29,7 +29,7 @@ This repository contains the **Thin Client / Edge-Compute Android Application**.
 * `feature/` - Jetpack Compose screens and ViewModels.
 * `worker/` - Background sync services for offline telemetry persistence.
 
-## 🚀 Getting Started
+##  Getting Started
 
 1. Clone this repository.
 2. Open the project in **Android Studio** (Koala or newer recommended).
