@@ -22,6 +22,6 @@ data class AiIntentResponse(
 ) {
 }
 
-fun Float.toCurrency(): String {
-    return "RM ${String.format(Locale.US, "%.2f", this)}"
+fun Float.toCurrency(symbol: String = "RM"): String {
+    return "$symbol ${String.format(Locale.US, "%.2f", this)}"
 }

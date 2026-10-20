@@ -72,6 +72,7 @@ class ChatViewModel(
                 val userId = prefs.getString("USER_ID", "default_user") ?: "default_user"
                 val streak = prefs.getInt("CURRENT_STREAK", 0)
                 val budget = prefs.getFloat("MONTHLY_BUDGET", 1000f)
+                val currencySymbol = prefs.getString("PREFERRED_CURRENCY", "RM") ?: "RM"
 
                 val calendar = Calendar.getInstance()
                 val todayStart = calendar.apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0) }.timeInMillis
@@ -85,7 +86,7 @@ class ChatViewModel(
 
                 // 1. Fetch AI Response Model safely
                 val aiCommand = withContext(Dispatchers.IO) {
-                    fetchIntentFromBackend(userId, userText, streak, (budget - spentMonth), spentToday)
+                    fetchIntentFromBackend(userId, userText, streak, (budget - spentMonth), spentToday, currencySymbol)
                 }
 
                 // 2. Delegate logic to the Domain Resolver
@@ -113,7 +114,7 @@ class ChatViewModel(
     }
 
     private suspend fun fetchIntentFromBackend(
-        userId: String, message: String, streak: Int, remainingBudget: Float, spentToday: Float
+        userId: String, message: String, streak: Int, remainingBudget: Float, spentToday: Float, currencySymbol: String
     ): AiIntentResponse {
 
         val recentHistory = _messages.value.takeLast(4).joinToString("\n") {
@@ -121,7 +122,7 @@ class ChatViewModel(
         }
 
         val promptContext = """
-            [SYSTEM VITALS] Streak: $streak days | Budget Remaining: RM $remainingBudget | Spent Today: RM $spentToday
+            [SYSTEM VITALS] Streak: $streak days | Budget Remaining: $currencySymbol $remainingBudget | Spent Today: $currencySymbol $spentToday
             [CHAT HISTORY]
             $recentHistory
             [NEW MESSAGE]

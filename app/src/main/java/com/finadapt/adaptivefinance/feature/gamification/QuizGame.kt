@@ -13,7 +13,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -66,11 +65,11 @@ fun QuizGame(
         }
     }
 
-    val isDark = isSystemInDarkTheme()
-    val textColor = if (isDark) Color.White else Color(0xFF0F172A)
-    val subTextColor = if (isDark) Color(0xFF94A3B8) else Color.Gray
-    val brandPurple = Color(0xFFA78BFA)
-    val warningOrange = Color(0xFFF97316)
+
+    val textColor = MaterialTheme.colorScheme.onBackground
+    val subTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val brandPurple = MaterialTheme.colorScheme.primary
+    val warningOrange = MaterialTheme.colorScheme.secondary
 
     var currentPhase by remember { mutableStateOf(QuizPhase.INTRO) }
     var currentQuestion by remember { mutableStateOf(financialTrivia.random()) }
@@ -270,7 +269,7 @@ fun QuizGame(
                     val skipScale by animateFloatAsState(targetValue = if (isSkipPressed) 0.8f else 1f)
 
                     Surface(
-                        color = Color(0xFFEF4444).copy(alpha = 0.1f), // Subtle red pill background
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.1f), // Subtle red pill background
                         shape = RoundedCornerShape(50),
                         modifier = Modifier.scale(skipScale)
                     ) {
@@ -283,7 +282,7 @@ fun QuizGame(
                         ) {
                             Text(
                                 text = "I want to stay broke 💸",
-                                color = Color(0xFFFCA5A5), //Brighter pastel red for dark mode!
+                                color = MaterialTheme.colorScheme.error, //Brighter pastel red for dark mode!
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -377,7 +376,7 @@ fun QuizGame(
                         //QUESTION CARD
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B).copy(alpha = 0.8f)), // Made slightly darker for contrast
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), // Made slightly darker for contrast
                             shape = RoundedCornerShape(16.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, brandPurple.copy(alpha = 0.3f))
                         ) {
@@ -517,11 +516,11 @@ fun QuizGame(
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text("You fell asleep at the wheel.", color = subTextColor)
                             } else if (isCorrect) {
-                                Text("Brilliant! \uD83D\uDE0D", fontWeight = FontWeight.Black, fontSize = 28.sp, color = Color(0xFF10B981))
+                                Text("Brilliant! \uD83D\uDE0D", fontWeight = FontWeight.Black, fontSize = 28.sp, color = MaterialTheme.colorScheme.primary)
                                 Spacer(modifier = Modifier.height(16.dp))
                                 // XP Badge
                                 Card(
-                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF334155)),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
                                     Text(
@@ -547,7 +546,7 @@ fun QuizGame(
                             val isBtnPressed by btnInteraction.collectIsPressedAsState()
                             val btnScale by animateFloatAsState(targetValue = if (isBtnPressed) 0.95f else 1f, animationSpec = tween(100))
 
-                            val btnColor = if (isCorrect && !isTimeUp) Color(0xFF10B981) else Color(0xFF64748B)
+                            val btnColor = if (isCorrect && !isTimeUp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
 
                             Button(
                                 onClick = { onGameComplete(if (isCorrect && !isTimeUp) 1 else 0) },
@@ -590,7 +589,7 @@ fun FlipAnswerCard(
     // If it has rotated past 90 degrees,  looking at the "back" of the card
     val isBackVisible = rotation > 90f
 
-    val cardBgColor = if (!isBackVisible) Color(0xFF334155) else if (isCorrect) Color(0xFF10B981) else Color(0xFFEF4444)
+    val cardBgColor = if (!isBackVisible) MaterialTheme.colorScheme.surfaceVariant else if (isCorrect) MaterialTheme.colorScheme.primary else Color(0xFFEF4444)
 
     Card(
         onClick = onClick,

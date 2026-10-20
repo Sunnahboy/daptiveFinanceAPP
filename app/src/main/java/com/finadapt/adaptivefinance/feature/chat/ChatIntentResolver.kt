@@ -66,6 +66,8 @@ class ChatIntentResolver(
             "ALL" -> "over all time"
             else -> "recently"
         }
+        
+        val currencySymbol = prefs.getString("PREFERRED_CURRENCY", "RM") ?: "RM"
 
         val responseText = when (intent) {
             "SPEND_SUMMARY" -> {
@@ -81,12 +83,12 @@ class ChatIntentResolver(
                     } else {
                         //solid emoji bullets instead of spaces for perfect mobile alignment
                         val breakdownText = expenseDao.getCategoryBreakdown(startTime, endTime).joinToString("\n") {
-                            "🔹 ${it.category}: ${it.total.toCurrency()}"
+                            "🔹 ${it.category}: ${it.total.toCurrency(currencySymbol)}"
                         }
 
                         val intro = pickRandom(
-                            "Let me check the books... $timeLabel, your total outflow was ${totalSpent.toCurrency()}. $emoji",
-                            "Pulling those numbers now. You've spent ${totalSpent.toCurrency()} in total $timeLabel. $emoji"
+                            "Let me check the books... $timeLabel, your total outflow was ${totalSpent.toCurrency(currencySymbol)}. $emoji",
+                            "Pulling those numbers now. You've spent ${totalSpent.toCurrency(currencySymbol)} in total $timeLabel. $emoji"
                         )
 
                         //guarantee it won't break on different screen sizes
@@ -101,8 +103,8 @@ class ChatIntentResolver(
                         "Your $category spending is at absolute zero $timeLabel. $emoji"
                     } else {
                         pickRandom(
-                            "You dropped ${totalSpent.toCurrency()} on $category $timeLabel. $emoji",
-                            "$timeLabel, your $category expenses totaled ${totalSpent.toCurrency()}. $emoji"
+                            "You dropped ${totalSpent.toCurrency(currencySymbol)} on $category $timeLabel. $emoji",
+                            "$timeLabel, your $category expenses totaled ${totalSpent.toCurrency(currencySymbol)}. $emoji"
                         )
                     }
                 }
@@ -122,7 +124,7 @@ class ChatIntentResolver(
 
                     //Solid emoji bullets for alignment
                     val top3 = breakdown.sortedByDescending { it.total }.take(3).joinToString("\n") {
-                        "🔹 ${it.category}: ${it.total.toCurrency()}"
+                        "🔹 ${it.category}: ${it.total.toCurrency(currencySymbol)}"
                     }
 
                     val intro = pickRandom(
@@ -133,9 +135,9 @@ class ChatIntentResolver(
                     //Clean stacking with absolute line breaks
                     intro + "\n\n" +
                             "\uD83D\uDE2B Biggest Drain:\n" +
-                            "   ${topCategory?.category} (${(topCategory?.total ?: 0f).toCurrency()})\n\n" +
+                            "   ${topCategory?.category} (${(topCategory?.total ?: 0f).toCurrency(currencySymbol)})\n\n" +
                             "\uD83D\uDCB3 Heaviest Hit:\n" +
-                            "   ${highest.amount.toCurrency()} at $singleMerchant\n\n" +
+                            "   ${highest.amount.toCurrency(currencySymbol)} at $singleMerchant\n\n" +
                             "\uD83D\uDD1D Top Spending Zones:\n" +
                             top3
                 }
@@ -148,13 +150,13 @@ class ChatIntentResolver(
 
                 if (remaining < 0) {
                     pickRandom(
-                        "Checking your vault status... Warning! You are currently ${abs(remaining).toCurrency()} OVER your monthly budget! 🛑",
-                        "Time to dial back the spending! You're in the red by ${abs(remaining).toCurrency()}. ⚠️"
+                        "Checking your vault status... Warning! You are currently ${abs(remaining).toCurrency(currencySymbol)} OVER your monthly budget! 🛑",
+                        "Time to dial back the spending! You're in the red by ${abs(remaining).toCurrency(currencySymbol)}. ⚠️"
                     )
                 } else {
                     pickRandom(
-                        "Checking your vault status... You have ${remaining.toCurrency()} left in your budget for the next 30 days. You're doing great! 🟢",
-                        "Looking good! You still have ${remaining.toCurrency()} of runway left. ✔"
+                        "Checking your vault status... You have ${remaining.toCurrency(currencySymbol)} left in your budget for the next 30 days. You're doing great! 🟢",
+                        "Looking good! You still have ${remaining.toCurrency(currencySymbol)} of runway left. ✔"
                     )
                 }
             }
@@ -167,7 +169,7 @@ class ChatIntentResolver(
                     "Your ledger is empty for$categoryText $timeLabel."
                 } else {
                     val formattedList = recentItems.take(10).joinToString("\n") {
-                        "🔹 ${it.amount.toCurrency()} at ${it.merchantName.ifEmpty { "Unknown" }}"
+                        "🔹 ${it.amount.toCurrency(currencySymbol)} at ${it.merchantName.ifEmpty { "Unknown" }}"
                     }
                     val intro = pickRandom(
                         "Here are your$categoryText purchases from $timeLabel:\n",
@@ -188,7 +190,7 @@ class ChatIntentResolver(
                 } else {
                     val timeFormatter = SimpleDateFormat("h:mm a", Locale.getDefault())
                     val formattedList = searchResults.take(5).joinToString("\n") {
-                        "🔹 ${it.amount.toCurrency()} at ${it.merchantName.ifEmpty { it.category }} (Logged at ${timeFormatter.format(java.util.Date(it.timestamp))})"
+                        "🔹 ${it.amount.toCurrency(currencySymbol)} at ${it.merchantName.ifEmpty { it.category }} (Logged at ${timeFormatter.format(java.util.Date(it.timestamp))})"
                     }
                     "Here is what I found for '$searchTerm' $timeLabel:\n\n$formattedList"
                 }

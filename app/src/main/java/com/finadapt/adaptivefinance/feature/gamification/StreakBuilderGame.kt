@@ -35,9 +35,9 @@ fun StreakBuilderGame(
     soundEngine: SoundEngine,
     onGameComplete: (Int) -> Unit
 ) {
-    val brandBlue = Color(0xFF3B82F6)
-    val neonGold = Color(0xFFF59E0B)
-    val darkBg = Color(0xFF0F172A)
+    val brandBlue = MaterialTheme.colorScheme.primary
+    val neonGold = MaterialTheme.colorScheme.secondary
+    val darkBg = MaterialTheme.colorScheme.background
 
     var currentPhase by remember { mutableStateOf(StreakPhase.INTRO) }
 
@@ -129,7 +129,7 @@ fun StreakBuilderGame(
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Gray),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)) // Dark metal border
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline) // Dark metal border
                 ) {
                     Text("DECLINE DAILY FORGE", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 }
@@ -179,7 +179,7 @@ fun StreakBuilderGame(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // The Progress Bar Container
-                Box(modifier = Modifier.fillMaxWidth().height(16.dp).clip(CircleShape).background(Color(0xFF1E293B))) {
+                Box(modifier = Modifier.fillMaxWidth().height(16.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface)) {
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()

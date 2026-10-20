@@ -36,7 +36,7 @@ object ReportGenerator {
     }
 
     // PREMIUM EXCEL GENERATION
-    fun generateExcelReport(context: Context, expenses: List<ExpenseEntity>, periodLabel: String): File? {
+    fun generateExcelReport(context: Context, expenses: List<ExpenseEntity>, periodLabel: String, currencySymbol: String): File? {
         return try {
             val workbook = XSSFWorkbook()
             val sheet = workbook.createSheet("Summary")
@@ -55,10 +55,10 @@ object ReportGenerator {
                 setFont(workbook.createFont().apply { bold = true })
             }
             val currencyStyle = workbook.createCellStyle().apply {
-                dataFormat = workbook.createDataFormat().getFormat("\"RM\" #,##0.00")
+                dataFormat = workbook.createDataFormat().getFormat("\"$currencySymbol\" #,##0.00")
             }
             val currencyBoldStyle = workbook.createCellStyle().apply {
-                dataFormat = workbook.createDataFormat().getFormat("\"RM\" #,##0.00")
+                dataFormat = workbook.createDataFormat().getFormat("\"$currencySymbol\" #,##0.00")
                 setFont(workbook.createFont().apply { bold = true })
             }
 
@@ -99,7 +99,7 @@ object ReportGenerator {
                 amountCell.setCellValue(expense.amount.toDouble())
                 amountCell.cellStyle = currencyStyle
 
-                val itemsStr = expense.items.joinToString(", ") { "${it.name} (RM ${it.amount})" }
+                val itemsStr = expense.items.joinToString(", ") { "${it.name} ($currencySymbol ${it.amount})" }
                 row.createCell(4).setCellValue(itemsStr.ifEmpty { "-" })
             }
 
@@ -132,7 +132,7 @@ object ReportGenerator {
 
     //  ULTIMATE PDF GENERATION (Pie Chart + Bar Graph + Table)
     @SuppressLint("DefaultLocale")
-    fun generatePdfReport(context: Context, expenses: List<ExpenseEntity>, periodLabel: String): File? {
+    fun generatePdfReport(context: Context, expenses: List<ExpenseEntity>, periodLabel: String, currencySymbol: String): File? {
         return try {
             val document = PdfDocument()
             val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // A4 Size
@@ -161,7 +161,7 @@ object ReportGenerator {
             paint.textSize = 28f
             paint.isFakeBoldText = true
             paint.textAlign = Paint.Align.RIGHT
-            canvas.drawText("RM ${String.format("%.2f", totalSpend)}", 555f, 75f, paint)
+            canvas.drawText("$currencySymbol ${String.format("%.2f", totalSpend)}", 555f, 75f, paint)
 
             paint.textSize = 14f
             paint.isFakeBoldText = false
@@ -209,7 +209,7 @@ object ReportGenerator {
                     canvas.drawText(legendCategory, 240f, legendY, paint)
 
                     paint.isFakeBoldText = false
-                    canvas.drawText(String.format("RM %.2f (%.1f%%)", amount, percentage), 340f, legendY, paint)
+                    canvas.drawText(String.format("$currencySymbol %.2f (%.1f%%)", amount, percentage), 340f, legendY, paint)
                     legendY += 25f
                 }
 
@@ -240,7 +240,7 @@ object ReportGenerator {
 
                     paint.color = Color.BLACK
                     paint.isFakeBoldText = false
-                    canvas.drawText("RM ${amount.toInt()}", 150f + barWidth, currentY + 12f, paint)
+                    canvas.drawText("$currencySymbol ${amount.toInt()}", 150f + barWidth, currentY + 12f, paint)
 
                     currentY += 28f
                 }
@@ -287,7 +287,7 @@ object ReportGenerator {
                 paint.color = getNativeCategoryColor(exp.category)
                 paint.isFakeBoldText = true
                 paint.textAlign = Paint.Align.RIGHT
-                canvas.drawText("RM ${String.format("%.2f", exp.amount)}", 545f, currentY, paint)
+                canvas.drawText("$currencySymbol ${String.format("%.2f", exp.amount)}", 545f, currentY, paint)
                 paint.textAlign = Paint.Align.LEFT
                 paint.isFakeBoldText = false
 

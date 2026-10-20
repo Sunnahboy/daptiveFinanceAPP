@@ -53,20 +53,20 @@ fun RewardsScreen(
     userCoins: Int,
     shieldCount: Int,
     ascensionLevel: Int = 0, // Tracks Prestige/Loop count
-    isDarkMode: Boolean = false,
     onBuyShield: () -> Unit,
     onAscend: () -> Unit // Triggered to reset map and gain multiplier
 ) {
     // Theme Colors
-    val bgColorTop = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFE0F2FE)
-    val bgColorBottom = if (isDarkMode) Color(0xFF1E293B) else Color(0xFFF1F5F9)
-    val textColor = if (isDarkMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
-    val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val appTheme = com.finadapt.adaptivefinance.ui.theme.LocalAppTheme.current
+    val bgColorTop = MaterialTheme.colorScheme.background
+    val bgColorBottom = MaterialTheme.colorScheme.surfaceVariant
+    val textColor = MaterialTheme.colorScheme.onBackground
+    val subTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     // Dynamic Theme based on Prestige Level
     val prestigeColor = when (ascensionLevel) {
         0 -> Color(0xFF10B981) // Emerald Green (First Run)
-        1 -> Color(0xFFF59E0B) // Gold (Ascension 1)
+        1 -> MaterialTheme.colorScheme.tertiary // Gold (Ascension 1)
         2 -> Color(0xFF3B82F6) // Diamond Blue (Ascension 2)
         else -> Color(0xFF8B5CF6) // Mythic Purple (Ascension 3+)
     }
@@ -100,7 +100,6 @@ fun RewardsScreen(
                 MountainRoadmap(
                     userXp = userXp,
                     mapStops = mapStops,
-                    isDarkMode = isDarkMode,
                     trailColor = prestigeColor,
                     onAscend = onAscend
                 )
@@ -110,12 +109,12 @@ fun RewardsScreen(
         }
 
         // Top Sticky Header (Coins & Shields)
-        Surface(color = bgColorTop.copy(alpha = 0.95f), modifier = Modifier.fillMaxWidth(), shadowElevation = if (isDarkMode) 0.dp else 4.dp) {
+        Surface(color = bgColorTop.copy(alpha = 0.95f), modifier = Modifier.fillMaxWidth(), shadowElevation = 0.dp) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp).statusBarsPadding()) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     // Coins Display
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(40.dp).background(Color(0xFFF59E0B).copy(alpha = 0.2f), CircleShape).border(1.dp, Color(0xFFF59E0B), CircleShape), contentAlignment = Alignment.Center) { Text("🪙", fontSize = 18.sp) }
+                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape).border(1.dp, MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) { Text("🪙", fontSize = 18.sp) }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text("Coins", color = subTextColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -130,8 +129,8 @@ fun RewardsScreen(
                             Text("x$shieldCount", color = textColor, fontSize = 18.sp, fontWeight = FontWeight.Black)
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        Box(modifier = Modifier.size(40.dp).background(Color(0xFF06B6D4).copy(alpha = 0.2f), CircleShape).border(1.dp, Color(0xFF06B6D4), CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Shield, contentDescription = "Shields", tint = Color(0xFF06B6D4), modifier = Modifier.size(20.dp))
+                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f), CircleShape).border(1.dp, MaterialTheme.colorScheme.secondary, CircleShape), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Shield, contentDescription = "Shields", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -147,7 +146,7 @@ fun RewardsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = prestigeColor, // Matches their current prestige tier
-                        disabledContainerColor = if (isDarkMode) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.1f)
+                        disabledContainerColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f)
                     ),
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(vertical = 12.dp)
@@ -170,16 +169,15 @@ fun RewardsScreen(
 fun MountainRoadmap(
     userXp: Int,
     mapStops: List<MapStop>,
-    isDarkMode: Boolean,
     trailColor: Color,
     onAscend: () -> Unit
 ) {
     val nodeSpacing = 160.dp
     val mapHeight = nodeSpacing * mapStops.size
 
-    val trailLockedColor = if (isDarkMode) Color(0xFF334155) else Color(0xFFCBD5E1)
-    val nodeLabelColor = if (isDarkMode) Color(0xFF1E293B) else Color.White
-    val textColor = if (isDarkMode) Color.White else Color(0xFF0F172A)
+    val trailLockedColor = MaterialTheme.colorScheme.surfaceVariant
+    val nodeLabelColor = MaterialTheme.colorScheme.surface
+    val textColor = MaterialTheme.colorScheme.onBackground
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseScale by infiniteTransition.animateFloat(
@@ -323,8 +321,8 @@ fun MountainRoadmap(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Surface(
-                        color = nodeLabelColor.copy(alpha = 0.95f), shape = RoundedCornerShape(10.dp), shadowElevation = if (isDarkMode) 0.dp else 4.dp,
-                        border = BorderStroke(1.dp, if (isDarkMode) Color(0xFF334155) else Color(0xFFE2E8F0))
+                        color = nodeLabelColor.copy(alpha = 0.95f), shape = RoundedCornerShape(10.dp), shadowElevation = 0.dp,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         //Logic to swap the text if this node was just tapped
                         val displayText = when {
@@ -335,7 +333,7 @@ fun MountainRoadmap(
 
                         //apply an animation to the text color so it feels smooth
                         val animatedTextColor by animateColorAsState(
-                            targetValue = if (tappedNodeIndex == index && !isUnlocked) Color(0xFFE23636) // Red text for locked
+                            targetValue = if (tappedNodeIndex == index && !isUnlocked) MaterialTheme.colorScheme.error // Red text for locked
                             else if (tappedNodeIndex == index && isUnlocked) trailColor // Green/Blue for unlocked
                             else textColor,
                             label = "textColor"

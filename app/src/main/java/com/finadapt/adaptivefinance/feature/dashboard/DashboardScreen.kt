@@ -57,18 +57,21 @@ import kotlinx.coroutines.delay
 fun DashboardScreen(
     dashboardViewModel: DashboardViewModel,
     userName: String,
+    currencySymbol: String,
     totalSpend: Float,
     monthlyBudget: Float,
     todaySpend: Float,
     currentAiAction: String,
     currentStreak: Int,
     recentExpenses: List<ExpenseEntity>,
+    allExpenses: List<ExpenseEntity> = emptyList(),
     levelUpTier: String?,
     playCoinDrop: Boolean,
     onAnimationFinished: () -> Unit,
-    isDarkMode: Boolean = false,
     onDismissLevelUp: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToHistory: () -> Unit = {},
+    onDeleteExpense: (ExpenseEntity) -> Unit = {},
     levelName: String,
     tierColorHex: Long,
     fillPercentage: Float,
@@ -81,13 +84,12 @@ fun DashboardScreen(
     val prefs = context.getSharedPreferences("AdaptiveFinancePrefs", Context.MODE_PRIVATE)
 
     //DYNAMIC THEME COLORS
-    val gradientStart = Color(0xFF0284C7)
-    val gradientEnd = Color(0xFF10B981)
-    val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-    val cardColor = if (isDarkMode) Color(0xFF1E293B) else Color.White
-    if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF1F5F9) // Swapped for visibility
-    val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color.Gray
-    val strokeBgColor = if (isDarkMode) Color(0xFF334155) else Color(0xFFF1F5F9)
+    val gradientStart = MaterialTheme.colorScheme.primary
+    val gradientEnd = MaterialTheme.colorScheme.secondary
+    val bgColor = MaterialTheme.colorScheme.background
+    val cardColor = MaterialTheme.colorScheme.surface
+    val subTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val strokeBgColor = MaterialTheme.colorScheme.surfaceVariant
 
     var pendingAmbushAction by remember { mutableStateOf<String?>(null) }
     var pendingAmbushMessage by remember { mutableStateOf<String?>(null) }
@@ -118,190 +120,468 @@ fun DashboardScreen(
 
     Scaffold(
         containerColor = bgColor,
+        contentWindowInsets = WindowInsets(0)
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-
-            // THE GRADIENT HEADER BACKGROUND
-            Box(modifier = Modifier.fillMaxWidth().height(260.dp).background(brush = Brush.linearGradient(colors = listOf(gradientStart, gradientEnd)), shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)))
-
-            // THE SCROLLABLE CONTENT
-            Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
-                Spacer(modifier = Modifier.height(24.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .statusBarsPadding()
+            ) {
+                Spacer(modifier = Modifier.height(4.dp))
 
                 val dynamicTitle by dashboardViewModel.dynamicTitle
                 val dynamicSubtitle by dashboardViewModel.dynamicSubtitle
 
-                //SPRING ANIMATION STATE (Draws the eye to the settings icon)
-                var iconScale by remember { mutableFloatStateOf(0.5f) }
-                val animatedScale by animateFloatAsState(
-                    targetValue = iconScale,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessLow
-                    ),
-                    label = "SettingsBounce"
-                )
-
-                //Trigger the bounce exactly once when the screen loads
-                LaunchedEffect(Unit) {
-                    delay(300) 
-                    iconScale = 1.0f 
+                val timeGreeting = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+                    in 5..11 -> "Good morning"
+                    in 12..16 -> "Good afternoon"
+                    in 17..21 -> "Good evening"
+                    else -> "Hey"
                 }
 
-                //THE HEADER LAYOUT
+            // 1. COMPACT HEADER ROW (56-64px)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Greeting on the left
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "$timeGreeting, $userName",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
                 Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    var showStreakSheet by remember { mutableStateOf(false) }
+
+                    // Streak Chip
+                    val isStreakBroken = currentStreak == 0
+                    val streakLottieRes = if (isStreakBroken) R.raw.streak_broken else R.raw.streak_fire
+                    val streakCompositionResult = rememberLottieComposition(LottieCompositionSpec.RawRes(streakLottieRes))
+                    val streakComposition by streakCompositionResult
+                    val streakAnimProgress by animateLottieCompositionAsState(
+                        composition = streakComposition,
+                        iterations = LottieConstants.IterateForever
+                    )
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(50),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                        onClick = { showStreakSheet = true }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AnimatedVisibility(
+                                visible = streakCompositionResult.isComplete,
+                                enter = fadeIn(animationSpec = tween(500))
+                            ) {
+                                LottieAnimation(
+                                    composition = streakComposition,
+                                    progress = { streakAnimProgress },
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(16.dp).offset(x = (-2).dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatDays(currentStreak),
+                                color = MaterialTheme.colorScheme.onBackground,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    if (showStreakSheet) {
+                        ModalBottomSheet(onDismissRequest = { showStreakSheet = false }, containerColor = cardColor) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+                                Text(
+                                    text = com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatDays(currentStreak) + " streak",
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Log an expense each day to keep it going.",
+                                    color = subTextColor,
+                                    fontSize = 14.sp
+                                )
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                ) {
+                                    val days = listOf("M", "T", "W", "T", "F", "S", "S")
+                                    val calendar = Calendar.getInstance()
+                                    // Make Sunday 7, Monday 1
+                                    val currentDayOfWeek = if (calendar.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) 7 else calendar.get(Calendar.DAY_OF_WEEK) - 1
+
+                                    days.forEachIndexed { index, dayName ->
+                                        // Highlight the current day of the week if streak > 0
+                                        val isCurrentDay = (index + 1) == currentDayOfWeek
+                                        val isStreakActive = currentStreak > 0
+
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(40.dp)
+                                                    .background(
+                                                        if (isCurrentDay && isStreakActive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant,
+                                                        CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (isCurrentDay && isStreakActive) {
+                                                    Text("🔥", fontSize = 16.sp)
+                                                } else {
+                                                    Text("-", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = dayName,
+                                                color = if (isCurrentDay && isStreakActive) MaterialTheme.colorScheme.onBackground else subTextColor,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(32.dp))
+                                Button(
+                                    onClick = { showStreakSheet = false },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                ) {
+                                    Text("Close", color = MaterialTheme.colorScheme.onBackground)
+                                }
+                                Spacer(modifier = Modifier.height(24.dp))
+                            }
+                        }
+                    }
+
+                    // Circular Profile Avatar (Initials Fallback) -> Opens Settings
+                    Surface(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clickable { onNavigateToSettings() },
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = userName.take(1).uppercase().ifEmpty { "U" },
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 1. AI INSIGHT CARD (Moved to top per feedback)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("💡", fontSize = 16.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = dynamicSubtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 2. UNIFIED MASCOT CARD
+            UnifiedMascotCard(
+                userName = userName,
+                playCoinDrop = playCoinDrop,
+                onAnimationFinished = onAnimationFinished,
+                levelName = levelName,
+                tierColorHex = tierColorHex,
+                fillPercentage = fillPercentage,
+                xpText = xpText
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3. THE AI ACTION / COOL-OFF BANNER
+            var showCoolOffSheet by remember { mutableStateOf(false) }
+            if (currentAiAction == "cool_off") {
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top 
+                        .clickable { showCoolOffSheet = true },
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF06B6D4).copy(alpha = 0.15f)),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF06B6D4))
                 ) {
-                    
-                    Column(modifier = Modifier.weight(1f)) {
-                        
-                        AnimatedContent(
-                            targetState = dynamicTitle,
-                            transitionSpec = { fadeIn(tween(500)) togetherWith fadeOut(tween(200)) },
-                            label = "TitleFade"
-                        ) { targetTitle ->
-                            Text(
-                                text = targetTitle,
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                lineHeight = 36.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        AnimatedContent(
-                            targetState = dynamicSubtitle,
-                            transitionSpec = { fadeIn(tween(500)) togetherWith fadeOut(tween(200)) },
-                            label = "SubtitleFade"
-                        ) { targetSubtitle ->
-                            Text(
-                                text = targetSubtitle,
-                                fontSize = 15.sp,
-                                color = Color.White.copy(alpha = 0.85f),
-                                lineHeight = 20.sp
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp)) 
-
-                    //Glass Settings Icon with Spring Animation
-                    Box(
-                        modifier = Modifier
-                            .scale(animatedScale) 
-                            .size(44.dp)
-                            .background(Color.White.copy(alpha = 0.2f), shape = CircleShape) 
-                            .clickable { onNavigateToSettings() },
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("❄️", fontSize = 20.sp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("Cool-Off Period Active", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                                Text("A 2-hour thinking pause is active. Tap for options.", style = MaterialTheme.typography.bodySmall, color = subTextColor)
+                            }
+                        }
+                        Text(">", fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                UnifiedMascotCard(
-                    userName = userName,
-                    currentStreak = currentStreak,
-                    playCoinDrop = playCoinDrop,
-                    onAnimationFinished = onAnimationFinished,
-                    levelName = levelName,
-                    tierColorHex = tierColorHex,
-                    fillPercentage = fillPercentage,
-                    xpText = xpText
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                //  THE OVERLAPPING AI INSIGHT CARD
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = insightColor as Color), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 8.dp)) {
-                    Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.Top) {
-                        Box(modifier = Modifier.size(40.dp).background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Icon(insightIcon as ImageVector, contentDescription = null, tint = Color.White) }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Text(insightTitle as String, fontWeight = FontWeight.Bold, color = Color.White, style = MaterialTheme.typography.titleMedium)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(insightBody as String, color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodyMedium)
+                if (showCoolOffSheet) {
+                    ModalBottomSheet(onDismissRequest = { showCoolOffSheet = false }, containerColor = cardColor) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Text("Cool-Off Pause Active", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                            Text("Take a deep breath. This cool-off pause encourages mindful spending before making non-essential purchases.", color = subTextColor)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { showCoolOffSheet = false },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF06B6D4))
+                            ) {
+                                Text("Keep the Pause", color = Color.White)
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    prefs.edit { putString("LAST_AI_ACTION", "zen") }
+                                    showCoolOffSheet = false
+                                    dashboardViewModel.loadDashboardData()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Skip Pause", color = MaterialTheme.colorScheme.error)
+                            }
+                            Spacer(modifier = Modifier.height(24.dp))
                         }
                     }
                 }
+            }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                //  SPLIT SUMMARY CARDS
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = cardColor), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Box(modifier = Modifier.size(32.dp).background(if (isDarkMode) Color(0xFF0284C7).copy(alpha=0.2f) else Color(0xFFE0F2FE), CircleShape), contentAlignment = Alignment.Center) { Text("RM", color = Color(0xFF0284C7), fontWeight = FontWeight.Bold) }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text("Today's Spend", color = subTextColor, style = MaterialTheme.typography.labelMedium)
-                            val formattedTodaySpend = String.format(Locale.getDefault(), "%.2f", todaySpend)
-                            Text("RM $formattedTodaySpend", fontWeight = FontWeight.Bold, color = Color(0xFF0284C7), fontSize = 18.sp)
-                        }
-                    }
+                // SHEET STATES FOR INTERACTIVITY
+                var showBudgetSheet by remember { mutableStateOf(false) }
+                var showCategorySheet by remember { mutableStateOf(false) }
 
-                    Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = cardColor), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp)) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Box(modifier = Modifier.size(32.dp).background(if (isDarkMode) Color(0xFF10B981).copy(alpha=0.2f) else Color(0xFFD1FAE5), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.AutoMirrored.Filled.TrendingUp, contentDescription = null, tint = Color(0xFF10B981), modifier = Modifier.size(18.dp)) }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text("This Month", color = subTextColor, style = MaterialTheme.typography.labelMedium)
-                            Text("RM ${totalSpend.toInt()}", fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color(0xFF0F172A), fontSize = 18.sp)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                //  THE MOOD RING BUDGET CARD
+                // 4. HERO BUDGET CARD & CATEGORY SHARE BAR
+                val remainingBudget = maxOf(0f, monthlyBudget - totalSpend)
                 val rawPercentage = if (monthlyBudget > 0f) totalSpend / monthlyBudget else 0f
                 val clampedPercentage = rawPercentage.coerceIn(0f, 1f)
                 val animatedSweep by animateFloatAsState(targetValue = clampedPercentage, animationSpec = tween(1500, delayMillis = 300), label = "donut_sweep")
 
                 val (ringColor, centerLottieRes, statusText) = when {
                     rawPercentage >= 1f -> Triple(Color(0xFFEF4444), R.raw.status_danger, "☠️ Budget Blown")
-                    rawPercentage > 0.6f -> Triple(Color(0xFFF59E0B), R.raw.status_warning, "⚠️ Nearing Limit")
-                    else -> Triple(Color(0xFF10B981), R.raw.status_safe, "🛡️ On Track")
+                    rawPercentage > 0.8f -> Triple(Color(0xFFF59E0B), R.raw.status_warning, "⚠️ Near Limit (>80% used)")
+                    else -> Triple(MaterialTheme.colorScheme.secondary, R.raw.status_safe, "🛡️ On Track")
                 }
 
                 val centerComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(centerLottieRes))
                 val centerProgress by animateLottieCompositionAsState(composition = centerComposition, iterations = LottieConstants.IterateForever)
 
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = cardColor), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 2.dp), border = if (isOverBudget) androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFEF4444).copy(alpha = 0.5f)) else null) {
-                    Row(modifier = Modifier.padding(20.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = statusText, color = ringColor, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = "RM ${totalSpend.toInt()} / RM ${monthlyBudget.toInt()}", fontWeight = FontWeight.Black, color = if (isDarkMode) Color.White else Color(0xFF0F172A), fontSize = 18.sp)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = if (isOverBudget) "0% Remaining" else "${((1f - clampedPercentage) * 100).toInt()}% Left", fontWeight = FontWeight.Bold, color = subTextColor, fontSize = 14.sp)
+                val categoryShares = remember(allExpenses) {
+                    com.finadapt.adaptivefinance.core.util.CategoryShareCalculator.calculateTopCategories(allExpenses)
+                }
+                val topSpendItem = categoryShares.maxByOrNull { it.amount }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showBudgetSheet = true },
+                    colors = CardDefaults.cardColors(containerColor = cardColor),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(2.dp),
+                    border = if (isOverBudget) androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFEF4444).copy(alpha = 0.5f)) else null
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = statusText, color = ringColor, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(remainingBudget, currencySymbol),
+                                    fontWeight = FontWeight.Black,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    fontSize = 32.sp
+                                )
+                                Text(
+                                    text = "Left this month (${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(totalSpend, currencySymbol)} of ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(monthlyBudget, currencySymbol)} spent)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = subTextColor
+                                )
+                            }
+
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(80.dp)) {
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    drawArc(color = strokeBgColor, startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 20f, cap = StrokeCap.Round))
+                                    drawArc(color = ringColor, startAngle = -90f, sweepAngle = 360f * animatedSweep, useCenter = false, style = Stroke(width = 20f, cap = StrokeCap.Round))
+                                }
+                                LottieAnimation(composition = centerComposition, progress = { centerProgress }, modifier = Modifier.size(40.dp))
+                            }
                         }
 
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(90.dp)) {
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                drawArc(color = strokeBgColor, startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 24f, cap = StrokeCap.Round))
-                                drawArc(color = ringColor, startAngle = -90f, sweepAngle = 360f * animatedSweep, useCenter = false, style = Stroke(width = 24f, cap = StrokeCap.Round))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = strokeBgColor)
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Segmented Category-Share Bar & Footer Caption
+                        if (allExpenses.isEmpty()) {
+                            Text("No spending yet this month", style = MaterialTheme.typography.bodySmall, color = subTextColor)
+                        } else {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(10.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(strokeBgColor)
+                            ) {
+                                val colorsList = listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.secondary,
+                                    MaterialTheme.colorScheme.tertiary,
+                                    MaterialTheme.colorScheme.outline
+                                )
+                                categoryShares.forEachIndexed { index, share ->
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(share.percentage.coerceAtLeast(1f))
+                                            .fillMaxHeight()
+                                            .background(colorsList[index % colorsList.size])
+                                    )
+                                }
                             }
-                            LottieAnimation(composition = centerComposition, progress = { centerProgress }, modifier = Modifier.size(45.dp))
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showCategorySheet = true },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val topCaption = if (topSpendItem != null) {
+                                    "Top spend: ${topSpendItem.category}, ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(topSpendItem.amount, currencySymbol)}"
+                                } else {
+                                    "No top spend recorded"
+                                }
+                                Text(topCaption, style = MaterialTheme.typography.bodySmall, color = subTextColor)
+                                Text("Details >", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            }
                         }
                     }
                 }
 
+                // BUDGET DETAIL SHEET
+                if (showBudgetSheet) {
+                    ModalBottomSheet(onDismissRequest = { showBudgetSheet = false }, containerColor = cardColor) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Text("Budget Overview", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                            Text("Total Monthly Budget: ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(monthlyBudget, currencySymbol)}", color = subTextColor)
+                            Text("Total Spent: ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(totalSpend, currencySymbol)}", color = subTextColor)
+                            Text("Remaining: ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(remainingBudget, currencySymbol)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            
+                            val daysLeft = 30f // approx
+                            val safePerDay = if (daysLeft > 0f) remainingBudget / daysLeft else 0f
+                            Text("Safe to spend per day: ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(safePerDay, currencySymbol)}", color = subTextColor)
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = {
+                                    showBudgetSheet = false
+                                    onNavigateToSettings()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Text("Edit Budget in Settings", color = MaterialTheme.colorScheme.onPrimary)
+                            }
+                            Spacer(modifier = Modifier.height(24.dp))
+                        }
+                    }
+                }
+
+                // CATEGORY BREAKDOWN SHEET
+                if (showCategorySheet) {
+                    ModalBottomSheet(onDismissRequest = { showCategorySheet = false }, containerColor = cardColor) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Text("Category Breakdown", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                            categoryShares.forEach { share ->
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(share.category, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Medium)
+                                    Text("${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(share.amount, currencySymbol)} (${share.percentage.toInt()}%)", color = subTextColor)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = {
+                                    showCategorySheet = false
+                                    onNavigateToHistory()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                            ) {
+                                Text("View in History", color = Color.White)
+                            }
+                            Spacer(modifier = Modifier.height(24.dp))
+                        }
+                    }
+                }
+
+                // 5. RECENT TRANSACTIONS
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text("Recent Transactions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color(0xFF0F172A))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Recent Transactions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    TextButton(onClick = onNavigateToHistory) {
+                        Text("See all >", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+                }
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (recentExpenses.isEmpty()) {
@@ -311,15 +591,15 @@ fun DashboardScreen(
                         val hasReceipt = expense.receiptImagePath.isNotEmpty() || expense.items.isNotEmpty()
 
                         Card(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable(enabled = hasReceipt) { selectedExpenseForDetails = expense },
-                            colors = CardDefaults.cardColors(containerColor = cardColor), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(if (isDarkMode) 0.dp else 1.dp)
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { selectedExpenseForDetails = expense },
+                            colors = CardDefaults.cardColors(containerColor = cardColor), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(1.dp)
                         ) {
                             Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                     Box(modifier = Modifier.size(40.dp).background(strokeBgColor, CircleShape), contentAlignment = Alignment.Center) { Text("🏷️", fontSize = 16.sp) }
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
-                                        Text(expense.merchantName.ifEmpty { expense.category }, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color(0xFF0F172A), maxLines = 1)
+                                        Text(expense.merchantName.ifEmpty { expense.category }, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, maxLines = 1)
                                         val dateStr = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(Date(expense.timestamp))
                                         Text(dateStr, style = MaterialTheme.typography.labelSmall, color = subTextColor)
                                     }
@@ -327,14 +607,17 @@ fun DashboardScreen(
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (hasReceipt) { Icon(imageVector = Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = "Has Receipt", tint = subTextColor.copy(alpha = 0.5f), modifier = Modifier.size(16.dp)); Spacer(modifier = Modifier.width(8.dp)) }
-                                    Text("- RM ${String.format(Locale.US, "%.2f", expense.amount)}", fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color(0xFF0F172A))
+                                    Text("- ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(expense.amount, currencySymbol)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
                                 }
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(100.dp))
+                // EXTRA PADDING AT BOTTOM TO CLEAR FABS
+                Spacer(modifier = Modifier.height(140.dp))
+                // EXTRA PADDING AT BOTTOM TO CLEAR FABS
+                Spacer(modifier = Modifier.height(140.dp))
             }
 
             if (levelUpTier != null) {
@@ -366,7 +649,7 @@ fun DashboardScreen(
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(expense.merchantName.ifEmpty { expense.category }, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = if (isDarkMode) Color.White else Color(0xFF0F172A))
+                                Text(expense.merchantName.ifEmpty { expense.category }, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onBackground)
                                 Text(expense.date.ifEmpty { dateFormatter.format(Date(expense.timestamp)) }, color = subTextColor, fontSize = 14.sp)
                             }
 
@@ -393,10 +676,10 @@ fun DashboardScreen(
                                 items(expense.items) { item ->
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text(item.name, fontWeight = FontWeight.Medium, color = if (isDarkMode) Color.White else Color(0xFF0F172A), maxLines = 1)
-                                            Text(item.category, fontSize = 12.sp, color = Color(0xFF0284C7))
+                                            Text(item.name, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onBackground, maxLines = 1)
+                                            Text(item.category, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                                         }
-                                        Text("RM ${String.format(Locale.US, "%.2f", item.amount)}", fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color(0xFF0F172A))
+                                        Text("$currencySymbol ${String.format(Locale.US, "%.2f", item.amount)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
                                     }
                                     HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = subTextColor.copy(alpha = 0.1f))
                                 }
@@ -408,8 +691,19 @@ fun DashboardScreen(
                         }
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Total Paid", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color(0xFF0F172A))
-                            Text("RM ${String.format(Locale.US, "%.2f", expense.amount)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = gradientStart)
+                            Text("Total Paid", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                            Text(com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(expense.amount, currencySymbol), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = gradientStart)
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                onDeleteExpense(expense)
+                                selectedExpenseForDetails = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Delete Transaction", color = MaterialTheme.colorScheme.onError)
                         }
                         Spacer(modifier = Modifier.height(32.dp))
                     }
@@ -422,7 +716,6 @@ fun DashboardScreen(
 @Composable
 fun UnifiedMascotCard(
     userName: String,
-    currentStreak: Int,
     playCoinDrop: Boolean,
     onAnimationFinished: () -> Unit,
     levelName: String,
@@ -435,7 +728,6 @@ fun UnifiedMascotCard(
 
     val currentLottieRes = when {
         playCoinDrop -> R.raw.piggy_feed
-        currentStreak == 0 -> R.raw.piggy_broken
         else -> R.raw.piggy_idle
     }
 
@@ -447,17 +739,6 @@ fun UnifiedMascotCard(
         composition = piggyComposition,
         iterations = shouldLoop,
         isPlaying = true
-    )
-
-    val isStreakBroken = currentStreak == 0
-    val streakLottieRes = if (isStreakBroken) R.raw.streak_broken else R.raw.streak_fire
-
-    val streakCompositionResult = rememberLottieComposition(LottieCompositionSpec.RawRes(streakLottieRes))
-    val streakComposition by streakCompositionResult
-
-    val streakAnimProgress by animateLottieCompositionAsState(
-        composition = streakComposition,
-        iterations = LottieConstants.IterateForever
     )
 
     LaunchedEffect(playCoinDrop) {
@@ -475,13 +756,18 @@ fun UnifiedMascotCard(
         label = "XP"
     )
 
+    val appTheme = com.finadapt.adaptivefinance.ui.theme.LocalAppTheme.current
+    
+    var showXpSheet by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+            .padding(vertical = 8.dp)
+            .clickable { showXpSheet = true },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(8.dp)
+        elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Row(
             modifier = Modifier
@@ -493,7 +779,7 @@ fun UnifiedMascotCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Player: $userName",
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                     fontSize = 12.sp
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -504,47 +790,11 @@ fun UnifiedMascotCard(
                     fontSize = 18.sp
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                val pillBgColor = if (isStreakBroken) Color(0xFFEF4444).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.1f)
-                val streakTextColor = if (isStreakBroken) Color(0xFFFCA5A5) else Color.White
-
-                Surface(
-                    color = pillBgColor,
-                    shape = RoundedCornerShape(50)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AnimatedVisibility(
-                            visible = streakCompositionResult.isComplete,
-                            enter = fadeIn(animationSpec = tween(500))
-                        ) {
-                            LottieAnimation(
-                                composition = streakComposition,
-                                progress = { streakAnimProgress },
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .offset(x = (-4).dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text = "$currentStreak Days",
-                            color = streakTextColor,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                
                 Text(
                     text = xpText,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -561,7 +811,7 @@ fun UnifiedMascotCard(
                         style = Stroke(width = 18f, cap = StrokeCap.Round)
                     )
                     drawArc(
-                        brush = Brush.linearGradient(listOf(Color(0xFF10B981), tierColor)),
+                        brush = Brush.linearGradient(listOf(appTheme.lightColorScheme.primary, tierColor)),
                         startAngle = 135f, sweepAngle = 270f * animatedFill, useCenter = false,
                         style = Stroke(width = 18f, cap = StrokeCap.Round)
                     )
@@ -577,6 +827,68 @@ fun UnifiedMascotCard(
                         modifier = Modifier.size(85.dp)
                     )
                 }
+            }
+        }
+    }
+
+    if (showXpSheet) {
+        val nextRankName = when (levelName) {
+            "Bronze Novice" -> "Silver Guardian"
+            "Silver Guardian" -> "Gold Master"
+            "Gold Master" -> "Platinum Legend"
+            else -> "Max Rank"
+        }
+
+        @OptIn(ExperimentalMaterial3Api::class)
+        ModalBottomSheet(
+            onDismissRequest = { showXpSheet = false },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+                Text(
+                    text = levelName,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "$xpText. Next rank: $nextRankName.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Log an expense", color = MaterialTheme.colorScheme.onBackground)
+                    Text("+3 XP", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Stay under daily limit", color = MaterialTheme.colorScheme.onBackground)
+                    Text("+20 XP", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("7-day streak", color = MaterialTheme.colorScheme.onBackground)
+                    Text("+50 XP", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
+                Button(
+                    onClick = { showXpSheet = false },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Text("Got it", color = MaterialTheme.colorScheme.onBackground)
+                }
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }

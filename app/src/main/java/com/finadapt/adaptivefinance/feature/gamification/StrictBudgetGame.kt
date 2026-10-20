@@ -66,11 +66,11 @@ fun StrictBudgetGame(
     }
 
     // High Industrial Color Palette
-    val darkMetal = Color(0xFF0F172A)
-    val brushedSteel = Color(0xFF1E293B)
-    val neonCyan = Color(0xFF06B6D4)
-    val alertAmber = Color(0xFFF59E0B)
-    val dangerRed = Color(0xFFEF4444)
+    val darkMetal = MaterialTheme.colorScheme.background
+    val brushedSteel = MaterialTheme.colorScheme.surface
+    val neonCyan = MaterialTheme.colorScheme.primary
+    val alertAmber = MaterialTheme.colorScheme.secondary
+    val dangerRed = MaterialTheme.colorScheme.error
 
     var currentPhase by remember { mutableStateOf(StrictPhase.INTRO) }
 
@@ -385,7 +385,7 @@ fun StrictBudgetGame(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = brushedSteel),
                         // The border instantly lights up Cyan when secured!
-                        border = androidx.compose.foundation.BorderStroke(2.dp, if (isSecured) neonCyan else Color(0xFF334155)),
+                        border = androidx.compose.foundation.BorderStroke(2.dp, if (isSecured) neonCyan else MaterialTheme.colorScheme.outline),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Column(
@@ -463,7 +463,7 @@ fun StrictBudgetGame(
                                             .background(
                                                 // The sweeping light effect!
                                                 Brush.linearGradient(
-                                                    colors = listOf(neonCyan, Color(0xFFE0F2FE), neonCyan), // Bright cyan -> White -> Bright Cyan
+                                                    colors = listOf(neonCyan, MaterialTheme.colorScheme.surfaceVariant, neonCyan), // Bright cyan -> White -> Bright Cyan
                                                     start = Offset(shimmerTranslate, 0f),
                                                     end = Offset(shimmerTranslate + 300f, 0f)
                                                 )
@@ -517,8 +517,8 @@ fun HeavyDeadbolt(
     val dragOffset = remember { Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
 
-    val trackColor = if (isLocked) Color(0xFF06B6D4).copy(alpha = 0.2f) else Color(0xFF1E293B)
-    val thumbColor = if (isLocked) Color(0xFF06B6D4) else Color(0xFF475569)
+    val trackColor = if (isLocked) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surface
+    val thumbColor = if (isLocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
 
     Box(
         modifier = Modifier
@@ -526,14 +526,14 @@ fun HeavyDeadbolt(
             .height(thumbSize)
             .clip(RoundedCornerShape(8.dp))
             .background(trackColor)
-            .border(2.dp, if (isLocked) Color(0xFF06B6D4) else Color(0xFF334155), RoundedCornerShape(8.dp))
+            .border(2.dp, if (isLocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
             .padding(4.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         // Label Text
         Text(
             text = if (isLocked) "LOCKED" else label,
-            color = if (isLocked) Color(0xFF06B6D4) else Color.Gray,
+            color = if (isLocked) MaterialTheme.colorScheme.primary else Color.Gray,
             fontWeight = FontWeight.Black,
             letterSpacing = 2.sp,
             modifier = Modifier.fillMaxWidth(),
@@ -588,7 +588,7 @@ fun HeavyDeadbolt(
             Icon(
                 imageVector = if (isLocked) Icons.Default.Lock else Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
-                tint = if (isLocked) Color.White else Color(0xFF94A3B8)
+                tint = if (isLocked) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
 
         }

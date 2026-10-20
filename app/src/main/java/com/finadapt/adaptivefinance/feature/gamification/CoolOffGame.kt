@@ -16,7 +16,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,10 +66,9 @@ fun CoolOffGame(
         }
     }
 
-    val isDark = isSystemInDarkTheme()
-    val subTextColor = if (isDark) Color(0xFF94A3B8) else Color.Gray
-    val cyanAccent = Color(0xFF06B6D4)
-    val warningRed = Color(0xFFEF4444)
+    val subTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val cyanAccent = MaterialTheme.colorScheme.primary
+    val warningRed = MaterialTheme.colorScheme.error
 
     var currentPhase by remember { mutableStateOf(CoolOffPhase.INTRO) }
     var timeLeft by remember { mutableIntStateOf(INITIAL_COUNTDOWN) }

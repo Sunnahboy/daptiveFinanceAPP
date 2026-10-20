@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -107,17 +108,17 @@ enum class TimeFilter { DAILY, WEEKLY, MONTHLY }
 @Composable
 fun HistoryScreen(
     allExpenses: List<ExpenseEntity>,
-    isDarkMode: Boolean = false,
+    currencySymbol: String,
     //tells the ViewModel to Edit or Delete
     onDeleteExpense: (ExpenseEntity) -> Unit,
     onEditExpense: (ExpenseEntity) -> Unit,
 ) {
-    val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-    val cardBg = if (isDarkMode) Color(0xFF1E293B) else Color.White
-    val textColor = if (isDarkMode) Color(0xFFF1F5F9) else Color(0xFF0F172A)
-    val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B)
-    val tabTrackColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFE2E8F0)
-    val tabActiveColor = if (isDarkMode) Color(0xFF334155) else Color.White
+    val bgColor = MaterialTheme.colorScheme.background
+    val cardBg = MaterialTheme.colorScheme.surface
+    val textColor = MaterialTheme.colorScheme.onBackground
+    val subTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val tabTrackColor = MaterialTheme.colorScheme.surfaceVariant
+    val tabActiveColor = MaterialTheme.colorScheme.primary.copy(alpha=0.2f)
 
     var selectedFilter by remember { mutableStateOf(TimeFilter.DAILY) }
     var searchQuery by remember { mutableStateOf("") }
@@ -209,6 +210,7 @@ fun HistoryScreen(
 
     Scaffold(
         containerColor = bgColor,
+        contentWindowInsets = WindowInsets(0)
     ) { innerPadding ->
         //Wrap the entire screen content in a Box
         Box(
@@ -240,19 +242,21 @@ fun HistoryScreen(
                     }
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = cardBg), elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 2.dp), shape = RoundedCornerShape(16.dp)) {
+
+
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = cardBg), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), shape = RoundedCornerShape(16.dp)) {
                         Box(modifier = Modifier.padding(16.dp)) {
-                            Chart(chart = columnChart(columns = listOf(lineComponent(color = Color(0xFF0284C7), thickness = 16.dp, shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)))), model = entryModelOf(*safeChartData.toTypedArray()), startAxis = rememberStartAxis(label = textComponent(color = subTextColor, textSize = 10.sp), valueFormatter = AxisValueFormatter { value, _ -> "RM ${value.toInt()}" }), bottomAxis = rememberBottomAxis(label = textComponent(color = subTextColor, textSize = 10.sp), valueFormatter = AxisValueFormatter { value, _ -> chartLabels.getOrNull(value.toInt()) ?: "" }, labelRotationDegrees = if (selectedFilter == TimeFilter.DAILY) -45f else 0f, guideline = null), modifier = Modifier.fillMaxWidth().height(180.dp))
+                            Chart(chart = columnChart(columns = listOf(lineComponent(color = MaterialTheme.colorScheme.primary, thickness = 16.dp, shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)))), model = entryModelOf(*safeChartData.toTypedArray()), startAxis = rememberStartAxis(label = textComponent(color = subTextColor, textSize = 10.sp), valueFormatter = AxisValueFormatter { value, _ -> "$currencySymbol ${value.toInt()}" }), bottomAxis = rememberBottomAxis(label = textComponent(color = subTextColor, textSize = 10.sp), valueFormatter = AxisValueFormatter { value, _ -> chartLabels.getOrNull(value.toInt()) ?: "" }, labelRotationDegrees = if (selectedFilter == TimeFilter.DAILY) -45f else 0f, guideline = null), modifier = Modifier.fillMaxWidth().height(180.dp))
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
 
                     if (filteredExpenses.isNotEmpty()) {
-                        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = cardBg), elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 2.dp), shape = RoundedCornerShape(16.dp)) {
+                        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = cardBg), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), shape = RoundedCornerShape(16.dp)) {
                             Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("Category Breakdown", fontWeight = FontWeight.Bold, color = textColor)
                                 Spacer(modifier = Modifier.height(16.dp))
-                                CategoryDonutChart(expenses = filteredExpenses, textColor = textColor)
+                                CategoryDonutChart(expenses = filteredExpenses, textColor = textColor, currencySymbol = currencySymbol)
                             }
                         }
                         Spacer(modifier = Modifier.height(32.dp))
@@ -283,7 +287,7 @@ fun HistoryScreen(
                                 .clickable(enabled = hasReceipt) { selectedExpenseForDetails = expense },
                             colors = CardDefaults.cardColors(containerColor = cardBg),
                             shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = if (isDarkMode) 0.dp else 1.dp)
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                         ) {
                             Row(
                                 modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp).fillMaxWidth(),
@@ -309,7 +313,7 @@ fun HistoryScreen(
                                         Spacer(modifier = Modifier.width(8.dp))
                                     }
 
-                                    Text("- RM ${String.format(Locale.US, "%.2f", expense.amount)}", fontWeight = FontWeight.Bold, color = categoryColor, fontSize = 14.sp)
+                                    Text("- $currencySymbol ${String.format(Locale.US, "%.2f", expense.amount)}", fontWeight = FontWeight.Bold, color = categoryColor, fontSize = 14.sp)
 
                                     // The Three-Dots Menu Button
                                     Box {
@@ -365,7 +369,7 @@ fun HistoryScreen(
                         OutlinedTextField(
                             value = editAmount,
                             onValueChange = { editAmount = it },
-                            label = { Text("Amount (RM)", color = subTextColor) },
+                            label = { Text("Amount ($currencySymbol)", color = subTextColor) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true,
                             colors = TextFieldDefaults.colors(focusedTextColor = textColor, unfocusedTextColor = textColor, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent)
@@ -393,7 +397,7 @@ fun HistoryScreen(
                                 expenseToEdit = null
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Text("Save", color = Color.White)
                     }
@@ -440,7 +444,7 @@ fun HistoryScreen(
                                         Text(item.name, fontWeight = FontWeight.Medium, color = textColor, maxLines = 1)
                                         Text(item.category, fontSize = 12.sp, color = getCategoryColor(item.category))
                                     }
-                                    Text("RM ${String.format(Locale.US, "%.2f", item.amount)}", fontWeight = FontWeight.Bold, color = textColor)
+                                    Text("$currencySymbol ${String.format(Locale.US, "%.2f", item.amount)}", fontWeight = FontWeight.Bold, color = textColor)
                                 }
                                 HorizontalDivider(modifier = Modifier.padding(top = 8.dp), color = subTextColor.copy(alpha = 0.1f))
                             }
@@ -452,7 +456,7 @@ fun HistoryScreen(
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Total Paid", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = textColor)
-                        Text("RM ${String.format(Locale.US, "%.2f", expense.amount)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = getCategoryColor(expense.category))
+                        Text("$currencySymbol ${String.format(Locale.US, "%.2f", expense.amount)}", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = getCategoryColor(expense.category))
                     }
                     Spacer(modifier = Modifier.height(32.dp))
                 }
@@ -463,7 +467,7 @@ fun HistoryScreen(
 
 // CategoryDonutChart
 @Composable
-fun CategoryDonutChart(expenses: List<ExpenseEntity>, textColor: Color) {
+fun CategoryDonutChart(expenses: List<ExpenseEntity>, textColor: Color, currencySymbol: String) {
     val categoryTotals = expenses.groupBy { it.category }.mapValues { entry -> entry.value.sumOf { it.amount.toDouble() }.toFloat() }.toList().sortedByDescending { it.second }
     val totalSpend = categoryTotals.sumOf { it.second.toDouble() }.toFloat()
     var animationPlayed by remember { mutableStateOf(false) }
@@ -484,7 +488,7 @@ fun CategoryDonutChart(expenses: List<ExpenseEntity>, textColor: Color) {
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Total", color = Color.Gray, fontSize = 12.sp)
-                Text(text = "RM ${String.format(Locale.US, "%.0f", totalSpend)}", fontWeight = FontWeight.Black, fontSize = 18.sp, color = textColor)
+                Text(text = "$currencySymbol ${String.format(Locale.US, "%.0f", totalSpend)}", fontWeight = FontWeight.Black, fontSize = 18.sp, color = textColor)
             }
         }
         Spacer(modifier = Modifier.height(24.dp))
@@ -501,7 +505,7 @@ fun CategoryDonutChart(expenses: List<ExpenseEntity>, textColor: Color) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = "${percentage.toInt()}%", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = color)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "(RM ${String.format(Locale.US, "%.0f", amount)})", fontSize = 12.sp, color = Color.Gray)
+                        Text(text = "($currencySymbol ${String.format(Locale.US, "%.0f", amount)})", fontSize = 12.sp, color = Color.Gray)
                     }
                 }
             }

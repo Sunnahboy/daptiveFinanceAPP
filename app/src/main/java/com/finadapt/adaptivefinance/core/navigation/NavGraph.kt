@@ -70,8 +70,9 @@ fun NavGraph(
     )
 
     val pagerState = rememberPagerState(pageCount = { tabScreens.size })
-    val isDark by dashboardViewModel.isDarkMode.collectAsState()
-    val navBarBgColor = if (isDark) Color(0xFF1E293B) else Color.White
+    val navBarBgColor = MaterialTheme.colorScheme.surface
+    
+    val appTheme = com.finadapt.adaptivefinance.ui.theme.LocalAppTheme.current
 
     Scaffold(
         floatingActionButton = {
@@ -87,9 +88,9 @@ fun NavGraph(
                         text = "Ask AI...",
                         icon = Icons.Default.SmartToy,
                         contentDescription = "AI Assistant",
-                        bubbleColor = Color(0xFF0284C7),
+                        bubbleColor = MaterialTheme.colorScheme.primary,
                         buttonContainerColor = Color.White,
-                        buttonContentColor = Color(0xFF0284C7),
+                        buttonContentColor = MaterialTheme.colorScheme.primary,
                         delayMillis = 1500L,
                         onClick = { scope.launch { pagerState.animateScrollToPage(5) } }
                     )
@@ -99,8 +100,8 @@ fun NavGraph(
                         text = "Log...",
                         icon = Icons.Default.Add,
                         contentDescription = "Log Expense",
-                        bubbleColor = Color(0xFF10B981),
-                        buttonContainerColor = Color(0xFF10B981),
+                        bubbleColor = MaterialTheme.colorScheme.secondary,
+                        buttonContainerColor = MaterialTheme.colorScheme.secondary,
                         buttonContentColor = Color.White,
                         delayMillis = 2000L,
                         onClick = { scope.launch { pagerState.animateScrollToPage(2) } }
@@ -130,10 +131,10 @@ fun NavGraph(
                             icon = { Icon(icon, contentDescription = label) },
                             onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
                             colors = when (index) {
-                                0 -> NavigationBarItemDefaults.colors(selectedIconColor = Color(0xFF10B981), indicatorColor = Color(0xFFD1FAE5))
-                                2 -> NavigationBarItemDefaults.colors(selectedIconColor = Color(0xFF8B5CF6), indicatorColor = Color(0xFFEDE9FE))
-                                3 -> NavigationBarItemDefaults.colors(selectedIconColor = Color(0xFF0284C7), indicatorColor = Color(0xFFE0F2FE))
-                                4 -> NavigationBarItemDefaults.colors(selectedIconColor = Color(0xFFF59E0B), indicatorColor = Color(0xFFFEF3C7))
+                                0 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.secondary, indicatorColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f))
+                                2 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.secondary, indicatorColor = MaterialTheme.colorScheme.surfaceVariant)
+                                3 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.primary, indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                                4 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.tertiary, indicatorColor = MaterialTheme.colorScheme.surfaceVariant)
                                 else -> NavigationBarItemDefaults.colors()
                             }
                         )
@@ -171,9 +172,10 @@ fun NavGraph(
                             val monthlyBudget by dashboardViewModel.monthlyBudget.collectAsState()
                             val todaySpend by dashboardViewModel.todaySpend.collectAsState()
                             val recentExpenses by dashboardViewModel.recentExpenses.collectAsState()
+                            val allExpenses by dashboardViewModel.allExpenses.collectAsState()
                             val userName by dashboardViewModel.userName.collectAsState()
+                            val currencySymbol by dashboardViewModel.currencySymbol.collectAsState()
                             val currentStreak by dashboardViewModel.currentStreak.collectAsState()
-                            val isDarkDashboard by dashboardViewModel.isDarkMode.collectAsState()
                             val mascotState by dashboardViewModel.mascotState.collectAsState()
 
                             // 🟢 DELETED the dynamic variables from here (they belong inside DashboardScreen.kt!)
@@ -181,12 +183,15 @@ fun NavGraph(
                             DashboardScreen(
                                 dashboardViewModel = dashboardViewModel, // 🟢 FIXED: Passed the ViewModel!
                                 userName = userName,
+                                currencySymbol = currencySymbol,
                                 totalSpend = totalSpend,
                                 todaySpend = todaySpend,
                                 monthlyBudget = monthlyBudget,
                                 currentStreak = currentStreak,
                                 recentExpenses = recentExpenses,
-                                isDarkMode = isDarkDashboard,
+                                allExpenses = allExpenses,
+                                onDeleteExpense = { expenseViewModel.deleteExpense(it) },
+                                onNavigateToHistory = { scope.launch { pagerState.animateScrollToPage(1) } },
                                 onNavigateToSettings = { scope.launch { pagerState.animateScrollToPage(6) } },
                                 currentAiAction = dashboardViewModel.currentAiAction.collectAsState().value,
                                 levelUpTier = dashboardViewModel.showLevelUpCelebration.collectAsState().value,
@@ -204,18 +209,19 @@ fun NavGraph(
 
                         Screen.History.route -> {
                             val allExpenses by dashboardViewModel.allExpenses.collectAsState()
-                            val isDarkHistory by dashboardViewModel.isDarkMode.collectAsState()
+                            val currencySymbol by dashboardViewModel.currencySymbol.collectAsState()
                             HistoryScreen(
-                                allExpenses = allExpenses, isDarkMode = isDarkHistory,
+                                allExpenses = allExpenses,
+                                currencySymbol = currencySymbol,
                                 onDeleteExpense = { expenseViewModel.deleteExpense(it) },
                                 onEditExpense = { expenseViewModel.editExpense(it) }
                             )
                         }
 
                         Screen.AddExpense.route -> {
-                            val isDarkAddExpense by dashboardViewModel.isDarkMode.collectAsState()
+                            val currencySymbol by dashboardViewModel.currencySymbol.collectAsState()
                             AddExpenseScreen(
-                                isDarkMode = isDarkAddExpense,
+                                currencySymbol = currencySymbol,
                                 onLogExpense = { a, c, m, d, p, i, itms -> expenseViewModel.logExpense(a, c, m, d, p, i, itms) },
                                 onDismissState = {
                                     dashboardViewModel.loadDashboardData()
@@ -229,7 +235,6 @@ fun NavGraph(
                             //ViewModel's init block handles the real time stream automatically
                             val leaderboardData by communityViewModel.leaderboardData.collectAsState()
                             val isLoading by communityViewModel.isLoading.collectAsState()
-                            val isDarkComm by dashboardViewModel.isDarkMode.collectAsState()
                             val hallOfFameData by communityViewModel.hallOfFameData.collectAsState()
 
                             //Collect these from the dashboardViewModel so they match the Rewards Screen exactly
@@ -240,7 +245,6 @@ fun NavGraph(
                                 leaderboardData = leaderboardData,
                                 currentAnonName = communityViewModel.currentAnonName,
                                 isLoading = isLoading,
-                                isDarkMode = isDarkComm,
                                 hallOfFameData = hallOfFameData,
                                 spendableCoins = spendableCoins,
                                 shieldCount = shieldCount, //Pass the shields into the screen
@@ -256,7 +260,6 @@ fun NavGraph(
                             val userXp by dashboardViewModel.userXp.collectAsState()
                             val shieldCount by dashboardViewModel.shieldCount.collectAsState()
                             val userCoins by dashboardViewModel.userCoins.collectAsState()
-                            val isDarkRewards by dashboardViewModel.isDarkMode.collectAsState()
                             //Collect the ascension level from your ViewModel
                             val ascensionLevel by dashboardViewModel.ascensionLevel.collectAsState()
                             RewardsScreen(
@@ -264,7 +267,6 @@ fun NavGraph(
                                 shieldCount = shieldCount,
                                 userCoins = userCoins,
                                 ascensionLevel = ascensionLevel,
-                                isDarkMode = isDarkRewards,
                                 onBuyShield = { dashboardViewModel.onBuyStreakShield() },
                                 onAscend = { dashboardViewModel.onAscend() }
                             )
@@ -279,9 +281,11 @@ fun NavGraph(
 
                         Screen.Settings.route -> {
                             val userName by dashboardViewModel.userName.collectAsState()
+                            val currencySymbol by dashboardViewModel.currencySymbol.collectAsState()
                             val monthlyBudget by dashboardViewModel.monthlyBudget.collectAsState()
-                            val isDarkSetting by dashboardViewModel.isDarkMode.collectAsState()
                             val liveExpenses by dashboardViewModel.allExpenses.collectAsState()
+                            val currentThemeStr by dashboardViewModel.appTheme.collectAsState()
+                            val appearanceMode by dashboardViewModel.appearanceMode.collectAsState()
 
                             //custom swipe to the home screen
                             var dragAccumulator by remember { mutableFloatStateOf(0f) }
@@ -306,10 +310,12 @@ fun NavGraph(
                                     }
                             ) {
                                 SettingsScreen(
-                                    currentName = userName, currentBudget = monthlyBudget, isDarkMode = isDarkSetting,
+                                    currentName = userName, currentBudget = monthlyBudget,
+                                    currentCurrency = currencySymbol, onCurrencyChanged = { dashboardViewModel.updateCurrency(it) },
+                                    currentThemeStr = currentThemeStr, onAppThemeChanged = { dashboardViewModel.updateAppTheme(it) },
+                                    appearanceMode = appearanceMode, onAppearanceModeChanged = { dashboardViewModel.setAppearanceMode(it) },
                                     allExpenses = liveExpenses, onNameChanged = { dashboardViewModel.updateUserName(it) },
                                     onBudgetChanged = { dashboardViewModel.updateMonthlyBudget(it) },
-                                    onThemeToggled = { dashboardViewModel.toggleTheme(it) },
                                     onResetGamification = { dashboardViewModel.resetGamification() },
                                     onWipeData = { dashboardViewModel.wipeAllData() },
                                     onNavigateBack = { scope.launch { pagerState.animateScrollToPage(0) } } // Back to Home

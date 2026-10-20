@@ -291,14 +291,14 @@ class FinanceRepository(
         prefs.edit { putString("LAST_SEEN_TIER", tierName) }
     }
 
-    //Save the Dark Mode choice
-    fun saveThemePreference(isDark: Boolean) {
-        prefs.edit { putBoolean("IS_DARK_MODE", isDark) }
+    //Save the Appearance choice
+    fun saveAppearanceMode(mode: String) {
+        prefs.edit { putString("APPEARANCE_MODE", mode) }
     }
 
-    //Read the Dark Mode choice (defaults to false/Light Mode)
-    fun isDarkMode(): Boolean {
-        return prefs.getBoolean("IS_DARK_MODE", false)
+    //Read the Appearance choice
+    fun getAppearanceMode(): String {
+        return prefs.getString("APPEARANCE_MODE", "SYSTEM") ?: "SYSTEM"
     }
 
     //Generate and stores a secure anonymous Name

@@ -83,7 +83,7 @@ fun LevelUpOverlay(
                     .padding(32.dp)
                     .fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.onBackground),
                 elevation = CardDefaults.cardElevation(24.dp)
             ) {
                 Column(
@@ -120,7 +120,7 @@ fun LevelUpOverlay(
 
                     Text(
                         text = newTierName,
-                        color = Color(0xFF0F172A),
+                        color = MaterialTheme.colorScheme.background,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 28.sp,
                         textAlign = TextAlign.Center

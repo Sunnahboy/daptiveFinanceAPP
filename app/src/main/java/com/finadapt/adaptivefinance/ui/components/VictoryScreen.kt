@@ -27,7 +27,7 @@ fun VictoryScreen(
         Box(
             modifier = Modifier
                 .size(80.dp)
-                .background(Color(0xFF10B981).copy(alpha = 0.2f), CircleShape),
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text("\uD83E\uDD70", fontSize = 40.sp)
@@ -35,18 +35,18 @@ fun VictoryScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(title, fontWeight = FontWeight.Black, fontSize = 24.sp, color = Color(0xFF10B981))
+        Text(title, fontWeight = FontWeight.Black, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(8.dp))
 
         // The Dopamine Hit
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(12.dp)
         ) {
             Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("\uD83D\uDC8E", fontSize = 20.sp)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("+$xpEarned XP", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0F172A))
+                Text("+$xpEarned XP", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
             }
         }
 
@@ -55,7 +55,7 @@ fun VictoryScreen(
         Button(
             onClick = onDismiss,
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             shape = RoundedCornerShape(16.dp)
         ) {
             Text("Return to Dashboard", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)

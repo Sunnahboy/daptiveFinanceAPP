@@ -17,7 +17,7 @@ object ApiClient {
     // Domains
     private const val PRIMARY_URL = "https://adaptivefinance.duckdns.org/"
     private const val BACKUP_URL = "https://adaptive-finance-backend.onrender.com/"
-    private const val RATE_LIMITER_URL = "https://finadapt-ratelimiter-service-production.up.railway.app/"
+    private const val RATE_LIMITER_URL = "https://finadapt-ratelimiter-service.onrender.com/"
 
     //Safely pulled from local.properties at compile time
     const val API_TOKEN = BuildConfig.API_TOKEN

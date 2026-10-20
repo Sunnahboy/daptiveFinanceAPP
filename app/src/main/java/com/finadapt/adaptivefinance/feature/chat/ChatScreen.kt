@@ -6,13 +6,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -78,10 +78,9 @@ fun ChatScreen(
     )
 
     // Theming Colors
-    val isDark = isSystemInDarkTheme()
-    val bgColor = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
-    val surfaceColor = if (isDark) Color(0xFF1E293B) else Color.White
-    val textColor = if (isDark) Color.White else Color.Black
+    val bgColor = androidx.compose.material3.MaterialTheme.colorScheme.background
+    val surfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface
+    val textColor = androidx.compose.material3.MaterialTheme.colorScheme.onBackground
 
     // Auto-scroll to the bottom whenever a new message is added
     LaunchedEffect(messages.size) {
@@ -91,6 +90,7 @@ fun ChatScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
                 title = {
@@ -130,7 +130,7 @@ fun ChatScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(messages) { message ->
-                    ChatBubble(message = message, isDark = isDark)
+                    ChatBubble(message = message)
                 }
 
                 if (isLoading) {
@@ -142,13 +142,13 @@ fun ChatScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(16.dp, 16.dp, 16.dp, 0.dp))
-                                    .background(if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0))
+                                    .background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant)
                                     .padding(12.dp)
                             ) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(20.dp),
                                     strokeWidth = 2.dp,
-                                    color = Color(0xFF0284C7)
+                                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -177,7 +177,7 @@ fun ChatScreen(
                                 }
                             },
                             shape = RoundedCornerShape(16.dp),
-                            color = if (isDark) Color(0xFF334155) else Color(0xFFE0F2FE),
+                            color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
                             modifier = Modifier.height(36.dp)
                         ) {
                             Box(
@@ -186,7 +186,7 @@ fun ChatScreen(
                             ) {
                                 Text(
                                     text = question,
-                                    color = if (isDark) Color.White else Color(0xFF0284C7),
+                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -214,7 +214,7 @@ fun ChatScreen(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(24.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF0284C7),
+                            focusedBorderColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
                             unfocusedBorderColor = Color.LightGray,
                             focusedTextColor = textColor,
                             unfocusedTextColor = textColor
@@ -234,7 +234,7 @@ fun ChatScreen(
                         },
                         modifier = Modifier
                             .size(48.dp)
-                            .background(Color(0xFF0284C7), RoundedCornerShape(24.dp)),
+                            .background(androidx.compose.material3.MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp)),
                         enabled = inputText.isNotBlank() && !isLoading
                     ) {
                         Icon(
@@ -288,7 +288,7 @@ fun TypewriterText(
 
 //Custom UI Component for the Chat Bubbles
 @Composable
-fun ChatBubble(message: ChatMessage, isDark: Boolean) {
+fun ChatBubble(message: ChatMessage) {
     val isUser = message.isFromUser
 
     // User messages go on the right, AI on the left
@@ -303,12 +303,12 @@ fun ChatBubble(message: ChatMessage, isDark: Boolean) {
 
     // Colors
     val bubbleColor = if (isUser) {
-        Color(0xFF0284C7) //Adaptive Finance Blue
+        androidx.compose.material3.MaterialTheme.colorScheme.primary
     } else {
-        if (isDark) Color(0xFF334155) else Color(0xFFE2E8F0)
+        androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
     }
 
-    val textColor = if (isUser) Color.White else (if (isDark) Color.White else Color.Black)
+    val textColor = if (isUser) androidx.compose.material3.MaterialTheme.colorScheme.onPrimary else androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
 
     Row(
         modifier = Modifier.fillMaxWidth(),

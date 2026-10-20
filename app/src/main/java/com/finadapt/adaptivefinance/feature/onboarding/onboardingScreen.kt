@@ -37,29 +37,26 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-// 1. CUSTOM PREMIUM DARK PALETTE
-val ThemePrimary = Color(0xFF30E87A)
-val ThemeEmeraldAccent = Color(0xFF10B981)
-val Slate500 = Color(0xFF64748B)
-val BorderDark = Color(0x66064E3B)
-val ErrorColor = Color(0xFFEF4444)
+
 
 @Composable
 fun OnboardingScreen(onFinish: () -> Unit) {
     var currentStep by rememberSaveable { mutableIntStateOf(1) }
     var nameInput by rememberSaveable { mutableStateOf("") }
     var selectedGoal by rememberSaveable { mutableStateOf("") }
+    var currencyInput by rememberSaveable { mutableStateOf("RM") }
     var budgetInput by rememberSaveable { mutableStateOf("") }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
 
-    val bgColor = Color(0xFFF8FAFC) // The off-white Dashboard color
-    val textColor = Color(0xFF0F172A) // Dark slate for readability
+    val bgColor = MaterialTheme.colorScheme.background
+    val textColor = MaterialTheme.colorScheme.onBackground
 
     // ================= STRICT VALIDATION LOGIC =================
     val cleanName = nameInput.trim()
+    val cleanCurrency = currencyInput.trim()
     val parsedBudget = budgetInput.toFloatOrNull()
 
     // Name Error States
@@ -67,6 +64,14 @@ fun OnboardingScreen(onFinish: () -> Unit) {
     val nameErrorMessage = when {
         nameInput.isNotEmpty() && cleanName.isEmpty() -> "Name cannot be empty spaces."
         cleanName.length > 15 -> "Keep it short (max 15 characters)."
+        else -> null
+    }
+
+    // Currency Error States
+    val isCurrencyError = currencyInput.isNotEmpty() && (cleanCurrency.isEmpty() || cleanCurrency.length > 5)
+    val currencyErrorMessage = when {
+        currencyInput.isNotEmpty() && cleanCurrency.isEmpty() -> "Currency symbol cannot be empty spaces."
+        cleanCurrency.length > 5 -> "Keep it short (max 5 characters)."
         else -> null
     }
 
@@ -79,12 +84,12 @@ fun OnboardingScreen(onFinish: () -> Unit) {
     }
 
     // Overall Step Validity
-    val isStepValid by remember(currentStep, cleanName, selectedGoal, parsedBudget) {
+    val isStepValid by remember(currentStep, cleanName, selectedGoal, parsedBudget, cleanCurrency) {
         derivedStateOf {
             when (currentStep) {
                 1 -> cleanName.isNotEmpty() && cleanName.length <= 15
                 2 -> selectedGoal.isNotBlank()
-                3 -> parsedBudget != null && parsedBudget > 0f && parsedBudget <= 1_000_000f
+                3 -> cleanCurrency.isNotEmpty() && cleanCurrency.length <= 5 && parsedBudget != null && parsedBudget > 0f && parsedBudget <= 1_000_000f
                 else -> false
             }
         }
@@ -156,6 +161,13 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         textColor = textColor
                     )
                     3 -> BudgetInputStep(
+                        currency = currencyInput,
+                        onCurrencyChange = { newValue ->
+                            val sanitized = newValue.filter { it.isLetterOrDigit() || it.isWhitespace() || it == '$' || it == '€' || it == '£' || it == '¥' }
+                            currencyInput = sanitized
+                        },
+                        isCurrencyError = isCurrencyError,
+                        currencyErrorMessage = currencyErrorMessage,
                         budget = budgetInput,
                         onBudgetChange = { newValue ->
                             // SANITIZATION: European commas and filter out bad chars instantly
@@ -174,7 +186,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         onDone = {
                             if (isStepValid) {
                                 coroutineScope.launch {
-                                    saveUserBaseline(context, cleanName, selectedGoal, budgetInput)
+                                    saveUserBaseline(context, cleanName, selectedGoal, cleanCurrency, budgetInput)
                                     onFinish()
                                 }
                             }
@@ -192,7 +204,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     if (currentStep < 3) currentStep += 1
                     else {
                         coroutineScope.launch {
-                            saveUserBaseline(context, cleanName, selectedGoal, budgetInput)
+                            saveUserBaseline(context, cleanName, selectedGoal, cleanCurrency, budgetInput)
                             onFinish()
                         }
                     }
@@ -204,17 +216,19 @@ fun OnboardingScreen(onFinish: () -> Unit) {
 
 @Composable
 fun AmbientGlow() {
+    val accentColor = MaterialTheme.colorScheme.secondary
+    val primaryColor = MaterialTheme.colorScheme.primary
     Canvas(modifier = Modifier.fillMaxSize()) {
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(ThemeEmeraldAccent.copy(alpha = 0.15f), Color.Transparent),
+                colors = listOf(accentColor.copy(alpha = 0.15f), Color.Transparent),
                 center = Offset(0f, 0f),
                 radius = 800f
             )
         )
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(ThemePrimary.copy(alpha = 0.15f), Color.Transparent),
+                colors = listOf(primaryColor.copy(alpha = 0.15f), Color.Transparent),
                 center = Offset(size.width, size.height + 200f),
                 radius = 1000f
             )
@@ -228,7 +242,7 @@ fun OnboardingProgressBar(step: Int) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
                 "STEP $step OF 3",
-                color = ThemePrimary,
+                color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -237,7 +251,7 @@ fun OnboardingProgressBar(step: Int) {
         LinearProgressIndicator(
             progress = { step / 3f },
             modifier = Modifier.fillMaxWidth().height(8.dp),
-            color = ThemePrimary,
+            color = MaterialTheme.colorScheme.primary,
             trackColor = Color(0x4D064E3B),
             strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
         )
@@ -255,7 +269,7 @@ fun NameInputStep(
     Column(modifier = Modifier.padding(horizontal = 24.dp)) {
         Text("Let's get to know you.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("What should your AI guardian call you?", color = Slate500, style = MaterialTheme.typography.bodyMedium)
+        Text("What should your AI guardian call you?", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
@@ -266,19 +280,19 @@ fun NameInputStep(
             isError = isError,
             supportingText = {
                 if (errorMessage != null) {
-                    Text(errorMessage, color = ErrorColor)
+                    Text(errorMessage, color = MaterialTheme.colorScheme.error)
                 }
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = ThemePrimary,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = Color(0xFFE2E8F0),
                 focusedTextColor = textColor,
                 unfocusedTextColor = textColor,
-                errorBorderColor = ErrorColor,
-                errorTextColor = ErrorColor,
-                errorLabelColor = ErrorColor
+                errorBorderColor = MaterialTheme.colorScheme.error,
+                errorTextColor = MaterialTheme.colorScheme.error,
+                errorLabelColor = MaterialTheme.colorScheme.error
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -290,7 +304,7 @@ fun GoalSelectionStep(selectedGoal: String, onGoalSelected: (String) -> Unit, te
     Column(modifier = Modifier.padding(horizontal = 24.dp).verticalScroll(rememberScrollState())) {
         Text("What's your primary goal?", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("We will tailor your AI gamification dashboard based on your choice.", color = Slate500, style = MaterialTheme.typography.bodyMedium)
+        Text("We will tailor your AI gamification dashboard based on your choice.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(24.dp))
 
         ONBOARDING_GOALS.forEach { goal ->
@@ -315,10 +329,10 @@ fun GoalCard(
     textColor: Color,
     onClick: () -> Unit
 ) {
-    val borderColor = if (isSelected) ThemePrimary else Color.Transparent
-    val cardBgColor = Color.White
-    val iconBgColor = Color(0xFFD1FAE5) // Soft mint green
-    val iconColor = ThemePrimary
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
+    val cardBgColor = MaterialTheme.colorScheme.surface
+    val iconBgColor = MaterialTheme.colorScheme.primary.copy(alpha=0.15f) // Soft mint green
+    val iconColor = MaterialTheme.colorScheme.primary
 
     Card(
         modifier = Modifier
@@ -345,18 +359,23 @@ fun GoalCard(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = textColor)
-                Text(text = description, color = Slate500, style = MaterialTheme.typography.bodySmall)
+                Text(text = description, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
             }
 
             if (isSelected) {
-                Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = ThemePrimary)
+                Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetInputStep(
+    currency: String,
+    onCurrencyChange: (String) -> Unit,
+    isCurrencyError: Boolean,
+    currencyErrorMessage: String?,
     budget: String,
     onBudgetChange: (String) -> Unit,
     isError: Boolean,
@@ -364,35 +383,84 @@ fun BudgetInputStep(
     onDone: () -> Unit,
     textColor: Color
 ) {
-    Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+    var expanded by remember { mutableStateOf(false) }
+    val presetCurrencies = listOf("RM", "$", "€", "£", "¥", "₹")
+
+    Column(modifier = Modifier.padding(horizontal = 24.dp).verticalScroll(rememberScrollState())) {
         Text("Set your baseline.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("The AI uses this to calculate volatility.", color = Slate500, style = MaterialTheme.typography.bodyMedium)
+        Text("We need a currency and budget to calculate your stats.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(32.dp))
+
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = !expanded }
+        ) {
+            OutlinedTextField(
+                value = currency,
+                onValueChange = onCurrencyChange,
+                label = { Text("Currency Symbol") },
+                singleLine = true,
+                isError = isCurrencyError,
+                supportingText = {
+                    if (currencyErrorMessage != null) {
+                        Text(currencyErrorMessage, color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Next),
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedTextColor = textColor,
+                    unfocusedTextColor = textColor,
+                    errorBorderColor = MaterialTheme.colorScheme.error,
+                    errorTextColor = MaterialTheme.colorScheme.error,
+                    errorLabelColor = MaterialTheme.colorScheme.error
+                ),
+                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth()
+            )
+            
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                presetCurrencies.forEach { preset ->
+                    DropdownMenuItem(
+                        text = { Text(preset) },
+                        onClick = {
+                            onCurrencyChange(preset)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
             value = budget,
             onValueChange = onBudgetChange,
-            label = { Text("Monthly Budget (RM)") },
-            prefix = { Text("RM ", fontWeight = FontWeight.Bold) },
+            label = { Text("Monthly Budget ($currency)") },
+            prefix = { Text("$currency ", fontWeight = FontWeight.Bold) },
             singleLine = true,
             isError = isError,
             supportingText = {
                 if (errorMessage != null) {
-                    Text(errorMessage, color = ErrorColor)
+                    Text(errorMessage, color = MaterialTheme.colorScheme.error)
                 }
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { onDone() }),
             shape = RoundedCornerShape(16.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = ThemePrimary,
-                unfocusedBorderColor = BorderDark,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
                 focusedTextColor = textColor,
                 unfocusedTextColor = textColor,
-                errorBorderColor = ErrorColor,
-                errorTextColor = ErrorColor,
-                errorLabelColor = ErrorColor
+                errorBorderColor = MaterialTheme.colorScheme.error,
+                errorTextColor = MaterialTheme.colorScheme.error,
+                errorLabelColor = MaterialTheme.colorScheme.error
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -414,7 +482,7 @@ fun OnboardingFooter(currentStep: Int, isValid: Boolean, onContinue: () -> Unit)
 
             Text(
                 text = helperText,
-                color = Slate500,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
@@ -426,17 +494,17 @@ fun OnboardingFooter(currentStep: Int, isValid: Boolean, onContinue: () -> Unit)
             onClick = onContinue,
             enabled = isValid,
             modifier = Modifier.fillMaxWidth().height(60.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = ThemePrimary),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             shape = RoundedCornerShape(50)
         ) {
             Text(
                 if (currentStep < 3) "Continue" else "Complete Setup",
-                color = Color(0xFF022C22),
+                color = MaterialTheme.colorScheme.onPrimary,
                 fontWeight = FontWeight.Bold
             )
             if (currentStep < 3) {
                 Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Color(0xFF022C22))
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = MaterialTheme.colorScheme.onPrimary)
             }
         }
     }
@@ -450,7 +518,7 @@ private val ONBOARDING_GOALS = listOf(
     GoalData("Track Daily Habits", "See exactly where your money goes every day.", Icons.AutoMirrored.Filled.TrendingUp)
 )
 
-suspend fun saveUserBaseline(context: Context, name: String, goal: String, budget: String) {
+suspend fun saveUserBaseline(context: Context, name: String, goal: String, currency: String, budget: String) {
     withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences("AdaptiveFinancePrefs", Context.MODE_PRIVATE)
         val currentUserId = prefs.getString("SILENT_USER_ID", null)
@@ -461,6 +529,7 @@ suspend fun saveUserBaseline(context: Context, name: String, goal: String, budge
             }
             putString("USER_NAME", name)
             putString("USER_GOAL", goal)
+            putString("PREFERRED_CURRENCY", currency.ifBlank { "RM" })
             putFloat("MONTHLY_BUDGET", budget.toFloatOrNull() ?: 0f)
             putString("TEST_GROUP", "adaptive")
             putLong("INSTALL_TIMESTAMP", System.currentTimeMillis())

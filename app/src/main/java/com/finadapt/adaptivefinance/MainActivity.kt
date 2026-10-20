@@ -24,6 +24,12 @@ import com.finadapt.adaptivefinance.feature.expense.ExpenseViewModelFactory
 import com.finadapt.adaptivefinance.worker.NotificationScheduler
 import com.finadapt.adaptivefinance.ui.theme.AdaptiveFinanceTheme
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
+import com.finadapt.adaptivefinance.ui.theme.AppTheme
+import com.finadapt.adaptivefinance.ui.theme.LocalAppTheme
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,11 +47,10 @@ class MainActivity : ComponentActivity() {
         val repository = FinanceRepository(database.expenseDao(), prefs)
 
         setContent {
-            AdaptiveFinanceTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
                     val navController = rememberNavController()
 
                     // 3. Prepare the factories and build ViewModels
@@ -61,17 +66,24 @@ class MainActivity : ComponentActivity() {
                     val chatFactory = ChatViewModelFactory(database.expenseDao(), prefs)
                     val chatViewModel: ChatViewModel = viewModel(factory = chatFactory)
 
-                    // 5. Launch the App via NavGraph
-                    NavGraph(
-                        navController = navController,
-                        dashboardViewModel = dashboardViewModel,
-                        expenseViewModel = expenseViewModel,
-                        communityViewModel = communityViewModel,
-                        chatViewModel = chatViewModel,
-                        prefs = prefs
-                    )
+                    val currentThemeStr by dashboardViewModel.appTheme.collectAsState()
+                    val appearanceMode by dashboardViewModel.appearanceMode.collectAsState()
+                    val appTheme = AppTheme.fromString(currentThemeStr)
+
+                    CompositionLocalProvider(LocalAppTheme provides appTheme) {
+                        AdaptiveFinanceTheme(appTheme = appTheme, appearanceMode = appearanceMode) {
+                            // 5. Launch the App via NavGraph
+                            NavGraph(
+                                navController = navController,
+                                dashboardViewModel = dashboardViewModel,
+                                expenseViewModel = expenseViewModel,
+                                communityViewModel = communityViewModel,
+                                chatViewModel = chatViewModel,
+                                prefs = prefs
+                            )
+                        }
+                    }
                 }
             }
-        }
     }
 }

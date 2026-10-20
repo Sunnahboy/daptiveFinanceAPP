@@ -52,16 +52,15 @@ fun CommunityScreen(
     leaderboardData: List<LeaderboardEntry>,
     currentAnonName: String,
     isLoading: Boolean,
-    isDarkMode: Boolean = false,
     onCheerClicked: (String, String) -> Unit,
     hallOfFameData: List<LeaderboardEntry> = emptyList(),
     spendableCoins: Int = 0,
     shieldCount: Int = 0
 ) {
-    val bgColor = if (isDarkMode) Color(0xFF0F172A) else Color(0xFFE2E8F0)
-    val listContainerColor = if (isDarkMode) Color(0xFF1E293B).copy(alpha = 0.8f) else Color.White.copy(alpha = 0.6f)
-    val textColor = if (isDarkMode) Color.White else Color(0xFF0F172A)
-    val subTextColor = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B)
+    val bgColor = MaterialTheme.colorScheme.background
+    val listContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+    val textColor = MaterialTheme.colorScheme.onBackground
+    val subTextColor = MaterialTheme.colorScheme.onSurfaceVariant
 
     //state to trigger our custom alert
     var showBrokeAlert by remember { mutableStateOf(false) }
@@ -150,7 +149,7 @@ fun CommunityScreen(
         ) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFFEF4444), // Danger Red color
+                color = MaterialTheme.colorScheme.error, // Danger Red color
                 shadowElevation = 8.dp
             ) {
                 Row(
@@ -179,7 +178,7 @@ fun CommunityScreen(
 @Composable
 private fun LoadingState(bgColor: Color) {
     Box(modifier = Modifier.fillMaxSize().background(bgColor), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = Color(0xFF0284C7))
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -207,7 +206,7 @@ private fun HallOfFameSection(hallOfFameData: List<LeaderboardEntry>, textColor:
         items(hallOfFameData) { winner ->
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(64.dp)) {
                 Box(
-                    modifier = Modifier.size(50.dp).background(Color(0xFFFDE047).copy(alpha = 0.2f), CircleShape),
+                    modifier = Modifier.size(50.dp).background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("👑", fontSize = 20.sp)
@@ -228,9 +227,9 @@ private fun PodiumSection(top3: List<LeaderboardEntry>, textColor: Color) {
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.Bottom
     ) {
-        if (top3.size > 1) PodiumCard(top3[1], "2nd", 130.dp, Color(0xFFCBD5E1), Color(0xFF94A3B8), textColor)
-        if (top3.isNotEmpty()) PodiumCard(top3[0], "1st", 170.dp, Color(0xFFFDE047), Color(0xFFEAB308), textColor)
-        if (top3.size > 2) PodiumCard(top3[2], "3rd", 100.dp, Color(0xFFFDBA74), Color(0xFFD97706), textColor)
+        if (top3.size > 1) PodiumCard(top3[1], "2nd", 130.dp, MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant, textColor)
+        if (top3.isNotEmpty()) PodiumCard(top3[0], "1st", 170.dp, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.primary, textColor)
+        if (top3.size > 2) PodiumCard(top3[2], "3rd", 100.dp, MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.secondary, textColor)
     }
 }
 
@@ -264,13 +263,13 @@ private fun LeagueInfoBanner(
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Surface(color = Color(0xFF0284C7).copy(alpha = 0.1f), shape = RoundedCornerShape(50)) {
+        Surface(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), shape = RoundedCornerShape(50)) {
             Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Timer, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(16.dp))
+                Icon(Icons.Rounded.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = if (daysUntilReset == 0) "Resets Tonight at Midnight!" else "League Resets in $daysUntilReset Days",
-                    color = Color(0xFF0284C7), fontWeight = FontWeight.Bold, fontSize = 12.sp
+                    color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 12.sp
                 )
             }
         }
@@ -324,8 +323,8 @@ private fun TierDivider(tier: String, containerColor: Color) {
         color = when (tier) {
             "Platinum Legend" -> Color(0xFF34D399)
             "Gold Master"     -> Color(0xFFF59E0B)
-            "Silver Guardian" -> Color(0xFF94A3B8)
-            else              -> Color(0xFFD97706)
+            "Silver Guardian" -> MaterialTheme.colorScheme.onSurfaceVariant
+            else              -> MaterialTheme.colorScheme.secondary
         },
         fontSize = 13.sp
     )
@@ -337,7 +336,7 @@ private fun LeaderboardPlayerRow(
     textColor: Color, subTextColor: Color, spendableCoins: Int, onCheerClicked: (String, String) -> Unit,
     onBroke: () -> Unit
 ) {
-    val rowBg = if (isMe) Color(0xFF0284C7).copy(alpha = 0.15f) else Color.Transparent
+    val rowBg = if (isMe) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent
     var hasCheered by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).background(listContainerColor)) {
@@ -347,7 +346,7 @@ private fun LeaderboardPlayerRow(
         ) {
             Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier.size(40.dp).background(if (isMe) Color(0xFF0284C7) else Color.Gray.copy(alpha = 0.3f), CircleShape),
+                    modifier = Modifier.size(40.dp).background(if (isMe) MaterialTheme.colorScheme.primary else Color.Gray.copy(alpha = 0.3f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Person, contentDescription = null, tint = Color.White)
@@ -357,7 +356,7 @@ private fun LeaderboardPlayerRow(
                     Text(
                         text = if (isMe) "${player.anonymousName} (You)" else player.anonymousName,
                         fontWeight = if (isMe) FontWeight.Bold else FontWeight.SemiBold,
-                        color = if (isMe) Color(0xFF0284C7) else textColor,
+                        color = if (isMe) MaterialTheme.colorScheme.primary else textColor,
                         maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
 
@@ -462,7 +461,7 @@ private fun InteractiveCheerButton(
                 text = if (hasCheered) "❤️ Cheered!" else "👏 -10 coins",
                 fontSize = 11.sp,
                 fontWeight = if (hasCheered) FontWeight.Black else FontWeight.Normal,
-                color = if (hasCheered) Color(0xFF10B981) else if (spendableCoins < 10) Color.Gray else Color(0xFF0284C7), // Grey out if broke
+                color = if (hasCheered) MaterialTheme.colorScheme.secondary else if (spendableCoins < 10) Color.Gray else MaterialTheme.colorScheme.primary, // Grey out if broke
                 modifier = Modifier.scale(cheerScale.value)
             )
         }
@@ -496,10 +495,10 @@ fun PodiumCard(player: LeaderboardEntry, rankText: String, height: androidx.comp
         Spacer(modifier = Modifier.height(12.dp))
         Card(modifier = Modifier.fillMaxWidth().height(height), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = cardColor), elevation = CardDefaults.cardElevation(4.dp)) {
             Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text(rankText, fontWeight = FontWeight.Black, fontSize = 20.sp, color = Color(0xFF451A03))
+                Text(rankText, fontWeight = FontWeight.Black, fontSize = 20.sp, color = MaterialTheme.colorScheme.onBackground)
                 Spacer(modifier = Modifier.height(8.dp))
                 Box(modifier = Modifier.background(pillColor.copy(alpha = 0.3f), RoundedCornerShape(50)).padding(horizontal = 12.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
-                    Text("${player.xp} XP", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF451A03))
+                    Text("${player.xp} XP", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground)
                 }
             }
         }

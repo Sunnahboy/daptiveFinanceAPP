@@ -36,8 +36,11 @@ class DashboardViewModel(
     private val _playCoinDropAnimation = MutableStateFlow(false)
     val playCoinDropAnimation: StateFlow<Boolean> = _playCoinDropAnimation.asStateFlow()
 
-    private val _isDarkMode = MutableStateFlow(false)
-    val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
+    private val _appearanceMode = MutableStateFlow("SYSTEM")
+    val appearanceMode: StateFlow<String> = _appearanceMode.asStateFlow()
+
+    private val _appTheme = MutableStateFlow("EMERALD")
+    val appTheme: StateFlow<String> = _appTheme.asStateFlow()
 
     private val _currentStreak = MutableStateFlow(0)
     val currentStreak: StateFlow<Int> = _currentStreak.asStateFlow()
@@ -50,6 +53,9 @@ class DashboardViewModel(
 
     private val _monthlyBudget = MutableStateFlow(0f)
     val monthlyBudget: StateFlow<Float> = _monthlyBudget.asStateFlow()
+
+    private val _currencySymbol = MutableStateFlow("RM")
+    val currencySymbol: StateFlow<String> = _currencySymbol.asStateFlow()
 
     private val _currentAiAction = MutableStateFlow("zen")
     val currentAiAction: StateFlow<String> = _currentAiAction.asStateFlow()
@@ -124,7 +130,17 @@ class DashboardViewModel(
             }
             "USER_NAME" -> {
                 _userName.value = prefs.getString("USER_NAME", "User") ?: "User"
-                calculateBehavioralGreeting(allExpenses.value, _userName.value)
+                calculateBehavioralGreeting(allExpenses.value, _userName.value, _currencySymbol.value)
+            }
+            "PREFERRED_CURRENCY" -> {
+                _currencySymbol.value = prefs.getString("PREFERRED_CURRENCY", "RM") ?: "RM"
+                calculateBehavioralGreeting(allExpenses.value, _userName.value, _currencySymbol.value)
+            }
+            "APP_THEME" -> {
+                _appTheme.value = prefs.getString("APP_THEME", "EMERALD") ?: "EMERALD"
+            }
+            "APPEARANCE_MODE" -> {
+                _appearanceMode.value = prefs.getString("APPEARANCE_MODE", "SYSTEM") ?: "SYSTEM"
             }
         }
     }
@@ -178,16 +194,20 @@ class DashboardViewModel(
                 }
                 _weeklyChartData.value = dailyTotals.toList()
                 
+                _currencySymbol.value = prefs.getString("PREFERRED_CURRENCY", "RM") ?: "RM"
+                
                 // Update greeting when expenses change
-                calculateBehavioralGreeting(expenses, _userName.value)
+                calculateBehavioralGreeting(expenses, _userName.value, _currencySymbol.value)
             }
         }
     }
 
     fun loadDashboardData() {
         viewModelScope.launch {
-            _isDarkMode.value = financeRepository.isDarkMode()
+            _appearanceMode.value = financeRepository.getAppearanceMode()
+            _appTheme.value = prefs.getString("APP_THEME", "EMERALD") ?: "EMERALD"
             _monthlyBudget.value = prefs.getFloat("MONTHLY_BUDGET", 1000f)
+            _currencySymbol.value = prefs.getString("PREFERRED_CURRENCY", "RM") ?: "RM"
             _currentAiAction.value = prefs.getString("LAST_AI_ACTION", "zen") ?: "zen"
 
             val currentXp = prefs.getInt("USER_XP", 0)
@@ -228,7 +248,7 @@ class DashboardViewModel(
             _weeklyChartData.value = dailyTotals.toList()
 
             // Update greeting after fetching data
-            calculateBehavioralGreeting(allExpenses.value, _userName.value)
+            calculateBehavioralGreeting(allExpenses.value, _userName.value, _currencySymbol.value)
 
             val currentTier = when {
                 currentXp < 500 -> "Bronze Novice"
@@ -247,7 +267,7 @@ class DashboardViewModel(
 
 
     @SuppressLint("DefaultLocale")
-    fun calculateBehavioralGreeting(expenses: List<ExpenseEntity>, userName: String) {
+    fun calculateBehavioralGreeting(expenses: List<ExpenseEntity>, userName: String, currencySymbol: String) {
         val cleanName = userName.ifEmpty { "Player" }
         
         // Filter to ONLY current month so AI comments reset with the month
@@ -273,31 +293,31 @@ class DashboardViewModel(
             //Check if it's just a small amount first
             if (totalSpent < 100f) {
                 _dynamicTitle.value = "Off to a great start, $cleanName! 🚀"
-                _dynamicSubtitle.value = "You've spent RM $formattedAmount on $category so far. Keeping it light!"
+                _dynamicSubtitle.value = "You've spent $currencySymbol $formattedAmount on $category so far. Keeping it light!"
                 return
             }
 
-            //If it's over RM 100, THEN hit them with the behavioral warnings
+            //If it's over currency 100, THEN hit them with the behavioral warnings
             when (category.lowercase()) {
                 "food", "dining", "groceries" -> {
                     _dynamicTitle.value = "Hey Foodie Boss $cleanName! 🍔"
-                    _dynamicSubtitle.value = "Your appetite cost RM $formattedAmount this month. Time to scale back?"
+                    _dynamicSubtitle.value = "Your appetite cost $currencySymbol $formattedAmount this month. Time to scale back?"
                 }
                 "transport", "gas", "parking" -> {
                     _dynamicTitle.value = "Hey Jetsetter $cleanName! 🚗"
-                    _dynamicSubtitle.value = "You've driven through RM $formattedAmount on Transport recently."
+                    _dynamicSubtitle.value = "You've driven through $currencySymbol $formattedAmount on Transport recently."
                 }
                 "shopping", "clothes" -> {
                     _dynamicTitle.value = "Hey Big Spender $cleanName! 🛍️"
-                    _dynamicSubtitle.value = "Shopping is your #1 drain right now at RM $formattedAmount."
+                    _dynamicSubtitle.value = "Shopping is your #1 drain right now at $currencySymbol $formattedAmount."
                 }
                 "entertainment", "games", "movies" -> {
                     _dynamicTitle.value = "Hey Player One $cleanName! 🎮"
-                    _dynamicSubtitle.value = "RM $formattedAmount spent on fun. Let's lock it down."
+                    _dynamicSubtitle.value = "$currencySymbol $formattedAmount spent on fun. Let's lock it down."
                 }
                 else -> {
                     _dynamicTitle.value = "Hey Chief $cleanName! 📈"
-                    _dynamicSubtitle.value = "$category is taking over your wallet at RM $formattedAmount."
+                    _dynamicSubtitle.value = "$category is taking over your wallet at $currencySymbol $formattedAmount."
                 }
             }
         } else {
@@ -314,7 +334,12 @@ class DashboardViewModel(
     fun updateUserName(newName: String) {
         prefs.edit { putString("USER_NAME", newName) }
         _userName.value = newName
-        calculateBehavioralGreeting(allExpenses.value, newName)
+        calculateBehavioralGreeting(allExpenses.value, newName, _currencySymbol.value)
+    }
+
+    fun updateCurrency(newCurrency: String) {
+        prefs.edit { putString("PREFERRED_CURRENCY", newCurrency) }
+        _currencySymbol.value = newCurrency
     }
 
     fun updateMonthlyBudget(newBudget: Float) {
@@ -403,11 +428,16 @@ class DashboardViewModel(
         _showLevelUpCelebration.value = null
     }
 
-    fun toggleTheme(isDark: Boolean) {
+    fun setAppearanceMode(mode: String) {
         viewModelScope.launch {
-            financeRepository.saveThemePreference(isDark)
-            _isDarkMode.value = isDark
+            financeRepository.saveAppearanceMode(mode)
+            _appearanceMode.value = mode
         }
+    }
+
+    fun updateAppTheme(theme: String) {
+        prefs.edit { putString("APP_THEME", theme) }
+        _appTheme.value = theme
     }
 
     fun resetCoinDropAnimation(){

@@ -92,8 +92,9 @@ fun VoiceInputButton(
             repeatMode = RepeatMode.Reverse
         ), label = "scale"
     )
+    val appTheme = com.finadapt.adaptivefinance.ui.theme.LocalAppTheme.current
     val bgColor by animateColorAsState(
-        targetValue = if (isListening) Color(0xFFEF4444) else Color(0xFF0284C7),
+        targetValue = if (isListening) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary,
         label = "color"
     )
 
