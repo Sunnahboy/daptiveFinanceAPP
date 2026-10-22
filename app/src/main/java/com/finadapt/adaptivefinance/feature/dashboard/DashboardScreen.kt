@@ -6,6 +6,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -51,6 +52,14 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.core.content.edit
 import kotlinx.coroutines.delay
+import androidx.compose.ui.graphics.toArgb
+import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
+import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
+import com.patrykandpatrick.vico.compose.chart.Chart
+import com.patrykandpatrick.vico.compose.chart.line.lineChart
+import com.patrykandpatrick.vico.compose.component.textComponent
+import com.patrykandpatrick.vico.core.axis.formatter.AxisValueFormatter
+import com.patrykandpatrick.vico.core.entry.entryModelOf
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +85,8 @@ fun DashboardScreen(
     tierColorHex: Long,
     fillPercentage: Float,
     xpText: String,
-    onGameFeedback: (String, String, Boolean) -> Unit
+    onGameFeedback: (String, String, Boolean) -> Unit,
+    onNavigateToTab: (Int, String?) -> Unit = { _, _ -> }
 ) {
     NotificationPermissionHandler()
 
@@ -187,7 +197,7 @@ fun DashboardScreen(
                         onClick = { showStreakSheet = true }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             AnimatedVisibility(
@@ -198,86 +208,371 @@ fun DashboardScreen(
                                     composition = streakComposition,
                                     progress = { streakAnimProgress },
                                     contentScale = ContentScale.Crop,
-                                    modifier = Modifier.size(16.dp).offset(x = (-2).dp)
+                                    modifier = Modifier.size(24.dp).offset(x = (-2).dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatDays(currentStreak),
                                 color = MaterialTheme.colorScheme.onBackground,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
+                                fontSize = 13.sp
                             )
                         }
                     }
 
                     if (showStreakSheet) {
-                        ModalBottomSheet(onDismissRequest = { showStreakSheet = false }, containerColor = cardColor) {
-                            Column(modifier = Modifier.fillMaxWidth().padding(24.dp)) {
-                                Text(
-                                    text = com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatDays(currentStreak) + " streak",
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Log an expense each day to keep it going.",
-                                    color = subTextColor,
-                                    fontSize = 14.sp
-                                )
-                                Spacer(modifier = Modifier.height(24.dp))
+                        var viewedMonthCal by remember { mutableStateOf(Calendar.getInstance()) }
+                        var selectedDayCal by remember { mutableStateOf<Calendar?>(null) }
+                        val haptics = LocalHapticFeedback.current
 
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    val days = listOf("M", "T", "W", "T", "F", "S", "S")
-                                    val calendar = Calendar.getInstance()
-                                    // Make Sunday 7, Monday 1
-                                    val currentDayOfWeek = if (calendar.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) 7 else calendar.get(Calendar.DAY_OF_WEEK) - 1
+                        val expenseMap = remember(allExpenses) {
+                            allExpenses.groupBy { exp ->
+                                val cal = Calendar.getInstance().apply { timeInMillis = exp.timestamp }
+                                "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.MONTH)}-${cal.get(Calendar.DAY_OF_MONTH)}"
+                            }
+                        }
 
-                                    days.forEachIndexed { index, dayName ->
-                                        // Highlight the current day of the week if streak > 0
-                                        val isCurrentDay = (index + 1) == currentDayOfWeek
-                                        val isStreakActive = currentStreak > 0
+                        ModalBottomSheet(
+                            onDismissRequest = { showStreakSheet = false },
+                            containerColor = cardColor
+                        ) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .navigationBarsPadding(),
+                                contentPadding = PaddingValues(24.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("🔥", fontSize = 24.sp)
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column {
+                                                Text(
+                                                    text = com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatDays(currentStreak) + " Streak",
+                                                    fontSize = 20.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onBackground
+                                                )
+                                                Text(
+                                                    text = "Mindful daily financial journal",
+                                                    color = subTextColor,
+                                                    fontSize = 13.sp
+                                                )
+                                            }
+                                        }
+                                        OutlinedButton(
+                                            onClick = {
+                                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                viewedMonthCal = Calendar.getInstance()
+                                                selectedDayCal = Calendar.getInstance()
+                                            },
+                                            shape = RoundedCornerShape(50),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("Today", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
 
-                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(40.dp)
-                                                    .background(
-                                                        if (isCurrentDay && isStreakActive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant,
-                                                        CircleShape
-                                                    ),
-                                                contentAlignment = Alignment.Center
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                        shape = RoundedCornerShape(20.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                if (isCurrentDay && isStreakActive) {
-                                                    Text("🔥", fontSize = 16.sp)
-                                                } else {
-                                                    Text("-", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                                val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                                                Text(
+                                                    text = monthFormat.format(viewedMonthCal.time),
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 16.sp,
+                                                    color = MaterialTheme.colorScheme.onBackground
+                                                )
+                                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    IconButton(onClick = {
+                                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        viewedMonthCal = (viewedMonthCal.clone() as Calendar).apply {
+                                                            add(Calendar.MONTH, -1)
+                                                        }
+                                                    }) {
+                                                        Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Month", tint = MaterialTheme.colorScheme.onBackground)
+                                                    }
+                                                    IconButton(onClick = {
+                                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                        viewedMonthCal = (viewedMonthCal.clone() as Calendar).apply {
+                                                            add(Calendar.MONTH, 1)
+                                                        }
+                                                    }) {
+                                                        Icon(Icons.Default.ChevronRight, contentDescription = "Next Month", tint = MaterialTheme.colorScheme.onBackground)
+                                                    }
                                                 }
                                             }
+
+                                            Spacer(modifier = Modifier.height(12.dp))
+
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                                                listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun").forEach { dayStr ->
+                                                    Text(
+                                                        text = dayStr,
+                                                        color = subTextColor,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.width(36.dp),
+                                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                    )
+                                                }
+                                            }
+
                                             Spacer(modifier = Modifier.height(8.dp))
+
+                                            val daysInMonth = (viewedMonthCal.clone() as Calendar).apply {
+                                                set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+                                            }.get(Calendar.DAY_OF_MONTH)
+
+                                            val firstDayOfWeek = (viewedMonthCal.clone() as Calendar).apply {
+                                                set(Calendar.DAY_OF_MONTH, 1)
+                                            }.get(Calendar.DAY_OF_WEEK)
+                                            val offset = if (firstDayOfWeek == Calendar.SUNDAY) 6 else firstDayOfWeek - 2
+
+                                            val totalCells = offset + daysInMonth
+                                            val rows = (totalCells + 6) / 7
+                                            val todayCal = Calendar.getInstance()
+
+                                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                for (row in 0 until rows) {
+                                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                                                        for (col in 0 until 7) {
+                                                            val cellIndex = row * 7 + col
+                                                            val dayNum = cellIndex - offset + 1
+
+                                                            if (dayNum in 1..daysInMonth) {
+                                                                val cellCal = (viewedMonthCal.clone() as Calendar).apply {
+                                                                    set(Calendar.DAY_OF_MONTH, dayNum)
+                                                                }
+                                                                val dateKey = "${cellCal.get(Calendar.YEAR)}-${cellCal.get(Calendar.MONTH)}-${cellCal.get(Calendar.DAY_OF_MONTH)}"
+                                                                val dayExpenses = expenseMap[dateKey] ?: emptyList()
+                                                                val dayTotal = dayExpenses.sumOf { it.amount.toDouble() }.toFloat()
+
+                                                                val isToday = cellCal.get(Calendar.YEAR) == todayCal.get(Calendar.YEAR) &&
+                                                                        cellCal.get(Calendar.DAY_OF_YEAR) == todayCal.get(Calendar.DAY_OF_YEAR)
+
+                                                                val isSelected = selectedDayCal != null &&
+                                                                        cellCal.get(Calendar.YEAR) == selectedDayCal!!.get(Calendar.YEAR) &&
+                                                                        cellCal.get(Calendar.DAY_OF_YEAR) == selectedDayCal!!.get(Calendar.DAY_OF_YEAR)
+
+                                                                val heatColor = when {
+                                                                    dayTotal > 100f -> MaterialTheme.colorScheme.error.copy(alpha = 0.25f)
+                                                                    dayTotal > 0f -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                                                    else -> MaterialTheme.colorScheme.surface
+                                                                }
+
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(40.dp)
+                                                                        .clip(RoundedCornerShape(12.dp))
+                                                                        .background(
+                                                                            when {
+                                                                                isSelected -> MaterialTheme.colorScheme.primary
+                                                                                isToday -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f)
+                                                                                else -> heatColor
+                                                                            }
+                                                                        )
+                                                                        .border(
+                                                                            width = if (isToday) 1.5.dp else 0.dp,
+                                                                            color = if (isToday) MaterialTheme.colorScheme.secondary else Color.Transparent,
+                                                                            shape = RoundedCornerShape(12.dp)
+                                                                        )
+                                                                        .clickable {
+                                                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                                            selectedDayCal = cellCal
+                                                                        },
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    Column(
+                                                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                                                        verticalArrangement = Arrangement.Center
+                                                                    ) {
+                                                                        Text(
+                                                                            text = dayNum.toString(),
+                                                                            fontSize = 13.sp,
+                                                                            fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
+                                                                        )
+                                                                        if (dayTotal > 0f) {
+                                                                            Box(
+                                                                                modifier = Modifier
+                                                                                    .size(4.dp)
+                                                                                    .background(
+                                                                                        if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                                                                        CircleShape
+                                                                                    )
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                Spacer(modifier = Modifier.size(40.dp))
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                item {
+                                    val activeSelectedCal = selectedDayCal ?: Calendar.getInstance()
+                                    val selectedDateKey = "${activeSelectedCal.get(Calendar.YEAR)}-${activeSelectedCal.get(Calendar.MONTH)}-${activeSelectedCal.get(Calendar.DAY_OF_MONTH)}"
+                                    val selectedDayExpenses = expenseMap[selectedDateKey] ?: emptyList()
+                                    val selectedDayTotal = selectedDayExpenses.sumOf { it.amount.toDouble() }.toFloat()
+                                    val dateFormat = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.getDefault())
+
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                        shape = RoundedCornerShape(20.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column {
+                                                    Text(
+                                                        text = dateFormat.format(activeSelectedCal.time),
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onBackground
+                                                    )
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = if (selectedDayExpenses.isNotEmpty()) "${selectedDayExpenses.size} transactions logged" else "Zero spend day",
+                                                        fontSize = 12.sp,
+                                                        color = subTextColor
+                                                    )
+                                                }
+                                                Text(
+                                                    text = com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(selectedDayTotal, currencySymbol),
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = if (selectedDayTotal > 0f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+
+                                            if (selectedDayExpenses.isNotEmpty()) {
+                                                Spacer(modifier = Modifier.height(12.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    selectedDayExpenses.map { it.category }.distinct().take(3).forEach { cat ->
+                                                        Surface(
+                                                            color = MaterialTheme.colorScheme.surface,
+                                                            shape = RoundedCornerShape(50)
+                                                        ) {
+                                                            Text(
+                                                                text = cat,
+                                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MaterialTheme.colorScheme.primary
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
+                                                Spacer(modifier = Modifier.height(12.dp))
+                                                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                                            } else {
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Text(
+                                                    text = "No expenses recorded on this day. Keep that streak protected! ✨",
+                                                    fontSize = 12.sp,
+                                                    color = subTextColor
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                val activeSelectedCalForList = selectedDayCal ?: Calendar.getInstance()
+                                val selectedDateKeyForList = "${activeSelectedCalForList.get(Calendar.YEAR)}-${activeSelectedCalForList.get(Calendar.MONTH)}-${activeSelectedCalForList.get(Calendar.DAY_OF_MONTH)}"
+                                val selectedDayExpensesForList = expenseMap[selectedDateKeyForList] ?: emptyList()
+
+                                items(selectedDayExpensesForList) { exp ->
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(34.dp)
+                                                        .background(MaterialTheme.colorScheme.surface, CircleShape),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text("💳", fontSize = 14.sp)
+                                                }
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = exp.merchantName.ifEmpty { exp.category },
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp,
+                                                        color = MaterialTheme.colorScheme.onBackground,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    Text(
+                                                        text = exp.category,
+                                                        fontSize = 11.sp,
+                                                        color = subTextColor
+                                                    )
+                                                }
+                                            }
                                             Text(
-                                                text = dayName,
-                                                color = if (isCurrentDay && isStreakActive) MaterialTheme.colorScheme.onBackground else subTextColor,
+                                                text = com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(exp.amount, currencySymbol),
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onBackground
                                             )
                                         }
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(32.dp))
-                                Button(
-                                    onClick = { showStreakSheet = false },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                                ) {
-                                    Text("Close", color = MaterialTheme.colorScheme.onBackground)
+                                item {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Button(
+                                        onClick = { showStreakSheet = false },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    ) {
+                                        Text("Done", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
+                                    }
+                                    Spacer(modifier = Modifier.height(16.dp))
                                 }
-                                Spacer(modifier = Modifier.height(24.dp))
                             }
                         }
                     }
@@ -304,26 +599,411 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 1. AI INSIGHT CARD (Moved to top per feedback)
+            // 1. DYNAMIC ACTIONABLE TIP CARD (Interactive with bulb 💡)
+            data class ActionableTip(val message: String, val targetTab: Int, val highlightKey: String?)
+            val tips = listOf(
+                ActionableTip(dynamicSubtitle, 1, null), // History
+                ActionableTip("Secure your financial records — Tap to export your financial report.", 6, "export"), // Settings
+                ActionableTip("Personalize your experience — Tap to customize theme & colors.", 6, "theme"), // Settings
+                ActionableTip("See how others are saving — Tap to view the community leaderboard.", 3, null), // Community
+                ActionableTip("Climb the Mountain of Prosperity — Tap to check your rewards & ascent.", 4, null) // Rewards
+            )
+            val currentTipIndex = remember(allExpenses, dynamicSubtitle) {
+                ((System.currentTimeMillis() / 20000) % tips.size).toInt()
+            }
+            val activeTip = tips[currentTipIndex]
+
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = RoundedCornerShape(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToTab(activeTip.targetTab, activeTip.highlightKey) },
+                colors = CardDefaults.cardColors(containerColor = cardColor),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
             ) {
-                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("💡", fontSize = 16.sp)
+                Row(
+                    modifier = Modifier.padding(18.dp).fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("💡", fontSize = 18.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = activeTip.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = dynamicSubtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text("›", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. UNIFIED MASCOT CARD
+            // SHEET STATES FOR INTERACTIVITY
+            var showBudgetSheet by remember { mutableStateOf(false) }
+            var showCategorySheet by remember { mutableStateOf(false) }
+
+            // 2. ON-TRACK BUDGET CARD (Hero Card with Ring on Left & Iterative Pie Chart Visual)
+            val remainingBudget = maxOf(0f, monthlyBudget - totalSpend)
+            val rawPercentage = if (monthlyBudget > 0f) totalSpend / monthlyBudget else 0f
+            val clampedPercentage = rawPercentage.coerceIn(0f, 1f)
+            val animatedSweep by animateFloatAsState(targetValue = clampedPercentage, animationSpec = tween(1500, delayMillis = 300), label = "donut_sweep")
+
+            val statusInfo = when {
+                rawPercentage >= 1f -> listOf<Any>(Color(0xFFEF4444), R.raw.status_danger, "Budget exceeded", Color(0xFFEF4444).copy(alpha = 0.12f))
+                rawPercentage > 0.8f -> listOf<Any>(Color(0xFFF59E0B), R.raw.status_warning, "Nearing limit", Color(0xFFF59E0B).copy(alpha = 0.12f))
+                else -> listOf<Any>(MaterialTheme.colorScheme.secondary, R.raw.status_safe, "On track", MaterialTheme.colorScheme.secondary.copy(alpha = 0.12f))
+            }
+            val ringColor = statusInfo[0] as Color
+            val centerLottieRes = statusInfo[1] as Int
+            val statusText = statusInfo[2] as String
+            val statusContainerColor = statusInfo[3] as Color
+
+            val centerComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(centerLottieRes))
+            val centerProgress by animateLottieCompositionAsState(composition = centerComposition, iterations = LottieConstants.IterateForever)
+
+            val categoryShares = remember(allExpenses) {
+                com.finadapt.adaptivefinance.core.util.CategoryShareCalculator.calculateTopCategories(allExpenses)
+            }
+            val topSpendItem = categoryShares.maxByOrNull { it.amount }
+
+            val primaryColor = MaterialTheme.colorScheme.primary
+            val secondaryColor = MaterialTheme.colorScheme.secondary
+            val tertiaryColor = MaterialTheme.colorScheme.tertiary
+            val outlineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
+            val colorsList = listOf(primaryColor, secondaryColor, tertiaryColor, outlineColor)
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showBudgetSheet = true },
+                colors = CardDefaults.cardColors(containerColor = cardColor),
+                shape = RoundedCornerShape(24.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = if (isOverBudget) androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFFEF4444).copy(alpha = 0.4f)) else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
+            ) {
+                Column(modifier = Modifier.padding(22.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Ring on the Left
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(76.dp)) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                drawArc(color = strokeBgColor, startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 16f, cap = StrokeCap.Round))
+                                drawArc(color = ringColor, startAngle = -90f, sweepAngle = 360f * animatedSweep, useCenter = false, style = Stroke(width = 16f, cap = StrokeCap.Round))
+                            }
+                            LottieAnimation(composition = centerComposition, progress = { centerProgress }, modifier = Modifier.size(38.dp))
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Budget Info on the Right
+                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                            Surface(
+                                color = statusContainerColor,
+                                shape = RoundedCornerShape(50)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .background(ringColor, CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = statusText,
+                                        color = ringColor,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(remainingBudget, currencySymbol),
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                fontSize = 28.sp,
+                                letterSpacing = (-0.5).sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Left (${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(totalSpend, currencySymbol)} spent)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = subTextColor,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+                    HorizontalDivider(color = strokeBgColor.copy(alpha = 0.6f))
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Iterative Pie Chart & Category Breakdown Visual
+                    if (allExpenses.isEmpty()) {
+                        Text("No spending recorded yet this month", style = MaterialTheme.typography.bodySmall, color = subTextColor)
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Mini Iterative Pie Chart
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(52.dp)) {
+                                Canvas(modifier = Modifier.fillMaxSize()) {
+                                    var startAngle = -90f
+                                    categoryShares.forEachIndexed { index, share ->
+                                        val sweepAngle = 360f * (share.percentage / 100f)
+                                        drawArc(
+                                            color = colorsList[index % colorsList.size],
+                                            startAngle = startAngle,
+                                            sweepAngle = sweepAngle.coerceAtLeast(3f),
+                                            useCenter = true,
+                                            style = Stroke(width = 0f)
+                                        )
+                                        startAngle += sweepAngle
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .background(cardColor, CircleShape)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            // Category Breakdown Pills
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                categoryShares.take(2).forEachIndexed { index, share ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .background(colorsList[index % colorsList.size], CircleShape)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = share.category,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onBackground,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        Text(
+                                            text = "${share.percentage.toInt()}%",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = subTextColor
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showCategorySheet = true },
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val topCaption = if (topSpendItem != null) {
+                                "Top: ${topSpendItem.category} (${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(topSpendItem.amount, currencySymbol)})"
+                            } else {
+                                "No top spend recorded"
+                            }
+                            Text(topCaption, style = MaterialTheme.typography.bodySmall, color = subTextColor, fontSize = 12.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Category Details", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text("›", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // BUDGET DETAIL SHEET (Vico Line Graph & Spending Pace with Iterative Time Horizons)
+            if (showBudgetSheet) {
+                var selectedHorizon by remember { mutableStateOf(7) }
+
+                ModalBottomSheet(onDismissRequest = { showBudgetSheet = false }, containerColor = cardColor) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Monthly Spending Pace", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                                Text("Your spending velocity over time", color = subTextColor, fontSize = 13.sp)
+                            }
+                        }
+
+                        // Iterative Horizon Selector Chips (7D, 14D, 30D)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(7, 14, 30).forEach { horizon ->
+                                val isSelected = selectedHorizon == horizon
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { selectedHorizon = horizon },
+                                    label = { Text("$horizon Days", fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Cartesian Line Chart (Vico) with dynamic horizon
+                        val cal = Calendar.getInstance()
+                        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+                        val todayMidnight = cal.timeInMillis
+                        val totals = FloatArray(selectedHorizon)
+                        val labels = mutableListOf<String>()
+                        val format = SimpleDateFormat(if (selectedHorizon == 30) "MMM d" else "EEE", Locale.getDefault())
+
+                        for (i in (selectedHorizon - 1) downTo 0) {
+                            val c = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -i) }
+                            labels.add(format.format(c.time))
+                        }
+                        allExpenses.forEach { exp ->
+                            val daysAgo = ((todayMidnight - exp.timestamp) / (1000 * 60 * 60 * 24)).toInt()
+                            val idx = if (exp.timestamp >= todayMidnight) selectedHorizon - 1 else (selectedHorizon - 1) - (daysAgo + 1)
+                            if (idx in 0 until selectedHorizon) totals[idx] += exp.amount
+                        }
+                        if (totals.sum() == 0f) totals[0] = 0.01f
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                        ) {
+                            Box(modifier = Modifier.padding(16.dp)) {
+                                Chart(
+                                    chart = lineChart(
+                                        lines = listOf(
+                                            com.patrykandpatrick.vico.core.chart.line.LineChart.LineSpec(
+                                                lineColor = MaterialTheme.colorScheme.secondary.toArgb()
+                                            )
+                                        )
+                                    ),
+                                    model = entryModelOf(*totals.toTypedArray()),
+                                    startAxis = rememberStartAxis(
+                                        label = textComponent(color = subTextColor, textSize = 10.sp),
+                                        valueFormatter = AxisValueFormatter { value, _ -> "$currencySymbol ${value.toInt()}" }
+                                    ),
+                                    bottomAxis = rememberBottomAxis(
+                                        label = textComponent(color = subTextColor, textSize = 10.sp),
+                                        valueFormatter = AxisValueFormatter { value, _ -> labels.getOrNull(value.toInt()) ?: "" },
+                                        guideline = null
+                                    ),
+                                    modifier = Modifier.fillMaxWidth().height(150.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Total Monthly Budget", color = subTextColor)
+                            Text(com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(monthlyBudget, currencySymbol), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Total Spent", color = subTextColor)
+                            Text(com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(totalSpend, currencySymbol), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Remaining", color = subTextColor)
+                            Text(com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(remainingBudget, currencySymbol), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        }
+
+                        val daysLeft = 30f // approx
+                        val safePerDay = if (daysLeft > 0f) remainingBudget / daysLeft else 0f
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Safe to spend per day", color = subTextColor)
+                            Text(com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(safePerDay, currencySymbol), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                showBudgetSheet = false
+                                onNavigateToSettings()
+                            },
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("Edit Budget in Settings", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+                }
+            }
+
+            // CATEGORY BREAKDOWN SHEET
+            if (showCategorySheet) {
+                ModalBottomSheet(onDismissRequest = { showCategorySheet = false }, containerColor = cardColor) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text("Category Breakdown", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                        categoryShares.forEach { share ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(share.category, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Medium)
+                                Text("${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(share.amount, currencySymbol)} (${share.percentage.toInt()}%)", color = subTextColor)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                showCategorySheet = false
+                                onNavigateToHistory()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                        ) {
+                            Text("View in History", color = Color.White)
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 3. UNIFIED MASCOT CARD
             UnifiedMascotCard(
                 userName = userName,
                 playCoinDrop = playCoinDrop,
@@ -336,7 +1016,7 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 3. THE AI ACTION / COOL-OFF BANNER
+            // 4. THE AI ACTION / COOL-OFF BANNER
             var showCoolOffSheet by remember { mutableStateOf(false) }
             if (currentAiAction == "cool_off") {
                 Card(
@@ -397,178 +1077,6 @@ fun DashboardScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // SHEET STATES FOR INTERACTIVITY
-                var showBudgetSheet by remember { mutableStateOf(false) }
-                var showCategorySheet by remember { mutableStateOf(false) }
-
-                // 4. HERO BUDGET CARD & CATEGORY SHARE BAR
-                val remainingBudget = maxOf(0f, monthlyBudget - totalSpend)
-                val rawPercentage = if (monthlyBudget > 0f) totalSpend / monthlyBudget else 0f
-                val clampedPercentage = rawPercentage.coerceIn(0f, 1f)
-                val animatedSweep by animateFloatAsState(targetValue = clampedPercentage, animationSpec = tween(1500, delayMillis = 300), label = "donut_sweep")
-
-                val (ringColor, centerLottieRes, statusText) = when {
-                    rawPercentage >= 1f -> Triple(Color(0xFFEF4444), R.raw.status_danger, "☠️ Budget Blown")
-                    rawPercentage > 0.8f -> Triple(Color(0xFFF59E0B), R.raw.status_warning, "⚠️ Near Limit (>80% used)")
-                    else -> Triple(MaterialTheme.colorScheme.secondary, R.raw.status_safe, "🛡️ On Track")
-                }
-
-                val centerComposition by rememberLottieComposition(LottieCompositionSpec.RawRes(centerLottieRes))
-                val centerProgress by animateLottieCompositionAsState(composition = centerComposition, iterations = LottieConstants.IterateForever)
-
-                val categoryShares = remember(allExpenses) {
-                    com.finadapt.adaptivefinance.core.util.CategoryShareCalculator.calculateTopCategories(allExpenses)
-                }
-                val topSpendItem = categoryShares.maxByOrNull { it.amount }
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showBudgetSheet = true },
-                    colors = CardDefaults.cardColors(containerColor = cardColor),
-                    shape = RoundedCornerShape(20.dp),
-                    elevation = CardDefaults.cardElevation(2.dp),
-                    border = if (isOverBudget) androidx.compose.foundation.BorderStroke(2.dp, Color(0xFFEF4444).copy(alpha = 0.5f)) else null
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(text = statusText, color = ringColor, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(remainingBudget, currencySymbol),
-                                    fontWeight = FontWeight.Black,
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                    fontSize = 32.sp
-                                )
-                                Text(
-                                    text = "Left this month (${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(totalSpend, currencySymbol)} of ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(monthlyBudget, currencySymbol)} spent)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = subTextColor
-                                )
-                            }
-
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(80.dp)) {
-                                Canvas(modifier = Modifier.fillMaxSize()) {
-                                    drawArc(color = strokeBgColor, startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 20f, cap = StrokeCap.Round))
-                                    drawArc(color = ringColor, startAngle = -90f, sweepAngle = 360f * animatedSweep, useCenter = false, style = Stroke(width = 20f, cap = StrokeCap.Round))
-                                }
-                                LottieAnimation(composition = centerComposition, progress = { centerProgress }, modifier = Modifier.size(40.dp))
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-                        HorizontalDivider(color = strokeBgColor)
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Segmented Category-Share Bar & Footer Caption
-                        if (allExpenses.isEmpty()) {
-                            Text("No spending yet this month", style = MaterialTheme.typography.bodySmall, color = subTextColor)
-                        } else {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(10.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(strokeBgColor)
-                            ) {
-                                val colorsList = listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.secondary,
-                                    MaterialTheme.colorScheme.tertiary,
-                                    MaterialTheme.colorScheme.outline
-                                )
-                                categoryShares.forEachIndexed { index, share ->
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(share.percentage.coerceAtLeast(1f))
-                                            .fillMaxHeight()
-                                            .background(colorsList[index % colorsList.size])
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { showCategorySheet = true },
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val topCaption = if (topSpendItem != null) {
-                                    "Top spend: ${topSpendItem.category}, ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(topSpendItem.amount, currencySymbol)}"
-                                } else {
-                                    "No top spend recorded"
-                                }
-                                Text(topCaption, style = MaterialTheme.typography.bodySmall, color = subTextColor)
-                                Text("Details >", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
-
-                // BUDGET DETAIL SHEET
-                if (showBudgetSheet) {
-                    ModalBottomSheet(onDismissRequest = { showBudgetSheet = false }, containerColor = cardColor) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Text("Budget Overview", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                            Text("Total Monthly Budget: ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(monthlyBudget, currencySymbol)}", color = subTextColor)
-                            Text("Total Spent: ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(totalSpend, currencySymbol)}", color = subTextColor)
-                            Text("Remaining: ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(remainingBudget, currencySymbol)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                            
-                            val daysLeft = 30f // approx
-                            val safePerDay = if (daysLeft > 0f) remainingBudget / daysLeft else 0f
-                            Text("Safe to spend per day: ${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(safePerDay, currencySymbol)}", color = subTextColor)
-
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = {
-                                    showBudgetSheet = false
-                                    onNavigateToSettings()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                            ) {
-                                Text("Edit Budget in Settings", color = MaterialTheme.colorScheme.onPrimary)
-                            }
-                            Spacer(modifier = Modifier.height(24.dp))
-                        }
-                    }
-                }
-
-                // CATEGORY BREAKDOWN SHEET
-                if (showCategorySheet) {
-                    ModalBottomSheet(onDismissRequest = { showCategorySheet = false }, containerColor = cardColor) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Text("Category Breakdown", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                            categoryShares.forEach { share ->
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(share.category, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Medium)
-                                    Text("${com.finadapt.adaptivefinance.core.util.FinanceFormatting.formatCurrency(share.amount, currencySymbol)} (${share.percentage.toInt()}%)", color = subTextColor)
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(
-                                onClick = {
-                                    showCategorySheet = false
-                                    onNavigateToHistory()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                            ) {
-                                Text("View in History", color = Color.White)
-                            }
-                            Spacer(modifier = Modifier.height(24.dp))
-                        }
-                    }
-                }
-
                 // 5. RECENT TRANSACTIONS
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -592,7 +1100,10 @@ fun DashboardScreen(
 
                         Card(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { selectedExpenseForDetails = expense },
-                            colors = CardDefaults.cardColors(containerColor = cardColor), shape = RoundedCornerShape(16.dp), elevation = CardDefaults.cardElevation(1.dp)
+                            colors = CardDefaults.cardColors(containerColor = cardColor),
+                            shape = RoundedCornerShape(20.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
                         ) {
                             Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {

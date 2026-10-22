@@ -74,9 +74,16 @@ object ReceiptScanner {
             val image = InputImage.fromFilePath(context, uri)
             val visionText = recognizer.process(image).await()
 
+            // Early heuristic check on raw OCR text before LLM
+            if (visionText.text.isBlank() || !com.finadapt.adaptivefinance.feature.expense.ocr.ReceiptValidator.isLikelyReceipt(visionText.text)) {
+                throw Exception("This image does not appear to be a valid receipt. Please enter details manually.")
+            }
+
             // 2. Extract Valid Geometry (No !! or ?: 0 allowed)
             val elements = OcrEngine.extractValidElements(visionText)
-            if (elements.isEmpty()) return ParsedReceipt("", "", "", emptyList(), 0f, permanentPath)
+            if (elements.isEmpty()) {
+                throw Exception("This image does not appear to be a valid receipt. Please enter details manually.")
+            }
 
             // 3. Deskew and Cluster into physical rows
             val rows = ReceiptLayoutAnalyzer.buildRows(elements)
@@ -84,6 +91,11 @@ object ReceiptScanner {
             // 4. Format and clean string for LLM (Fixing fragmented decimals)
             val cleanText = ReceiptLayoutAnalyzer.formatForParsing(rows)
             Log.d("ReceiptScanner", "Cleaned Text sent to LLM:\n$cleanText")
+
+            // 4.1 Validate cleaned text as well
+            if (!com.finadapt.adaptivefinance.feature.expense.ocr.ReceiptValidator.isLikelyReceipt(cleanText)) {
+                throw Exception("This image does not appear to be a valid receipt. Please enter details manually.")
+            }
 
             // 5. parse the data (with retries and defensive JSON)
             val parsedData = ReceiptParser.parseWithLlm(cleanText, userId)
@@ -93,6 +105,9 @@ object ReceiptScanner {
 
         } catch (e: Exception) {
             if (e is CancellationException) throw e
+            if (e.message?.contains("valid receipt") == true) {
+                throw e
+            }
             Log.e("ReceiptScanner", "Pipeline Failure", e)
             ParsedReceipt("", "", "", emptyList(), 0f, permanentPath)
         }
@@ -112,4 +127,5 @@ object ReceiptScanner {
         }
         return@withContext destinationFile.absolutePath
     }
+
 }

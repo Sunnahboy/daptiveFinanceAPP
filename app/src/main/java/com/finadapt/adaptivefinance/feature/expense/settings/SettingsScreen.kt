@@ -23,6 +23,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -60,9 +65,35 @@ fun SettingsScreen(
     onAppThemeChanged: (String) -> Unit,
     onResetGamification: () -> Unit,
     onWipeData: () -> Unit,
+    highlightSection: String? = null,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val profileRequester = remember { BringIntoViewRequester() }
+    val preferencesRequester = remember { BringIntoViewRequester() }
+    val exportRequester = remember { BringIntoViewRequester() }
+
+    var highlightedCard by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(highlightSection) {
+        if (!highlightSection.isNullOrEmpty()) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            highlightedCard = highlightSection
+            try {
+                when (highlightSection) {
+                    "profile" -> profileRequester.bringIntoView()
+                    "theme", "notifications" -> preferencesRequester.bringIntoView()
+                    "export" -> exportRequester.bringIntoView()
+                }
+            } catch (_: Exception) {}
+
+            delay(2500)
+            highlightedCard = null
+        }
+    }
     var nameInput by remember { mutableStateOf(currentName) }
     var currencyInput by remember { mutableStateOf(currentCurrency) }
 
@@ -101,7 +132,6 @@ fun SettingsScreen(
     var showHelpDialog by remember { mutableStateOf(false) }
 
     val keyboardController = LocalSoftwareKeyboardController.current
-    val coroutineScope = rememberCoroutineScope()
 
     val successComp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.success_check))
     val infoComp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.nothing_changed))
@@ -186,10 +216,15 @@ fun SettingsScreen(
             SettingsSectionHeader("Account & Profile", textColor)
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = cardColor),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bringIntoViewRequester(profileRequester),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (highlightedCard == "profile") primaryColor.copy(alpha = 0.15f) else cardColor
+                ),
                 elevation = CardDefaults.cardElevation(if (appearanceMode == "DARK") 0.dp else 2.dp),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                border = if (highlightedCard == "profile") androidx.compose.foundation.BorderStroke(2.dp, primaryColor) else null
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
 
@@ -374,10 +409,15 @@ fun SettingsScreen(
             SettingsSectionHeader("Preferences", textColor)
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = cardColor),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bringIntoViewRequester(preferencesRequester),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (highlightedCard == "theme" || highlightedCard == "notifications") primaryColor.copy(alpha = 0.15f) else cardColor
+                ),
                 elevation = CardDefaults.cardElevation(2.dp),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                border = if (highlightedCard == "theme" || highlightedCard == "notifications") androidx.compose.foundation.BorderStroke(2.dp, primaryColor) else null
             ) {
                 Column {
                     // APPEARANCE PICKER
@@ -520,10 +560,15 @@ fun SettingsScreen(
             SettingsSectionHeader("Data & Export", textColor)
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = cardColor),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bringIntoViewRequester(exportRequester),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (highlightedCard == "export") primaryColor.copy(alpha = 0.15f) else cardColor
+                ),
                 elevation = CardDefaults.cardElevation(if (appearanceMode == "DARK") 0.dp else 2.dp),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                border = if (highlightedCard == "export") androidx.compose.foundation.BorderStroke(2.dp, primaryColor) else null
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
 

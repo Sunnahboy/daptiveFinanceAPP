@@ -121,9 +121,9 @@ object ApiClient {
     // KTor Rate limiting (Separate client without the  failover logic)
     private val rateLimitOkHttpClient = OkHttpClient.Builder()
         .addInterceptor(loggingInterceptor) //rate limit requests
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
     //build Retrofit instances

@@ -101,6 +101,11 @@ fun AddExpenseScreen(
                         val userId = prefs.getString("USER_ID", "default_user") ?: "default_user"
 
                         val receipt = ReceiptScanner.analyzeReceipt(context, uri, userId)
+
+                        if (receipt.total <= 0f && receipt.items.isEmpty() && receipt.merchantName.isBlank()) {
+                            throw Exception("This image does not appear to be a valid receipt. Please enter details manually.")
+                        }
+
                         scannedReceipt = receipt
                         showReceiptSheet = true
 
@@ -112,8 +117,8 @@ fun AddExpenseScreen(
                             if (isTtsReady) tts?.speak("Receipt saved. Please enter the amount.", android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
                         }
                         isScanning = false
-                    } catch (_: Exception) {
-                        voiceFeedbackMsg = "Error processing image."
+                    } catch (e: Exception) {
+                        voiceFeedbackMsg = e.localizedMessage ?: "Error processing image."
                         isScanning = false
                     }
                 }

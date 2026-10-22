@@ -1,0 +1,4 @@
+- `[ ]` 1. Create implementation plan and task list
+- `[ ]` 2. Relocate On-Track Card below Tip Card in `DashboardScreen.kt`
+- `[ ]` 3. Redesign On-Track Card with ring on the left and iterative pie chart / category visual breakdown
+- `[ ]` 4. Build and verify app functionality

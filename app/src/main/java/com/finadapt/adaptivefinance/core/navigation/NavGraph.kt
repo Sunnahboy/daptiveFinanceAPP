@@ -70,6 +70,7 @@ fun NavGraph(
     )
 
     val pagerState = rememberPagerState(pageCount = { tabScreens.size })
+    var settingsHighlightTarget by remember { mutableStateOf<String?>(null) }
     val navBarBgColor = MaterialTheme.colorScheme.surface
     
     val appTheme = com.finadapt.adaptivefinance.ui.theme.LocalAppTheme.current
@@ -193,6 +194,10 @@ fun NavGraph(
                                 onDeleteExpense = { expenseViewModel.deleteExpense(it) },
                                 onNavigateToHistory = { scope.launch { pagerState.animateScrollToPage(1) } },
                                 onNavigateToSettings = { scope.launch { pagerState.animateScrollToPage(6) } },
+                                onNavigateToTab = { page, highlight ->
+                                    settingsHighlightTarget = highlight
+                                    scope.launch { pagerState.animateScrollToPage(page) }
+                                },
                                 currentAiAction = dashboardViewModel.currentAiAction.collectAsState().value,
                                 levelUpTier = dashboardViewModel.showLevelUpCelebration.collectAsState().value,
                                 playCoinDrop = dashboardViewModel.playCoinDropAnimation.collectAsState().value,
@@ -318,6 +323,7 @@ fun NavGraph(
                                     onBudgetChanged = { dashboardViewModel.updateMonthlyBudget(it) },
                                     onResetGamification = { dashboardViewModel.resetGamification() },
                                     onWipeData = { dashboardViewModel.wipeAllData() },
+                                    highlightSection = settingsHighlightTarget,
                                     onNavigateBack = { scope.launch { pagerState.animateScrollToPage(0) } } // Back to Home
                                 )
                             }

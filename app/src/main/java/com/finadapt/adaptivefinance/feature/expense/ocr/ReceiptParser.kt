@@ -6,12 +6,14 @@ import com.finadapt.adaptivefinance.data.remote.ReceiptRequest
 import com.finadapt.adaptivefinance.feature.expense.ParsedReceipt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.net.UnknownHostException
+import java.net.SocketTimeoutException
 
 object ReceiptParser {
 
     suspend fun parseWithLlm(formattedText: String, userId: String): ParsedReceipt = withContext(Dispatchers.IO) {
         try {
-            // 1. Send the messy OCR text to  secure Ktor backend
+            // 1. Send the messy OCR text to secure Ktor backend
             val request = ReceiptRequest(rawText = formattedText)
             val response = ApiClient.rateLimitApiService.parseReceipt(userId, request)
 
@@ -28,8 +30,15 @@ object ReceiptParser {
                 }
             }
         } catch (e: Exception) {
+            if (e is UnknownHostException || e is SocketTimeoutException) {
+                throw Exception("Network error. Please check your connection and try again.")
+            }
+            // Preserve specific validation or rate limit messages
+            if (e.message?.contains("valid receipt") == true || e.message?.contains("Rate limit") == true) {
+                throw e
+            }
             Log.e("ReceiptParser", "Failed to parse receipt via backend", e)
-            throw Exception("Network error or invalid receipt format.")
+            throw Exception("Could not process this image as a receipt. Please enter details manually.")
         }
     }
 }
