@@ -24,6 +24,7 @@ fun GamificationDialog(
     action: String,
     message: String,
     predictionId: String,
+    isSandbox: Boolean = false,
     onFeedback: (String, Int) -> Unit, // Sends the 1 or 0 back to server
     onDismiss: () -> Unit              // Closes the router and goes back to Dashboard
 ) {
@@ -44,7 +45,8 @@ fun GamificationDialog(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = dialogBgColor),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, androidx.compose.material3.MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
         ) {
             // The Game Router Logic
             when (action) {
@@ -52,7 +54,9 @@ fun GamificationDialog(
                     awsMessage = message,
                     soundEngine = soundEngine,
                     onGameComplete = { reward ->
-                        onFeedback(predictionId, reward)
+                        if (!isSandbox) {
+                            onFeedback(predictionId, reward)
+                        }
                         onDismiss()
                     }
                 )
@@ -61,7 +65,9 @@ fun GamificationDialog(
                     awsMessage = message,
                     soundEngine = soundEngine,
                     onGameComplete = { reward ->
-                        onFeedback(predictionId, reward)
+                        if (!isSandbox) {
+                            onFeedback(predictionId, reward)
+                        }
                         onDismiss()
                     }
                 )
@@ -70,7 +76,9 @@ fun GamificationDialog(
                     awsMessage = message,
                     soundEngine = soundEngine,
                     onGameComplete = { reward ->
-                        onFeedback(predictionId, reward)
+                        if (!isSandbox) {
+                            onFeedback(predictionId, reward)
+                        }
                         onDismiss()
                     }
                 )
@@ -79,7 +87,9 @@ fun GamificationDialog(
                     awsMessage = message,
                     soundEngine = soundEngine,
                     onGameComplete = { reward ->
-                        onFeedback(predictionId, reward)
+                        if (!isSandbox) {
+                            onFeedback(predictionId, reward)
+                        }
                         onDismiss()
                     }
                 )

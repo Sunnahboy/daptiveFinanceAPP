@@ -1,23 +1,25 @@
-# Implementation Plan - Dashboard On-Track Card Polish & Relocation
+# Implementation Plan - Seamless Single-Screen Loading & Centered FinAdapt Splash
 
-Refining the "On-Track" (Hero Budget) Card on the Dashboard to feel exceptionally polished, human-crafted, and intuitive, while relocating it directly below the Tip Card and introducing a visual iterative pie chart / category distribution graphic.
+Consolidating app startup into a single, seamless, flawless loading screen featuring a dark background, a rotating multi-color loading ring, and "FinAdapt" / "Loading insights..." positioned directly in the middle of the ring.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> - **Card Relocation**: The On-Track (Hero Budget) Card will move from below the Mascot card to directly below the Tip Card (position #2, right after the tip card and before the mascot card).
-> - **Layout Redesign**: The circular progress ring will move to the **left** side of the card, and the bottom category section will feature a polished visual iterative pie/donut/category distribution graphic instead of plain text/segmented bar.
+> - **Single Unified Screen**: Eliminates the jarring handoff between the native splash screen and the Compose UI, replacing it with a single, flawless Compose splash screen from app launch.
+> - **Centered Ring & Branding**: Features the rotating multi-color loading ring with "FinAdapt" and loading status text centered directly in the middle of the ring.
 
 ## Proposed Changes
 
-### [Dashboard Feature]
+### [Splash Feature & MainActivity]
 
-#### [MODIFY] [DashboardScreen.kt](file:///D:/THIRD_YEAR/AdaptiveFinance/app/src/main/java/com/finadapt/adaptivefinance/feature/dashboard/DashboardScreen.kt)
-- Relocate the Hero Budget / On-Track Card layout block in the `Column` so it renders immediately below the Actionable Tip Card.
-- Redesign the card internal layout:
-  - Place the animated progress ring on the left with status badge and remaining budget.
-  - Replace/enhance the category share bar at the bottom with a refined visual iterative pie/donut category chart representation with category color pills and smooth layout.
-  - Maintain 100% of existing functionality (click to open budget sheet, category breakdown sheet, calculations, over-budget states, and animations).
+#### [MODIFY] [SplashScreen.kt](file:///D:/THIRD_YEAR/AdaptiveFinance/app/src/main/java/com/finadapt/adaptivefinance/feature/splash/SplashScreen.kt)
+- Redesign `SplashScreen` to render a full-screen dark background (`#070B10`).
+- Incorporate a smooth animated rotating multi-color ring (matching the app's signature accent colors: Emerald `#10B981`, Blue `#3B82F6`, Purple `#8B5CF6`, Amber `#F59E0B`).
+- Position "FinAdapt" branding and "Loading insights..." text **directly in the center** of the rotating ring.
+
+#### [MODIFY] [MainActivity.kt](file:///D:/THIRD_YEAR/AdaptiveFinance/app/src/main/java/com/finadapt/adaptivefinance/MainActivity.kt)
+- Streamline app startup and remove redundant native splash hooks so that the Compose `SplashScreen` is the sole loading screen displayed while background tasks (database initialization, repository setup, data loading) run seamlessly.
+- Transition immediately and smoothly to the main `NavGraph` once `isDataLoaded` becomes true.
 
 ## Verification Plan
 
@@ -25,8 +27,7 @@ Refining the "On-Track" (Hero Budget) Card on the Dashboard to feel exceptionall
 - Build verification via `gradle_build(":app:assembleDebug")`.
 
 ### Manual Verification
-- Deploy app to device and inspect Dashboard UI:
-  - Verify On-Track Card is positioned immediately below the Tip Card.
-  - Verify progress ring is on the left.
-  - Verify iterative pie chart / visual category breakdown looks polished and human-crafted.
-  - Verify all touch targets and bottom sheets remain fully functional.
+- Cold start the app and verify:
+  - Only one loading screen is shown with a dark background and rotating ring.
+  - "FinAdapt" and loading text are centered perfectly inside the ring.
+  - Background data loading occurs smoothly, transitioning seamlessly to the dashboard once ready.

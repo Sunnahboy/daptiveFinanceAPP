@@ -298,7 +298,7 @@ class FinanceRepository(
 
     //Read the Appearance choice
     fun getAppearanceMode(): String {
-        return prefs.getString("APPEARANCE_MODE", "SYSTEM") ?: "SYSTEM"
+        return prefs.getString("APPEARANCE_MODE", "DARK") ?: "DARK"
     }
 
     //Generate and stores a secure anonymous Name

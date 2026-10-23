@@ -48,6 +48,7 @@ import java.util.Calendar
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -97,7 +98,6 @@ fun SettingsScreen(
     var nameInput by remember { mutableStateOf(currentName) }
     var currencyInput by remember { mutableStateOf(currentCurrency) }
 
-    // Using simple format to avoid trailing .0 if not needed
     val initialBudgetString = if (currentBudget % 1 == 0f) currentBudget.toInt().toString() else currentBudget.toString()
     var budgetInput by remember { mutableStateOf(initialBudgetString) }
 
@@ -110,13 +110,13 @@ fun SettingsScreen(
 
     // EXPORT STATES
     var isGenerating by remember { mutableStateOf(false) }
-    var reportType by remember { mutableStateOf(ReportGenerator.Timeframe.MONTHLY) } //Using Enum again
+    var reportType by remember { mutableStateOf(ReportGenerator.Timeframe.MONTHLY) }
 
     val currentCal = Calendar.getInstance()
     var selectedMonth by remember { mutableIntStateOf(currentCal.get(Calendar.MONTH)) }
     var selectedYear by remember { mutableIntStateOf(currentCal.get(Calendar.YEAR)) }
     var selectedWeek by remember { mutableIntStateOf(currentCal.get(Calendar.WEEK_OF_MONTH)) }
-    var selectedDay by remember { mutableIntStateOf(currentCal.get(Calendar.DAY_OF_MONTH)) } // Day Tracker
+    var selectedDay by remember { mutableIntStateOf(currentCal.get(Calendar.DAY_OF_MONTH)) }
 
     var monthExpanded by remember { mutableStateOf(false) }
     var weekExpanded by remember { mutableStateOf(false) }
@@ -133,9 +133,6 @@ fun SettingsScreen(
 
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    val successComp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.success_check))
-    val infoComp by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.nothing_changed))
-
     val appTheme = com.finadapt.adaptivefinance.ui.theme.LocalAppTheme.current
     
     val bgColor = MaterialTheme.colorScheme.background
@@ -146,6 +143,7 @@ fun SettingsScreen(
     val successColor = MaterialTheme.colorScheme.secondary
     val infoColor = Color(0xFF64748B)
     val errorColor = MaterialTheme.colorScheme.error
+    val outlineBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)
 
     val appVersion = remember {
         try {
@@ -158,7 +156,6 @@ fun SettingsScreen(
 
     // ================= REAL-TIME VALIDATION LOGIC =================
 
-    // Name Validation
     val cleanName = nameInput.trim()
     val isNameError = cleanName.isEmpty() || cleanName.length > 15
     val nameErrorMessage = when {
@@ -167,7 +164,6 @@ fun SettingsScreen(
         else -> null
     }
 
-    // Currency Validation
     val cleanCurrency = currencyInput.trim()
     val isCurrencyError = cleanCurrency.isEmpty() || cleanCurrency.length > 5
     val currencyErrorMessage = when {
@@ -176,7 +172,6 @@ fun SettingsScreen(
         else -> null
     }
 
-    // Budget Validation
     val parsedBudget = budgetInput.toFloatOrNull()
     val isBudgetError = budgetInput.isNotEmpty() && (parsedBudget == null || parsedBudget <= 0f || parsedBudget > 1_000_000f)
     val budgetErrorMessage = when {
@@ -186,7 +181,10 @@ fun SettingsScreen(
         else -> null
     }
 
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
@@ -196,7 +194,12 @@ fun SettingsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = textColor)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = bgColor)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = bgColor,
+                    scrolledContainerColor = bgColor
+                ),
+                windowInsets = WindowInsets(0), // Removed default TopAppBar insets to allow it to sit perfectly flush against the system status bar
+                scrollBehavior = scrollBehavior
             )
         },
         containerColor = bgColor
@@ -206,15 +209,16 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(20.dp),
+                .padding(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 80.dp), // Set top padding to 0.dp
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
 
             // ─────────────────────────────────────────
-            // 1. ACCOUNT & PROFILE
+            // 1. ACCOUNT & PROFILE (Modular Cards)
             // ─────────────────────────────────────────
             SettingsSectionHeader("Account & Profile", textColor)
 
+            // Card 1: Preferred Name
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -222,21 +226,17 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = if (highlightedCard == "profile") primaryColor.copy(alpha = 0.15f) else cardColor
                 ),
-                elevation = CardDefaults.cardElevation(if (appearanceMode == "DARK") 0.dp else 2.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = if (highlightedCard == "profile") androidx.compose.foundation.BorderStroke(2.dp, primaryColor) else null
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = if (highlightedCard == "profile") androidx.compose.foundation.BorderStroke(2.dp, primaryColor) else androidx.compose.foundation.BorderStroke(1.dp, outlineBorderColor)
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-
+                Column(modifier = Modifier.padding(22.dp)) {
                     OutlinedTextField(
                         value = nameInput,
                         onValueChange = { newValue ->
-                            // SANITIZATION: Actively strip out numbers, dots, commas, and emojis.
-                            // Only allow letters, spaces, hyphens, and apostrophes.
                             val sanitized = newValue.filter {
                                 it.isLetter() || it.isWhitespace() || it == '-' || it == '\''
                             }
-
                             nameInput = sanitized
                             nameActionState = "IDLE"
                         },
@@ -248,18 +248,18 @@ fun SettingsScreen(
                         },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = textColor,
                             unfocusedTextColor = textColor,
                             cursorColor = primaryColor,
                             focusedBorderColor = primaryColor,
-                            unfocusedBorderColor = subTextColor.copy(alpha = 0.5f),
+                            unfocusedBorderColor = subTextColor.copy(alpha = 0.4f),
                             focusedLabelColor = primaryColor,
                             unfocusedLabelColor = subTextColor
                         )
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     Button(
                         onClick = {
                             keyboardController?.hide()
@@ -270,21 +270,31 @@ fun SettingsScreen(
                                 coroutineScope.launch { nameActionState = "SUCCESS"; delay(2000); nameActionState = "IDLE" }
                             }
                         },
-                        enabled = !isNameError, // Prevents submission of invalid data
+                        enabled = !isNameError,
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.align(Alignment.End),
                         colors = ButtonDefaults.buttonColors(containerColor = when (nameActionState) { "SUCCESS" -> successColor; "NO_CHANGE" -> infoColor; else -> primaryColor })
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             when (nameActionState) {
-                                "SUCCESS" -> { LottieAnimation(successComp, modifier = Modifier.size(24.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Saved!", color = Color.White) }
-                                "NO_CHANGE" -> { LottieAnimation(infoComp, modifier = Modifier.size(24.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Already set", color = Color.White) }
-                                else -> Text("Save Name", color = Color.White)
+                                "SUCCESS" -> { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White); Spacer(modifier = Modifier.width(8.dp)); Text("Saved", color = Color.White, fontWeight = FontWeight.SemiBold) }
+                                "NO_CHANGE" -> { Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White); Spacer(modifier = Modifier.width(8.dp)); Text("Already set", color = Color.White, fontWeight = FontWeight.SemiBold) }
+                                else -> Text("Save Name", color = Color.White, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
+                }
+            }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = subTextColor.copy(alpha = 0.2f))
-
+            // Card 2: Preferred Currency Symbol
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = cardColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, outlineBorderColor)
+            ) {
+                Column(modifier = Modifier.padding(22.dp)) {
                     OutlinedTextField(
                         value = currencyInput,
                         onValueChange = { newValue ->
@@ -300,18 +310,18 @@ fun SettingsScreen(
                         },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = textColor,
                             unfocusedTextColor = textColor,
                             cursorColor = primaryColor,
                             focusedBorderColor = primaryColor,
-                            unfocusedBorderColor = subTextColor.copy(alpha = 0.5f),
+                            unfocusedBorderColor = subTextColor.copy(alpha = 0.4f),
                             focusedLabelColor = primaryColor,
                             unfocusedLabelColor = subTextColor
                         )
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     Button(
                         onClick = {
                             keyboardController?.hide()
@@ -323,28 +333,38 @@ fun SettingsScreen(
                             }
                         },
                         enabled = !isCurrencyError,
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.align(Alignment.End),
                         colors = ButtonDefaults.buttonColors(containerColor = when (currencyActionState) { "SUCCESS" -> successColor; "NO_CHANGE" -> infoColor; else -> primaryColor })
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             when (currencyActionState) {
-                                "SUCCESS" -> { LottieAnimation(successComp, modifier = Modifier.size(24.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Saved!", color = Color.White) }
-                                "NO_CHANGE" -> { LottieAnimation(infoComp, modifier = Modifier.size(24.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Already set", color = Color.White) }
-                                else -> Text("Save Currency", color = Color.White)
+                                "SUCCESS" -> { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White); Spacer(modifier = Modifier.width(8.dp)); Text("Saved", color = Color.White, fontWeight = FontWeight.SemiBold) }
+                                "NO_CHANGE" -> { Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White); Spacer(modifier = Modifier.width(8.dp)); Text("Already set", color = Color.White, fontWeight = FontWeight.SemiBold) }
+                                else -> Text("Save Currency", color = Color.White, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
+                }
+            }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = subTextColor.copy(alpha = 0.2f))
-
-                    Text("Monthly Budget Baseline", fontWeight = FontWeight.SemiBold, color = textColor)
+            // Card 3: Monthly Budget Baseline
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = cardColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, outlineBorderColor)
+            ) {
+                Column(modifier = Modifier.padding(22.dp)) {
+                    Text("Monthly Budget Baseline", fontWeight = FontWeight.Bold, color = textColor, fontSize = 15.sp)
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text("Used by the AI to calculate spending volatility.", color = subTextColor, fontSize = 12.sp)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedTextField(
                         value = budgetInput,
                         onValueChange = { newValue ->
-                            //Fix European commas and filter out bad chars instantly
                             val sanitized = newValue.replace(',', '.')
                             if (sanitized.isEmpty()) {
                                 budgetInput = sanitized
@@ -365,19 +385,18 @@ fun SettingsScreen(
                         },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        // Add this inside BOTH OutlinedTextFields (Name and Budget):
+                        shape = RoundedCornerShape(16.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = textColor,
                             unfocusedTextColor = textColor,
                             cursorColor = primaryColor,
                             focusedBorderColor = primaryColor,
-                            unfocusedBorderColor = subTextColor.copy(alpha = 0.5f),
+                            unfocusedBorderColor = subTextColor.copy(alpha = 0.4f),
                             focusedLabelColor = primaryColor,
                             unfocusedLabelColor = subTextColor
                         )
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     Button(
                         onClick = {
                             keyboardController?.hide()
@@ -388,15 +407,16 @@ fun SettingsScreen(
                                 coroutineScope.launch { budgetActionState = "SUCCESS"; delay(2000); budgetActionState = "IDLE" }
                             }
                         },
-                        enabled = !isBudgetError && budgetInput.isNotEmpty(), // Blocks null/negative saves
+                        enabled = !isBudgetError && budgetInput.isNotEmpty(),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.align(Alignment.End),
                         colors = ButtonDefaults.buttonColors(containerColor = when (budgetActionState) { "SUCCESS" -> successColor; "NO_CHANGE" -> infoColor; else -> primaryColor })
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             when (budgetActionState) {
-                                "SUCCESS" -> { LottieAnimation(successComp, modifier = Modifier.size(24.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("Updated!", color = Color.White) }
-                                "NO_CHANGE" -> { LottieAnimation(infoComp, modifier = Modifier.size(24.dp)); Spacer(modifier = Modifier.width(8.dp)); Text("No change", color = Color.White) }
-                                else -> Text("Update Budget", color = Color.White)
+                                "SUCCESS" -> { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White); Spacer(modifier = Modifier.width(8.dp)); Text("Updated", color = Color.White, fontWeight = FontWeight.SemiBold) }
+                                "NO_CHANGE" -> { Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White); Spacer(modifier = Modifier.width(8.dp)); Text("No change", color = Color.White, fontWeight = FontWeight.SemiBold) }
+                                else -> Text("Update Budget", color = Color.White, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -415,25 +435,27 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = if (highlightedCard == "theme" || highlightedCard == "notifications") primaryColor.copy(alpha = 0.15f) else cardColor
                 ),
-                elevation = CardDefaults.cardElevation(2.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = if (highlightedCard == "theme" || highlightedCard == "notifications") androidx.compose.foundation.BorderStroke(2.dp, primaryColor) else null
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = if (highlightedCard == "theme" || highlightedCard == "notifications") androidx.compose.foundation.BorderStroke(2.dp, primaryColor) else androidx.compose.foundation.BorderStroke(1.dp, outlineBorderColor)
             ) {
                 Column {
                     // APPEARANCE PICKER
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                        Text("Appearance", color = textColor, fontWeight = FontWeight.Medium)
+                    Column(modifier = Modifier.fillMaxWidth().padding(22.dp)) {
+                        Text("Appearance", color = textColor, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         Text("Choose how the app looks.", color = subTextColor, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             listOf("SYSTEM", "LIGHT", "DARK").forEach { mode ->
                                 FilterChip(
                                     selected = appearanceMode == mode,
                                     onClick = { onAppearanceModeChanged(mode) },
-                                    label = { Text(mode.lowercase().replaceFirstChar { it.uppercase() }) },
+                                    label = { Text(mode.lowercase().replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Medium) },
+                                    shape = RoundedCornerShape(12.dp),
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = primaryColor,
                                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                        containerColor = cardColor,
                                         labelColor = textColor
                                     ),
                                     modifier = Modifier.weight(1f)
@@ -442,11 +464,11 @@ fun SettingsScreen(
                         }
                     }
 
-                    HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
+                    HorizontalDivider(color = subTextColor.copy(alpha = 0.15f))
                     
                     // NEW THEME PICKER UI
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                        Text("App Color Theme", color = textColor, fontWeight = FontWeight.Medium)
+                    Column(modifier = Modifier.fillMaxWidth().padding(22.dp)) {
+                        Text("App Color Theme", color = textColor, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         Text("Personalize your Adaptive Finance experience.", color = subTextColor, fontSize = 12.sp)
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -454,11 +476,11 @@ fun SettingsScreen(
                                 val isSelected = currentThemeStr == theme.name
                                 Box(
                                     modifier = Modifier
-                                        .size(48.dp)
+                                        .size(50.dp)
                                         .background(theme.lightColorScheme.primary, CircleShape)
                                         .border(
-                                            width = if (isSelected) 3.dp else 0.dp,
-                                            color = if (isSelected) textColor else Color.Transparent,
+                                            width = if (isSelected) 3.dp else 1.dp,
+                                            color = if (isSelected) textColor else subTextColor.copy(alpha = 0.3f),
                                             shape = CircleShape
                                         )
                                         .clickable { onAppThemeChanged(theme.name) },
@@ -472,79 +494,92 @@ fun SettingsScreen(
                         }
                     }
 
-                    HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
+                    HorizontalDivider(color = subTextColor.copy(alpha = 0.15f))
 
                     // THE NOTIFICATION TIMES UI
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(22.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text("Daily Reminders", color = textColor, fontWeight = FontWeight.Medium)
+                                Text("Daily Reminders", color = textColor, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                 Text("When should the AI remind you?", color = subTextColor, fontSize = 12.sp)
                             }
-                            // Add Time Button
-                            if (reminderTimes.size < 3) { // limit to 3 reminders max to prevent spam
-                                IconButton(onClick = {
-                                    val calendar = Calendar.getInstance()
-                                    android.app.TimePickerDialog(
-                                        context,
-                                        { _, hourOfDay, minute ->
-                                            val newTimes = reminderTimes.toMutableList()
-                                            newTimes.add(Pair(hourOfDay, minute))
-                                            reminderTimes = newTimes
+                            if (reminderTimes.size < 3) {
+                                IconButton(
+                                    onClick = {
+                                        val calendar = Calendar.getInstance()
+                                        android.app.TimePickerDialog(
+                                            context,
+                                            { _, hourOfDay, minute ->
+                                                val newTimes = reminderTimes.toMutableList()
+                                                newTimes.add(Pair(hourOfDay, minute))
+                                                reminderTimes = newTimes
 
-                                            // Save & Reschedule!
-                                            NotificationScheduler.saveTimesToPrefs(context, newTimes)
-                                            NotificationScheduler.scheduleDailyReminders(context, newTimes)
-                                        },
-                                        calendar.get(Calendar.HOUR_OF_DAY),
-                                        calendar.get(Calendar.MINUTE),
-                                        false
-                                    ).show()
-                                }) {
+                                                NotificationScheduler.saveTimesToPrefs(context, newTimes)
+                                                NotificationScheduler.scheduleDailyReminders(context, newTimes)
+                                            },
+                                            calendar.get(Calendar.HOUR_OF_DAY),
+                                            calendar.get(Calendar.MINUTE),
+                                            false
+                                        ).show()
+                                    },
+                                    modifier = Modifier
+                                        .background(primaryColor.copy(alpha = 0.12f), CircleShape)
+                                        .size(38.dp)
+                                ) {
                                     Icon(Icons.Default.Add, contentDescription = "Add Time", tint = primaryColor)
                                 }
                             }
                         }
 
-                        // Display the chosen times
-                        Spacer(modifier = Modifier.height(8.dp))
+                        if (reminderTimes.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
                         reminderTimes.forEachIndexed { index, time ->
                             val cal = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, time.first); set(Calendar.MINUTE, time.second) }
                             val timeFormatted = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(cal.time)
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Surface(
+                                color = bgColor.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Alarm, contentDescription = null, tint = subTextColor, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(timeFormatted, color = textColor, fontWeight = FontWeight.Bold)
-                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Alarm, contentDescription = null, tint = primaryColor, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(timeFormatted, color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    }
 
-                                // Delete Button
-                                IconButton(onClick = {
-                                    val newTimes = reminderTimes.toMutableList()
-                                    newTimes.removeAt(index)
-                                    reminderTimes = newTimes
+                                    IconButton(
+                                        onClick = {
+                                            val newTimes = reminderTimes.toMutableList()
+                                            newTimes.removeAt(index)
+                                            reminderTimes = newTimes
 
-                                    // Save and  Reschedule
-                                    NotificationScheduler.saveTimesToPrefs(context, newTimes)
-                                    NotificationScheduler.scheduleDailyReminders(context, newTimes)
-                                }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Red, modifier = Modifier.size(16.dp))
+                                            NotificationScheduler.saveTimesToPrefs(context, newTimes)
+                                            NotificationScheduler.scheduleDailyReminders(context, newTimes)
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Close, contentDescription = "Remove", tint = errorColor, modifier = Modifier.size(16.dp))
+                                    }
                                 }
                             }
                         }
                     }
 
+                    HorizontalDivider(color = subTextColor.copy(alpha = 0.15f))
+
                     SettingsRowAction(
-                        icon = Icons.Default.Notifications, title = "Push Notifications", subtitle = "Manage alerts",
+                        icon = Icons.Default.Notifications, title = "Push Notifications", subtitle = "Manage system alerts",
                         textColor = textColor, subTextColor = subTextColor,
                         onClick = {
                             val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply { putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName) }
@@ -566,35 +601,43 @@ fun SettingsScreen(
                 colors = CardDefaults.cardColors(
                     containerColor = if (highlightedCard == "export") primaryColor.copy(alpha = 0.15f) else cardColor
                 ),
-                elevation = CardDefaults.cardElevation(if (appearanceMode == "DARK") 0.dp else 2.dp),
-                shape = RoundedCornerShape(16.dp),
-                border = if (highlightedCard == "export") androidx.compose.foundation.BorderStroke(2.dp, primaryColor) else null
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = if (highlightedCard == "export") androidx.compose.foundation.BorderStroke(2.dp, primaryColor) else androidx.compose.foundation.BorderStroke(1.dp, outlineBorderColor)
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
-                    // TYPE TOGGLE (Now has 3 options)
-                    Text("Select Timeframe:", color = subTextColor, fontSize = 14.sp)
+                    Text("Select Timeframe:", color = textColor, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ReportGenerator.Timeframe.entries.forEach { timeframe ->
                             FilterChip(
                                 selected = reportType == timeframe,
                                 onClick = { reportType = timeframe },
-                                label = { Text(timeframe.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryColor, selectedLabelColor = Color.White)
+                                label = { Text(timeframe.name.lowercase().replaceFirstChar { it.uppercase() }, fontWeight = FontWeight.Medium) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = primaryColor,
+                                    selectedLabelColor = Color.White,
+                                    containerColor = cardColor,
+                                    labelColor = textColor
+                                ),
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
 
-                    // MONTH DROPDOWN (Always visible)
+                    // MONTH DROPDOWN
                     ExposedDropdownMenuBox(expanded = monthExpanded, onExpandedChange = { monthExpanded = !monthExpanded }) {
                         OutlinedTextField(
                             value = "${monthsList[selectedMonth]} $selectedYear",
                             onValueChange = {}, readOnly = true, label = { Text("Select Month") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = monthExpanded) },
                             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = textColor, unfocusedTextColor = textColor,
-                                focusedBorderColor = primaryColor, unfocusedBorderColor = subTextColor.copy(alpha = 0.5f)
+                                focusedBorderColor = primaryColor, unfocusedBorderColor = subTextColor.copy(alpha = 0.4f),
+                                focusedLabelColor = primaryColor, unfocusedLabelColor = subTextColor
                             )
                         )
                         ExposedDropdownMenu(expanded = monthExpanded, onDismissRequest = { monthExpanded = false }, containerColor = cardColor) {
@@ -607,7 +650,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    // WEEK DROPDOWN (Only visible if Weekly is selected)
+                    // WEEK DROPDOWN
                     if (reportType == ReportGenerator.Timeframe.WEEKLY) {
                         ExposedDropdownMenuBox(expanded = weekExpanded, onExpandedChange = { weekExpanded = !weekExpanded }) {
                             OutlinedTextField(
@@ -615,9 +658,11 @@ fun SettingsScreen(
                                 onValueChange = {}, readOnly = true, label = { Text("Select Week") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = weekExpanded) },
                                 modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedTextColor = textColor, unfocusedTextColor = textColor,
-                                    focusedBorderColor = primaryColor, unfocusedBorderColor = subTextColor.copy(alpha = 0.5f)
+                                    focusedBorderColor = primaryColor, unfocusedBorderColor = subTextColor.copy(alpha = 0.4f),
+                                    focusedLabelColor = primaryColor, unfocusedLabelColor = subTextColor
                                 )
                             )
                             ExposedDropdownMenu(expanded = weekExpanded, onDismissRequest = { weekExpanded = false }, containerColor = cardColor) {
@@ -631,7 +676,7 @@ fun SettingsScreen(
                         }
                     }
 
-                    //DAY DROPDOWN (Only visible if Daily is selected)
+                    // DAY DROPDOWN
                     if (reportType == ReportGenerator.Timeframe.DAILY) {
                         ExposedDropdownMenuBox(expanded = dayExpanded, onExpandedChange = { dayExpanded = !dayExpanded }) {
                             OutlinedTextField(
@@ -639,9 +684,11 @@ fun SettingsScreen(
                                 onValueChange = {}, readOnly = true, label = { Text("Select Day") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dayExpanded) },
                                 modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedTextColor = textColor, unfocusedTextColor = textColor,
-                                    focusedBorderColor = primaryColor, unfocusedBorderColor = subTextColor.copy(alpha = 0.5f)
+                                    focusedBorderColor = primaryColor, unfocusedBorderColor = subTextColor.copy(alpha = 0.4f),
+                                    focusedLabelColor = primaryColor, unfocusedLabelColor = subTextColor
                                 )
                             )
                             ExposedDropdownMenu(expanded = dayExpanded, onDismissRequest = { dayExpanded = false }, containerColor = cardColor) {
@@ -655,12 +702,11 @@ fun SettingsScreen(
                         }
                     }
 
-                    //EXCEL EXPORT
+                    // EXCEL EXPORT
                     Button(
                         onClick = {
                             isGenerating = true
                             coroutineScope.launch {
-                                // 1. Map choices to the calendar
                                 val targetCal = Calendar.getInstance().apply {
                                     set(Calendar.YEAR, selectedYear)
                                     set(Calendar.MONTH, selectedMonth)
@@ -668,17 +714,14 @@ fun SettingsScreen(
                                     if (reportType == ReportGenerator.Timeframe.DAILY) set(Calendar.DAY_OF_MONTH, selectedDay)
                                 }
 
-                                // 2. Filter data
                                 val filteredData = filterExpensesByCustomDate(allExpenses, reportType, selectedMonth, selectedYear, selectedWeek, selectedDay)
 
-                                // 3. 🟢 THE SAFETY CHECK: Stop if no data!
                                 if (filteredData.isEmpty()) {
                                     isGenerating = false
                                     android.widget.Toast.makeText(context, "No expenses logged for this period!", android.widget.Toast.LENGTH_SHORT).show()
-                                    return@launch // Abort generation
+                                    return@launch
                                 }
 
-                                // 4. Generate report
                                 val periodLabel = getFormattedPeriodLabel(reportType, targetCal.timeInMillis)
                                 val file = withContext(Dispatchers.IO) {
                                     ReportGenerator.generateExcelReport(context, filteredData, periodLabel, currentCurrency)
@@ -688,19 +731,20 @@ fun SettingsScreen(
                                 if (file != null) ReportGenerator.shareFile(context, file, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = successColor)
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = successColor)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.List, contentDescription = null)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Export as Excel (.xlsx)")
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Export as Excel (.xlsx)", fontWeight = FontWeight.Bold)
                     }
 
-                    //PDF EXPORT
+                    // PDF EXPORT
                     Button(
                         onClick = {
                             isGenerating = true
                             coroutineScope.launch {
-                                // 1. Map choices to the calendar
                                 val targetCal = Calendar.getInstance().apply {
                                     set(Calendar.YEAR, selectedYear)
                                     set(Calendar.MONTH, selectedMonth)
@@ -708,17 +752,14 @@ fun SettingsScreen(
                                     if (reportType == ReportGenerator.Timeframe.DAILY) set(Calendar.DAY_OF_MONTH, selectedDay)
                                 }
 
-                                // 2. Filter data
                                 val filteredData = filterExpensesByCustomDate(allExpenses, reportType, selectedMonth, selectedYear, selectedWeek, selectedDay)
 
-                                // 3. THE SAFETY CHECK: Stop if no data
                                 if (filteredData.isEmpty()) {
                                     isGenerating = false
                                     android.widget.Toast.makeText(context, "No expenses logged for this period!", android.widget.Toast.LENGTH_SHORT).show()
-                                    return@launch // Abort generation
+                                    return@launch
                                 }
 
-                                // 4. Generate report
                                 val periodLabel = getFormattedPeriodLabel(reportType, targetCal.timeInMillis)
                                 val file = withContext(Dispatchers.IO) {
                                     ReportGenerator.generatePdfReport(context, filteredData, periodLabel, currentCurrency)
@@ -728,15 +769,18 @@ fun SettingsScreen(
                                 if (file != null) ReportGenerator.shareFile(context, file, "application/pdf")
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = errorColor)
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = errorColor)
                     ) {
                         Icon(Icons.Default.Assessment, contentDescription = null)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Export PDF with Analytics")
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Export PDF with Analytics", fontWeight = FontWeight.Bold)
                     }
 
                     if (isGenerating) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = primaryColor)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(6.dp), color = primaryColor, trackColor = primaryColor.copy(alpha = 0.2f))
                         Text("Generating professional report...", color = subTextColor, modifier = Modifier.align(Alignment.CenterHorizontally), fontSize = 12.sp)
                     }
                 }
@@ -750,22 +794,23 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = cardColor),
-                elevation = CardDefaults.cardElevation(if (appearanceMode == "DARK") 0.dp else 2.dp),
-                shape = RoundedCornerShape(16.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, outlineBorderColor)
             ) {
                 Column {
                     SettingsRowAction(
-                        icon = Icons.AutoMirrored.Filled.HelpOutline, title = "Help Center", subtitle = "FAQs",
+                        icon = Icons.AutoMirrored.Filled.HelpOutline, title = "Help Center", subtitle = "FAQs & Guide",
                         textColor = textColor, subTextColor = subTextColor, onClick = { showHelpDialog = true }
                     )
-                    HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
+                    HorizontalDivider(color = subTextColor.copy(alpha = 0.15f))
                     SettingsRowAction(
-                        icon = Icons.Default.PrivacyTip, title = "Privacy Policy", subtitle = "Data protection",
+                        icon = Icons.Default.PrivacyTip, title = "Privacy Policy", subtitle = "Data protection & ML assurance",
                         textColor = textColor, subTextColor = subTextColor, onClick = { showPrivacyDialog = true }
                     )
-                    HorizontalDivider(color = subTextColor.copy(alpha = 0.2f))
+                    HorizontalDivider(color = subTextColor.copy(alpha = 0.15f))
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
                         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -773,7 +818,18 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(16.dp))
                             Text("App Version", color = textColor, fontWeight = FontWeight.Medium)
                         }
-                        Text("v$appVersion", color = subTextColor, fontSize = 14.sp)
+                        Surface(
+                            color = primaryColor.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                "v$appVersion",
+                                color = primaryColor,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -785,20 +841,34 @@ fun SettingsScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = if (appearanceMode == "DARK") Color(0xFF450a0a) else Color(0xFFFEF2F2)),
-                elevation = CardDefaults.cardElevation(if (appearanceMode == "DARK") 0.dp else 2.dp),
-                shape = RoundedCornerShape(16.dp)
+                colors = CardDefaults.cardColors(containerColor = if (appearanceMode == "DARK") Color(0xFF450a0a).copy(alpha = 0.6f) else Color(0xFFFEF2F2)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.Red.copy(alpha = 0.3f))
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(
-                        onClick = onResetGamification, modifier = Modifier.fillMaxWidth(),
+                        onClick = onResetGamification,
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, Color.Red.copy(alpha = 0.6f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
-                    ) { Text("Reset Gamification Progress") }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Reset Gamification Progress", fontWeight = FontWeight.SemiBold)
+                    }
+
                     Button(
-                        onClick = { showWipeDialog = true }, modifier = Modifier.fillMaxWidth(),
+                        onClick = { showWipeDialog = true },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                    ) { Text("Wipe All Financial Data", color = Color.White) }
+                    ) {
+                        Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Wipe All Financial Data", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 
@@ -806,7 +876,7 @@ fun SettingsScreen(
         }
 
 
-        // Validation Error Dialog (Kept as a fallback, though inline validation prevents it from being needed)
+        // Validation Error Dialog
         if (showValidationErrorDialog) {
             val errorLottieResult = rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.error_alert))
             val errorLottie by errorLottieResult
@@ -814,14 +884,22 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { showValidationErrorDialog = false },
                 containerColor = cardColor,
+                shape = RoundedCornerShape(28.dp),
                 icon = {
                     if (errorLottie != null) { LottieAnimation(composition = errorLottie, progress = { lottieProgress }, modifier = Modifier.size(72.dp))
                     } else { Icon(Icons.Default.Warning, contentDescription = "Error", tint = errorColor, modifier = Modifier.size(48.dp)) }
                 },
-                title = { Text("Invalid Input", fontWeight = FontWeight.Bold, color = textColor) },
+                title = { Text("Invalid Input", fontWeight = FontWeight.Bold, color = textColor, textAlign = TextAlign.Center) },
                 text = { Text("Please check the highlighted fields and fix the errors before saving.", color = subTextColor, textAlign = TextAlign.Center) },
                 confirmButton = {
-                    Button(onClick = { showValidationErrorDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = primaryColor), modifier = Modifier.fillMaxWidth()) { Text("Got it", color = Color.White) }
+                    Button(
+                        onClick = { showValidationErrorDialog = false },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryColor),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Got it", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
             )
         }
@@ -831,6 +909,7 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { showHelpDialog = false },
                 containerColor = cardColor,
+                shape = RoundedCornerShape(28.dp),
                 title = {
                     Text(
                         "Help Center",
@@ -842,29 +921,25 @@ fun SettingsScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 400.dp) //Keeps the dialog scrollable
+                            .heightIn(max = 400.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
                         val helpText = buildAnnotatedString {
-                            // Question 1
                             withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
                                 append("Q: How does the AI Bandit work?\n")
                             }
                             append("A: Our Contextual AI learns your spending habits. If you spend erratically, it adapts by offering stricter advice. If you spend safely, it rewards you with streak bonuses. It learns every time you accept or ignore its advice!\n\n")
 
-                            // Question 2
                             withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
                                 append("Q: How do I earn XP and level up?\n")
                             }
                             append("A: You earn XP by logging your expenses daily to keep your streak alive, and by following the AI's financial advice. Earning XP moves you up the tiers on the global leaderboard.\n\n")
 
-                            // Question 3
                             withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
                                 append("Q: Why did I receive a \"Strict Budget\" warning?\n")
                             }
                             append("A: The AI triggered this because it detected high \"Spending Volatility.\" This usually happens if you spend a large percentage of your monthly budget too quickly.\n\n")
 
-                            // Question 4
                             withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
                                 append("Q: Is my financial data secure?\n")
                             }
@@ -882,9 +957,10 @@ fun SettingsScreen(
                 confirmButton = {
                     Button(
                         onClick = { showHelpDialog = false },
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
                     ) {
-                        Text("Close", color = Color.White)
+                        Text("Close", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             )
@@ -895,6 +971,7 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { showPrivacyDialog = false },
                 containerColor = cardColor,
+                shape = RoundedCornerShape(28.dp),
                 title = {
                     Text(
                         "Privacy Policy",
@@ -906,10 +983,9 @@ fun SettingsScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 400.dp) //Keeps the dialog from taking up the whole screen
+                            .heightIn(max = 400.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        // Build the text with bold headers
                         val privacyText = buildAnnotatedString {
                             withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
                                 append("Privacy by Design: Abstracted Reinforcement Learning\n\n")
@@ -953,9 +1029,10 @@ fun SettingsScreen(
                 confirmButton = {
                     Button(
                         onClick = { showPrivacyDialog = false },
+                        shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = primaryColor)
                     ) {
-                        Text("I Understand", color = Color.White)
+                        Text("I Understand", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             )
@@ -966,10 +1043,23 @@ fun SettingsScreen(
             AlertDialog(
                 onDismissRequest = { showWipeDialog = false },
                 containerColor = cardColor,
-                title = { Text("Erase Everything?", color = textColor) },
+                shape = RoundedCornerShape(28.dp),
+                title = { Text("Erase Everything?", fontWeight = FontWeight.Bold, color = textColor) },
                 text = { Text("This will permanently delete all logged expenses from your local database. This action cannot be undone.", color = subTextColor) },
-                confirmButton = { Button(onClick = { onWipeData(); showWipeDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Yes, Wipe Data", color = Color.White) } },
-                dismissButton = { TextButton(onClick = { showWipeDialog = false }) { Text("Cancel", color = textColor) } }
+                confirmButton = {
+                    Button(
+                        onClick = { onWipeData(); showWipeDialog = false },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                    ) {
+                        Text("Yes, Wipe Data", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showWipeDialog = false }) {
+                        Text("Cancel", color = textColor, fontWeight = FontWeight.Medium)
+                    }
+                }
             )
         }
     }
@@ -985,8 +1075,9 @@ fun SettingsSectionHeader(title: String, color: Color) {
         text = title.uppercase(),
         style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
         color = color,
-        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+        modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
     )
 }
 
@@ -997,7 +1088,7 @@ fun SettingsRowToggle(
     textColor: Color, subTextColor: Color, onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!isChecked) }.padding(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!isChecked) }.padding(20.dp),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
@@ -1005,7 +1096,7 @@ fun SettingsRowToggle(
             Spacer(modifier = Modifier.width(16.dp))
             Column { Text(title, color = textColor, fontWeight = FontWeight.Medium); Text(subtitle, color = subTextColor, fontSize = 12.sp) }
         }
-        Switch(checked = isChecked, onCheckedChange = onCheckedChange, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF0284C7), checkedTrackColor = Color(0xFFE0F2FE)))
+        Switch(checked = isChecked, onCheckedChange = onCheckedChange)
     }
 }
 
@@ -1015,7 +1106,7 @@ fun SettingsRowAction(
     title: String, subtitle: String, textColor: Color, subTextColor: Color, onClick: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(20.dp),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
@@ -1030,7 +1121,6 @@ fun SettingsRowAction(
     }
 }
 
-// Formatting the custom string for the ReportGenerator
 fun getFormattedPeriodLabel(type: ReportGenerator.Timeframe, timestamp: Long): String {
     val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
     val monthYearFormat = java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault())
@@ -1049,7 +1139,6 @@ fun getFormattedPeriodLabel(type: ReportGenerator.Timeframe, timestamp: Long): S
     }
 }
 
-// slicing the database based on UI Dropdown choices
 fun filterExpensesByCustomDate(
     allExpenses: List<ExpenseEntity>,
     type: ReportGenerator.Timeframe,

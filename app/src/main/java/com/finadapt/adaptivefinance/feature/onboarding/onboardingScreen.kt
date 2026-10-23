@@ -1,7 +1,13 @@
 package com.finadapt.adaptivefinance.feature.onboarding
 
 import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +23,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -33,11 +41,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
-
-
 
 @Composable
 fun OnboardingScreen(onFinish: () -> Unit) {
@@ -46,6 +53,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
     var selectedGoal by rememberSaveable { mutableStateOf("") }
     var currencyInput by rememberSaveable { mutableStateOf("RM") }
     var budgetInput by rememberSaveable { mutableStateOf("") }
+    var isCompleting by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -95,121 +103,188 @@ fun OnboardingScreen(onFinish: () -> Unit) {
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(bgColor)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(bgColor)
+    ) {
         AmbientGlow()
 
+        // Edge-to-edge layout structure: precise insets for top header and bottom footer, eliminating dead space
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
+                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
         ) {
-            // Header
+            // Header with exact status bar padding
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                if (currentStep > 1) {
+                if (currentStep > 1 && !isCompleting) {
                     IconButton(
-                        onClick = { currentStep -= 1 },
-                        modifier = Modifier.align(Alignment.CenterStart)
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            currentStep -= 1
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .size(40.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = textColor)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = textColor, modifier = Modifier.size(20.dp))
                     }
                 }
+                
                 val headerText = when (currentStep) {
-                    1 -> "Identity"
-                    2 -> "Goal Selection"
-                    else -> "Set Baseline"
+                    1 -> "Your Profile"
+                    2 -> "Your Vision"
+                    else -> "Baseline Setup"
                 }
-                Text(
-                    text = headerText,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = textColor,
-                    modifier = Modifier.align(Alignment.Center)
-                )
+                
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = headerText,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = textColor
+                    )
+                    Text(
+                        text = "Step $currentStep of 3",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
+            // Sleek Progress Indicator
             OnboardingProgressBar(currentStep)
 
-            // Step Content
-            Crossfade(
-                targetState = currentStep,
-                modifier = Modifier.weight(1f),
-                label = "StepTransition"
-            ) { step ->
-                when (step) {
-                    1 -> NameInputStep(
-                        name = nameInput,
-                        onNameChange = { newValue ->
-                            // SANITIZATION: Actively strip out numbers, dots, commas, and emojis.
-                            val sanitized = newValue.filter { it.isLetter() || it.isWhitespace() || it == '-' || it == '\'' }
-                            nameInput = sanitized
-                        },
-                        isError = isNameError,
-                        errorMessage = nameErrorMessage,
-                        textColor = textColor
-                    )
-                    2 -> GoalSelectionStep(
-                        selectedGoal = selectedGoal,
-                        onGoalSelected = {
-                            selectedGoal = it
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        },
-                        textColor = textColor
-                    )
-                    3 -> BudgetInputStep(
-                        currency = currencyInput,
-                        onCurrencyChange = { newValue ->
-                            val sanitized = newValue.filter { it.isLetterOrDigit() || it.isWhitespace() || it == '$' || it == '€' || it == '£' || it == '¥' }
-                            currencyInput = sanitized
-                        },
-                        isCurrencyError = isCurrencyError,
-                        currencyErrorMessage = currencyErrorMessage,
-                        budget = budgetInput,
-                        onBudgetChange = { newValue ->
-                            // SANITIZATION: European commas and filter out bad chars instantly
-                            val sanitized = newValue.replace(',', '.')
-                            if (sanitized.isEmpty()) {
-                                budgetInput = sanitized
-                            } else {
-                                val filtered = sanitized.filter { it.isDigit() || it == '.' }
-                                if (filtered.count { it == '.' } <= 1) {
-                                    budgetInput = filtered
+            // Step Content with Crossfade
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                Crossfade(
+                    targetState = currentStep,
+                    modifier = Modifier.fillMaxSize(),
+                    label = "StepTransition"
+                ) { step ->
+                    when (step) {
+                        1 -> NameInputStep(
+                            name = nameInput,
+                            onNameChange = { newValue ->
+                                val sanitized = newValue.filter { it.isLetter() || it.isWhitespace() || it == '-' || it == '\'' }
+                                nameInput = sanitized
+                            },
+                            isError = isNameError,
+                            errorMessage = nameErrorMessage,
+                            textColor = textColor
+                        )
+                        2 -> GoalSelectionStep(
+                            selectedGoal = selectedGoal,
+                            onGoalSelected = {
+                                selectedGoal = it
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
+                            textColor = textColor
+                        )
+                        3 -> BudgetInputStep(
+                            currency = currencyInput,
+                            onCurrencyChange = { newValue ->
+                                val sanitized = newValue.filter { it.isLetterOrDigit() || it.isWhitespace() || it == '$' || it == '€' || it == '£' || it == '¥' }
+                                currencyInput = sanitized
+                            },
+                            isCurrencyError = isCurrencyError,
+                            currencyErrorMessage = currencyErrorMessage,
+                            budget = budgetInput,
+                            onBudgetChange = { newValue ->
+                                val sanitized = newValue.replace(',', '.')
+                                if (sanitized.isEmpty()) {
+                                    budgetInput = sanitized
+                                } else {
+                                    val filtered = sanitized.filter { it.isDigit() || it == '.' }
+                                    if (filtered.count { it == '.' } <= 1) {
+                                        budgetInput = filtered
+                                    }
                                 }
-                            }
-                        },
-                        isError = isBudgetError,
-                        errorMessage = budgetErrorMessage,
-                        onDone = {
-                            if (isStepValid) {
-                                coroutineScope.launch {
-                                    saveUserBaseline(context, cleanName, selectedGoal, cleanCurrency, budgetInput)
-                                    onFinish()
+                            },
+                            isError = isBudgetError,
+                            errorMessage = budgetErrorMessage,
+                            onDone = {
+                                if (isStepValid && !isCompleting) {
+                                    isCompleting = true
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    coroutineScope.launch {
+                                        saveUserBaseline(context, cleanName, selectedGoal, cleanCurrency, budgetInput)
+                                        delay(400) // Delightful micro-pause for smooth completion transition
+                                        onFinish()
+                                    }
                                 }
-                            }
-                        },
-                        textColor = textColor
-                    )
+                            },
+                            textColor = textColor
+                        )
+                    }
                 }
-            }
 
-            // Footer
-            OnboardingFooter(
-                currentStep = currentStep,
-                isValid = isStepValid,
-                onContinue = {
-                    if (currentStep < 3) currentStep += 1
-                    else {
-                        coroutineScope.launch {
-                            saveUserBaseline(context, cleanName, selectedGoal, cleanCurrency, budgetInput)
-                            onFinish()
+                // Completion Overlay Animation
+                if (isCompleting) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(bgColor.copy(alpha = 0.85f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(56.dp),
+                                strokeWidth = 4.dp
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Crafting your financial sanctuary...",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = textColor
+                            )
                         }
                     }
                 }
-            )
+            }
+
+            // Footer with exact navigation bar padding
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+            ) {
+                OnboardingFooter(
+                    currentStep = currentStep,
+                    isValid = isStepValid,
+                    isCompleting = isCompleting,
+                    onContinue = {
+                        if (currentStep < 3) {
+                            haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                            currentStep += 1
+                        } else if (!isCompleting) {
+                            isCompleting = true
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            coroutineScope.launch {
+                                saveUserBaseline(context, cleanName, selectedGoal, cleanCurrency, budgetInput)
+                                delay(400)
+                                onFinish()
+                            }
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -221,16 +296,16 @@ fun AmbientGlow() {
     Canvas(modifier = Modifier.fillMaxSize()) {
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(accentColor.copy(alpha = 0.15f), Color.Transparent),
+                colors = listOf(accentColor.copy(alpha = 0.12f), Color.Transparent),
                 center = Offset(0f, 0f),
-                radius = 800f
+                radius = 900f
             )
         )
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(primaryColor.copy(alpha = 0.15f), Color.Transparent),
-                center = Offset(size.width, size.height + 200f),
-                radius = 1000f
+                colors = listOf(primaryColor.copy(alpha = 0.12f), Color.Transparent),
+                center = Offset(size.width, size.height + 100f),
+                radius = 1100f
             )
         )
     }
@@ -238,21 +313,28 @@ fun AmbientGlow() {
 
 @Composable
 fun OnboardingProgressBar(step: Int) {
-    Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                "STEP $step OF 3",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
+    val progressAnim by animateFloatAsState(
+        targetValue = step / 3f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "ProgressBarAnimation"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 8.dp)
+    ) {
         LinearProgressIndicator(
-            progress = { step / 3f },
-            modifier = Modifier.fillMaxWidth().height(8.dp),
+            progress = { progressAnim },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(50)),
             color = MaterialTheme.colorScheme.primary,
-            trackColor = Color(0x4D064E3B),
+            trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
         )
     }
@@ -266,33 +348,60 @@ fun NameInputStep(
     errorMessage: String?,
     textColor: Color
 ) {
-    Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-        Text("Let's get to know you.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("What should your AI guardian call you?", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-        Spacer(modifier = Modifier.height(32.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Welcome to your new financial clarity.",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = textColor,
+            lineHeight = 36.sp
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "What shall your AI financial guardian call you?",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyLarge,
+            lineHeight = 22.sp
+        )
+        Spacer(modifier = Modifier.height(40.dp))
 
         OutlinedTextField(
             value = name,
             onValueChange = onNameChange,
             label = { Text("Your First Name") },
+            placeholder = { Text("e.g. Alex") },
             singleLine = true,
             isError = isError,
             supportingText = {
                 if (errorMessage != null) {
-                    Text(errorMessage, color = MaterialTheme.colorScheme.error)
+                    Text(errorMessage, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium)
                 }
             },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Next),
-            shape = RoundedCornerShape(16.dp),
+            leadingIcon = {
+                Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                capitalization = KeyboardCapitalization.Words,
+                imeAction = ImeAction.Done
+            ),
+            shape = RoundedCornerShape(20.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = Color(0xFFE2E8F0),
+                unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
                 focusedTextColor = textColor,
                 unfocusedTextColor = textColor,
                 errorBorderColor = MaterialTheme.colorScheme.error,
                 errorTextColor = MaterialTheme.colorScheme.error,
-                errorLabelColor = MaterialTheme.colorScheme.error
+                errorLabelColor = MaterialTheme.colorScheme.error,
+                focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -300,12 +409,33 @@ fun NameInputStep(
 }
 
 @Composable
-fun GoalSelectionStep(selectedGoal: String, onGoalSelected: (String) -> Unit, textColor: Color) {
-    Column(modifier = Modifier.padding(horizontal = 24.dp).verticalScroll(rememberScrollState())) {
-        Text("What's your primary goal?", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("We will tailor your AI gamification dashboard based on your choice.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-        Spacer(modifier = Modifier.height(24.dp))
+fun GoalSelectionStep(
+    selectedGoal: String,
+    onGoalSelected: (String) -> Unit,
+    textColor: Color
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "What is your primary focus right now?",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = textColor,
+            lineHeight = 36.sp
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "We'll tailor your insights, budgeting style, and AI guardian behavior to match.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyLarge,
+            lineHeight = 22.sp
+        )
+        Spacer(modifier = Modifier.height(28.dp))
 
         ONBOARDING_GOALS.forEach { goal ->
             GoalCard(
@@ -316,6 +446,7 @@ fun GoalSelectionStep(selectedGoal: String, onGoalSelected: (String) -> Unit, te
                 textColor = textColor,
                 onClick = { onGoalSelected(goal.title) }
             )
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
@@ -329,19 +460,27 @@ fun GoalCard(
     textColor: Color,
     onClick: () -> Unit
 ) {
-    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
-    val cardBgColor = MaterialTheme.colorScheme.surface
-    val iconBgColor = MaterialTheme.colorScheme.primary.copy(alpha=0.15f) // Soft mint green
-    val iconColor = MaterialTheme.colorScheme.primary
+    val scaleAnim by animateFloatAsState(
+        targetValue = if (isSelected) 1.02f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "GoalCardScale"
+    )
+
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+    val cardBgColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surface
+    val iconBgColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+    val iconTint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .scale(scaleAnim)
+            .clip(RoundedCornerShape(24.dp))
             .clickable { onClick() },
-        shape = RoundedCornerShape(32.dp),
+        shape = RoundedCornerShape(24.dp),
         border = BorderStroke(2.dp, borderColor),
-        colors = CardDefaults.cardColors(containerColor = cardBgColor)
+        colors = CardDefaults.cardColors(containerColor = cardBgColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp)
     ) {
         Row(
             modifier = Modifier.padding(20.dp),
@@ -349,21 +488,38 @@ fun GoalCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(52.dp)
                     .background(iconBgColor, RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = iconColor)
+                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(24.dp))
             }
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(18.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium, color = textColor)
-                Text(text = description, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = textColor
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = description,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                    lineHeight = 18.sp
+                )
             }
 
             if (isSelected) {
-                Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(12.dp))
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }
@@ -386,11 +542,28 @@ fun BudgetInputStep(
     var expanded by remember { mutableStateOf(false) }
     val presetCurrencies = listOf("RM", "$", "€", "£", "¥", "₹")
 
-    Column(modifier = Modifier.padding(horizontal = 24.dp).verticalScroll(rememberScrollState())) {
-        Text("Set your baseline.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = textColor)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("We need a currency and budget to calculate your stats.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-        Spacer(modifier = Modifier.height(32.dp))
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+    ) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Establish your financial baseline.",
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = textColor,
+            lineHeight = 36.sp
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Set your preferred currency and monthly budget target to power smart insights.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyLarge,
+            lineHeight = 22.sp
+        )
+        Spacer(modifier = Modifier.height(36.dp))
 
         ExposedDropdownMenuBox(
             expanded = expanded,
@@ -407,8 +580,18 @@ fun BudgetInputStep(
                         Text(currencyErrorMessage, color = MaterialTheme.colorScheme.error)
                     }
                 },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Next),
-                shape = RoundedCornerShape(16.dp),
+                leadingIcon = {
+                    Icon(Icons.Default.AttachMoney, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                },
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    capitalization = KeyboardCapitalization.Characters,
+                    imeAction = ImeAction.Next
+                ),
+                shape = RoundedCornerShape(20.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -416,9 +599,13 @@ fun BudgetInputStep(
                     unfocusedTextColor = textColor,
                     errorBorderColor = MaterialTheme.colorScheme.error,
                     errorTextColor = MaterialTheme.colorScheme.error,
-                    errorLabelColor = MaterialTheme.colorScheme.error
+                    errorLabelColor = MaterialTheme.colorScheme.error,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
                 ),
-                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable).fillMaxWidth()
+                modifier = Modifier
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+                    .fillMaxWidth()
             )
             
             ExposedDropdownMenu(
@@ -427,7 +614,7 @@ fun BudgetInputStep(
             ) {
                 presetCurrencies.forEach { preset ->
                     DropdownMenuItem(
-                        text = { Text(preset) },
+                        text = { Text(preset, fontWeight = FontWeight.Bold) },
                         onClick = {
                             onCurrencyChange(preset)
                             expanded = false
@@ -436,13 +623,15 @@ fun BudgetInputStep(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         OutlinedTextField(
             value = budget,
             onValueChange = onBudgetChange,
-            label = { Text("Monthly Budget ($currency)") },
-            prefix = { Text("$currency ", fontWeight = FontWeight.Bold) },
+            label = { Text("Monthly Budget Limit") },
+            prefix = { Text("$currency ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
+            placeholder = { Text("3000") },
             singleLine = true,
             isError = isError,
             supportingText = {
@@ -450,9 +639,15 @@ fun BudgetInputStep(
                     Text(errorMessage, color = MaterialTheme.colorScheme.error)
                 }
             },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+            leadingIcon = {
+                Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Decimal,
+                imeAction = ImeAction.Done
+            ),
             keyboardActions = KeyboardActions(onDone = { onDone() }),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -460,7 +655,9 @@ fun BudgetInputStep(
                 unfocusedTextColor = textColor,
                 errorBorderColor = MaterialTheme.colorScheme.error,
                 errorTextColor = MaterialTheme.colorScheme.error,
-                errorLabelColor = MaterialTheme.colorScheme.error
+                errorLabelColor = MaterialTheme.colorScheme.error,
+                focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f)
             ),
             modifier = Modifier.fillMaxWidth()
         )
@@ -468,43 +665,74 @@ fun BudgetInputStep(
 }
 
 @Composable
-fun OnboardingFooter(currentStep: Int, isValid: Boolean, onContinue: () -> Unit) {
-    Column(modifier = Modifier.padding(24.dp)) {
-
-        // DYNAMIC HELPER TEXT: Explains why the button is disabled to prevent user frustration
-        if (!isValid) {
+fun OnboardingFooter(
+    currentStep: Int,
+    isValid: Boolean,
+    isCompleting: Boolean,
+    onContinue: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 16.dp)
+    ) {
+        // Dynamic helper text explaining validity to prevent user friction
+        AnimatedVisibility(
+            visible = !isValid,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
             val helperText = when (currentStep) {
-                1 -> "Please enter a valid name to continue"
-                2 -> "Please select a primary goal to continue"
-                3 -> "Please enter your monthly budget to finish"
+                1 -> "Please enter your name to proceed"
+                2 -> "Please select a primary goal to proceed"
+                3 -> "Please enter a valid monthly budget to finish"
                 else -> ""
             }
 
             Text(
                 text = helperText,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
             )
         }
 
         Button(
             onClick = onContinue,
-            enabled = isValid,
-            modifier = Modifier.fillMaxWidth().height(60.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-            shape = RoundedCornerShape(50)
+            enabled = isValid && !isCompleting,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ),
+            shape = RoundedCornerShape(28.dp),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 1.dp)
         ) {
-            Text(
-                if (currentStep < 3) "Continue" else "Complete Setup",
-                color = MaterialTheme.colorScheme.onPrimary,
-                fontWeight = FontWeight.Bold
-            )
-            if (currentStep < 3) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = MaterialTheme.colorScheme.onPrimary)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = if (currentStep < 3) "Continue" else "Complete Setup",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isValid) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (currentStep < 3) {
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
@@ -513,12 +741,30 @@ fun OnboardingFooter(currentStep: Int, isValid: Boolean, onContinue: () -> Unit)
 data class GoalData(val title: String, val desc: String, val icon: ImageVector)
 
 private val ONBOARDING_GOALS = listOf(
-    GoalData("Save Money", "Secure your future and build an emergency fund.", Icons.Default.Star),
-    GoalData("Stop Overspending", "Identify hidden leaks and cut unnecessary costs.", Icons.Default.ShoppingCart),
-    GoalData("Track Daily Habits", "See exactly where your money goes every day.", Icons.AutoMirrored.Filled.TrendingUp)
+    GoalData(
+        title = "Build Wealth & Save",
+        desc = "Secure your financial future and grow a robust emergency reserve.",
+        icon = Icons.Default.Savings
+    ),
+    GoalData(
+        title = "Stop Overspending",
+        desc = "Identify financial leaks, curb impulsive purchases, and stay disciplined.",
+        icon = Icons.Default.ShoppingCart
+    ),
+    GoalData(
+        title = "Master Daily Habits",
+        desc = "Gain crystal-clear visibility into where every dollar flows each day.",
+        icon = Icons.AutoMirrored.Filled.TrendingUp
+    )
 )
 
-suspend fun saveUserBaseline(context: Context, name: String, goal: String, currency: String, budget: String) {
+suspend fun saveUserBaseline(
+    context: Context,
+    name: String,
+    goal: String,
+    currency: String,
+    budget: String
+) {
     withContext(Dispatchers.IO) {
         val prefs = context.getSharedPreferences("AdaptiveFinancePrefs", Context.MODE_PRIVATE)
         val currentUserId = prefs.getString("SILENT_USER_ID", null)

@@ -104,6 +104,7 @@ fun DashboardScreen(
     var pendingAmbushAction by remember { mutableStateOf<String?>(null) }
     var pendingAmbushMessage by remember { mutableStateOf<String?>(null) }
     var pendingAmbushId by remember { mutableStateOf<String?>(null) }
+    var isSandboxReplay by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val action = prefs.getString("PENDING_AMBUSH_ACTION", null)
@@ -603,10 +604,10 @@ fun DashboardScreen(
             data class ActionableTip(val message: String, val targetTab: Int, val highlightKey: String?)
             val tips = listOf(
                 ActionableTip(dynamicSubtitle, 1, null), // History
-                ActionableTip("Secure your financial records — Tap to export your financial report.", 6, "export"), // Settings
-                ActionableTip("Personalize your experience — Tap to customize theme & colors.", 6, "theme"), // Settings
-                ActionableTip("See how others are saving — Tap to view the community leaderboard.", 3, null), // Community
-                ActionableTip("Climb the Mountain of Prosperity — Tap to check your rewards & ascent.", 4, null) // Rewards
+                ActionableTip("[Settings] Secure your financial records — Tap to export your financial report.", 6, "export"), // Settings
+                ActionableTip("[Settings] Personalize your experience — Tap to customize theme & colors.", 6, "theme"), // Settings
+                ActionableTip("[Community] See how others are saving — Tap to view the community leaderboard.", 3, null), // Community
+                ActionableTip("[Rewards] Climb the Mountain of Prosperity — Tap to check your rewards & ascent.", 4, null) // Rewards
             )
             val currentTipIndex = remember(allExpenses, dynamicSubtitle) {
                 ((System.currentTimeMillis() / 20000) % tips.size).toInt()
@@ -1016,63 +1017,123 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 4. THE AI ACTION / COOL-OFF BANNER
-            var showCoolOffSheet by remember { mutableStateOf(false) }
-            if (currentAiAction == "cool_off") {
+            // 4. THE AI ACTION / CHALLENGE BANNER (Persistent & Well-Crafted)
+            // 4. THE AI ACTION / CHALLENGE BANNER (Persistent & Well-Crafted with Replay Prompt)
+            if (currentAiAction != "zen") {
+                val (actionColor, actionTitle, actionDesc) = when (currentAiAction) {
+                    "strict_budget" -> Triple(Color(0xFFF59E0B), "🔥 Survival Mode Active", "High volatility detected! The AI recommends pausing non-essential spending.")
+                    "quiz" -> Triple(Color(0xFF8B5CF6), "🧠 Financial IQ Test", "Review your recent spending habits to earn XP and level up.")
+                    "cool_off" -> Triple(Color(0xFF06B6D4), "❄️ Cool-Off Period Active", "A 2-hour thinking pause is active to protect your budget.")
+                    "streak_builder" -> Triple(Color(0xFF3B82F6), "🎯 Streak Builder", "Maintain your daily streak! Consistent, low spending is key.")
+                    else -> Triple(MaterialTheme.colorScheme.primary, "🤖 AI Challenge", "Active financial guidance to keep you on track.")
+                }
+
+                var showReplayPromptSheet by remember { mutableStateOf(false) }
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { showCoolOffSheet = true },
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF06B6D4).copy(alpha = 0.15f)),
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF06B6D4))
+                        .clickable { showReplayPromptSheet = true },
+                    colors = CardDefaults.cardColors(containerColor = cardColor),
+                    shape = RoundedCornerShape(24.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, actionColor.copy(alpha = 0.5f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        modifier = Modifier.padding(22.dp).fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("❄️", fontSize = 20.sp)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text("Cool-Off Period Active", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                                Text("A 2-hour thinking pause is active. Tap for options.", style = MaterialTheme.typography.bodySmall, color = subTextColor)
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(actionColor.copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = when (currentAiAction) {
+                                        "strict_budget" -> "🔥"
+                                        "quiz" -> "🧠"
+                                        "cool_off" -> "❄️"
+                                        "streak_builder" -> "🎯"
+                                        else -> "🤖"
+                                    },
+                                    fontSize = 20.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Surface(
+                                    color = actionColor.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(50)
+                                ) {
+                                    Text(
+                                        text = "Active Challenge",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                                        color = actionColor,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = actionTitle,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    fontSize = 16.sp
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = actionDesc,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = subTextColor,
+                                    fontSize = 12.sp
+                                )
                             }
                         }
-                        Text(">", fontWeight = FontWeight.Bold, color = Color(0xFF06B6D4))
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Text("›", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = actionColor)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                if (showCoolOffSheet) {
-                    ModalBottomSheet(onDismissRequest = { showCoolOffSheet = false }, containerColor = cardColor) {
+                if (showReplayPromptSheet) {
+                    ModalBottomSheet(onDismissRequest = { showReplayPromptSheet = false }, containerColor = cardColor) {
                         Column(modifier = Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Text("Cool-Off Pause Active", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                            Text("Take a deep breath. This cool-off pause encourages mindful spending before making non-essential purchases.", color = subTextColor)
+                            Text("Replay Challenge", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                            Text("Would you like to replay this challenge? (Sandboxed Practice Mode — safe practice that does not affect your reinforcement learning model).", color = subTextColor, fontSize = 13.sp)
                             Spacer(modifier = Modifier.height(8.dp))
                             Button(
-                                onClick = { showCoolOffSheet = false },
+                                onClick = {
+                                    showReplayPromptSheet = false
+                                    isSandboxReplay = true
+                                    pendingAmbushAction = currentAiAction
+                                    pendingAmbushMessage = actionDesc
+                                    pendingAmbushId = "sandbox_replay_${System.currentTimeMillis()}"
+                                },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF06B6D4))
+                                colors = ButtonDefaults.buttonColors(containerColor = actionColor)
                             ) {
-                                Text("Keep the Pause", color = Color.White)
+                                Text("Play (Sandboxed Replay)", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                             OutlinedButton(
                                 onClick = {
                                     prefs.edit { putString("LAST_AI_ACTION", "zen") }
-                                    showCoolOffSheet = false
+                                    showReplayPromptSheet = false
                                     dashboardViewModel.loadDashboardData()
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Skip Pause", color = MaterialTheme.colorScheme.error)
+                                Text("Dismiss Challenge", color = MaterialTheme.colorScheme.error)
                             }
                             Spacer(modifier = Modifier.height(24.dp))
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -1140,14 +1201,19 @@ fun DashboardScreen(
                     action = pendingAmbushAction!!,
                     message = pendingAmbushMessage!!,
                     predictionId = pendingAmbushId!!,
+                    isSandbox = isSandboxReplay,
                     onFeedback = { predId, rewardInt ->
-                        onGameFeedback(predId, pendingAmbushAction!!, rewardInt == 1)
+                        if (!isSandboxReplay) {
+                            onGameFeedback(predId, pendingAmbushAction!!, rewardInt == 1)
+                        }
                         prefs.edit { remove("PENDING_AMBUSH_ACTION") }
                         pendingAmbushAction = null
+                        isSandboxReplay = false
                     },
                     onDismiss = {
                         prefs.edit { remove("PENDING_AMBUSH_ACTION")}
                         pendingAmbushAction = null
+                        isSandboxReplay = false
                     }
                 )
             }

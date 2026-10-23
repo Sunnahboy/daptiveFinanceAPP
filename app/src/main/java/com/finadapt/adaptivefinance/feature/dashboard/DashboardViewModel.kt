@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.finadapt.adaptivefinance.data.local.ExpenseDao
 import com.finadapt.adaptivefinance.data.local.ExpenseEntity
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,7 +37,7 @@ class DashboardViewModel(
     private val _playCoinDropAnimation = MutableStateFlow(false)
     val playCoinDropAnimation: StateFlow<Boolean> = _playCoinDropAnimation.asStateFlow()
 
-    private val _appearanceMode = MutableStateFlow("SYSTEM")
+    private val _appearanceMode = MutableStateFlow("DARK")
     val appearanceMode: StateFlow<String> = _appearanceMode.asStateFlow()
 
     private val _appTheme = MutableStateFlow("EMERALD")
@@ -44,6 +45,10 @@ class DashboardViewModel(
 
     private val _currentStreak = MutableStateFlow(0)
     val currentStreak: StateFlow<Int> = _currentStreak.asStateFlow()
+
+    // Pre-load completion flag for the native splash screen
+    private val _isDataLoaded = MutableStateFlow(false)
+    val isDataLoaded: StateFlow<Boolean> = _isDataLoaded.asStateFlow()
 
     private val _totalSpend = MutableStateFlow(0f)
     val totalSpend: StateFlow<Float> = _totalSpend.asStateFlow()
@@ -140,7 +145,7 @@ class DashboardViewModel(
                 _appTheme.value = prefs.getString("APP_THEME", "EMERALD") ?: "EMERALD"
             }
             "APPEARANCE_MODE" -> {
-                _appearanceMode.value = prefs.getString("APPEARANCE_MODE", "SYSTEM") ?: "SYSTEM"
+                _appearanceMode.value = prefs.getString("APPEARANCE_MODE", "DARK") ?: "DARK"
             }
         }
     }
@@ -152,21 +157,23 @@ class DashboardViewModel(
             initialValue = emptyList()
         )
 
-    val recentExpenses: StateFlow<List<ExpenseEntity>> = allExpenses
-        .map { it.take(3) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
-
     init {
         prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
         viewModelScope.launch {
+            // 1. Fully load dashboard data and compute all totals, charts, and preferences
+            loadDashboardData()
+
+            // 2. Ensure an unhurried, comfortable minimum loading duration (2.8 seconds) so the ring spins smoothly and everything is 100% prepped
+            delay(2800L)
+
+            // 3. Flag that everything is 100% ready before dismissing splash screen
+            _isDataLoaded.value = true
+        }
+
+        // 4. Ongoing collection for live expense updates
+        viewModelScope.launch {
             allExpenses.collect { expenses ->
-                // Calculate start of calendar month
                 val startOfMonth = getStartOfMonthMillis()
-                
                 _totalSpend.value = expenseDao.getTotalSpendTimeBounded(
                     startOfMonth,
                     System.currentTimeMillis()
@@ -193,14 +200,18 @@ class DashboardViewModel(
                     }
                 }
                 _weeklyChartData.value = dailyTotals.toList()
-                
-                _currencySymbol.value = prefs.getString("PREFERRED_CURRENCY", "RM") ?: "RM"
-                
-                // Update greeting when expenses change
                 calculateBehavioralGreeting(expenses, _userName.value, _currencySymbol.value)
             }
         }
     }
+
+    val recentExpenses: StateFlow<List<ExpenseEntity>> = allExpenses
+        .map { it.take(3) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     fun loadDashboardData() {
         viewModelScope.launch {

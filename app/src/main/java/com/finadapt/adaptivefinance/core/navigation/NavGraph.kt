@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.animation.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.ui.input.pointer.pointerInput
 import com.finadapt.adaptivefinance.ui.components.AnimatedDraggableFab
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import kotlin.math.abs
 @Composable
 fun NavGraph(
@@ -71,11 +76,37 @@ fun NavGraph(
 
     val pagerState = rememberPagerState(pageCount = { tabScreens.size })
     var settingsHighlightTarget by remember { mutableStateOf<String?>(null) }
+    
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage != 6) {
+            settingsHighlightTarget = null
+        }
+    }
+
     val navBarBgColor = MaterialTheme.colorScheme.surface
     
     val appTheme = com.finadapt.adaptivefinance.ui.theme.LocalAppTheme.current
 
+    var isNavBarVisible by remember { mutableStateOf(true) }
+    
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                // If scrolling down (available.y < 0), hide the navbar
+                if (available.y < -10f && isNavBarVisible) {
+                    isNavBarVisible = false
+                }
+                // If scrolling up (available.y > 0), show the navbar
+                if (available.y > 10f && !isNavBarVisible) {
+                    isNavBarVisible = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
+
     Scaffold(
+        modifier = Modifier.nestedScroll(nestedScrollConnection),
         floatingActionButton = {
             val showFabs = currentRoute == "MAIN_PAGER" && pagerState.currentPage in listOf(0, 1, 3, 4)
 
@@ -113,32 +144,38 @@ fun NavGraph(
         bottomBar = {
             val showNavBar = currentRoute == "MAIN_PAGER" && pagerState.currentPage < 5
             if (showNavBar) {
-                NavigationBar(
-                    containerColor = navBarBgColor,
-                    tonalElevation = 8.dp
+                AnimatedVisibility(
+                    visible = isNavBarVisible,
+                    enter = slideInVertically(initialOffsetY = { it }),
+                    exit = slideOutVertically(targetOffsetY = { it })
                 ) {
-                    val tabs = listOf(
-                        "Home" to Icons.Default.Home,
-                        "History" to Icons.AutoMirrored.Filled.List,
-                        "Log" to Icons.Default.AddCircle,
-                        "Community" to Icons.Default.Public,
-                        "Rewards" to Icons.Default.EmojiEvents
-                    )
-
-                    tabs.forEachIndexed { index, (label, icon) ->
-                        NavigationBarItem(
-                            selected = pagerState.currentPage == index,
-                            label = { Text(label) },
-                            icon = { Icon(icon, contentDescription = label) },
-                            onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                            colors = when (index) {
-                                0 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.secondary, indicatorColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f))
-                                2 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.secondary, indicatorColor = MaterialTheme.colorScheme.surfaceVariant)
-                                3 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.primary, indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
-                                4 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.tertiary, indicatorColor = MaterialTheme.colorScheme.surfaceVariant)
-                                else -> NavigationBarItemDefaults.colors()
-                            }
+                    NavigationBar(
+                        containerColor = navBarBgColor,
+                        tonalElevation = 8.dp
+                    ) {
+                        val tabs = listOf(
+                            "Home" to Icons.Default.Home,
+                            "History" to Icons.AutoMirrored.Filled.List,
+                            "Log" to Icons.Default.AddCircle,
+                            "Community" to Icons.Default.Public,
+                            "Rewards" to Icons.Default.EmojiEvents
                         )
+
+                        tabs.forEachIndexed { index, (label, icon) ->
+                            NavigationBarItem(
+                                selected = pagerState.currentPage == index,
+                                label = { Text(label) },
+                                icon = { Icon(icon, contentDescription = label) },
+                                onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                                colors = when (index) {
+                                    0 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.secondary, indicatorColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f))
+                                    2 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.secondary, indicatorColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    3 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.primary, indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                                    4 -> NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.tertiary, indicatorColor = MaterialTheme.colorScheme.surfaceVariant)
+                                    else -> NavigationBarItemDefaults.colors()
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -150,13 +187,25 @@ fun NavGraph(
             startDestination = calculatedStartDestination,
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable(route = Screen.Onboarding.route) {
+            composable(
+                route = Screen.Onboarding.route,
+                enterTransition = { fadeIn() },
+                exitTransition = { fadeOut() + slideOutHorizontally { -it / 3 } },
+                popEnterTransition = { fadeIn() },
+                popExitTransition = { fadeOut() }
+            ) {
                 OnboardingScreen(onFinish = {
                     navController.navigate("MAIN_PAGER") { popUpTo(Screen.Onboarding.route) { inclusive = true } }
                 })
             }
 
-            composable(route = "MAIN_PAGER") {
+            composable(
+                route = "MAIN_PAGER",
+                enterTransition = { fadeIn() + slideInHorizontally { it / 3 } },
+                exitTransition = { fadeOut() },
+                popEnterTransition = { fadeIn() },
+                popExitTransition = { fadeOut() }
+            ) {
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.fillMaxSize(),
@@ -324,7 +373,10 @@ fun NavGraph(
                                     onResetGamification = { dashboardViewModel.resetGamification() },
                                     onWipeData = { dashboardViewModel.wipeAllData() },
                                     highlightSection = settingsHighlightTarget,
-                                    onNavigateBack = { scope.launch { pagerState.animateScrollToPage(0) } } // Back to Home
+                                    onNavigateBack = {
+                                        settingsHighlightTarget = null
+                                        scope.launch { pagerState.animateScrollToPage(0) }
+                                    }
                                 )
                             }
                         }

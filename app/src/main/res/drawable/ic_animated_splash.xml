@@ -1,0 +1,60 @@
+<animated-vector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="288dp"
+            android:height="288dp"
+            android:viewportWidth="288"
+            android:viewportHeight="288">
+
+            <!-- The rotating donut chart -->
+            <group
+                android:name="spinner_group"
+                android:pivotX="144"
+                android:pivotY="144">
+
+                <path
+                    android:pathData="M 144,144 m 0,-100 a 100,100 0 1,1 0,200 a 100,100 0 1,1 0,-200"
+                    android:strokeColor="#10B981"
+                    android:strokeWidth="16"
+                    android:trimPathStart="0.0"
+                    android:trimPathEnd="0.36" />
+
+                <path
+                    android:pathData="M 144,144 m 0,-100 a 100,100 0 1,1 0,200 a 100,100 0 1,1 0,-200"
+                    android:strokeColor="#3B82F6"
+                    android:strokeWidth="16"
+                    android:trimPathStart="0.38"
+                    android:trimPathEnd="0.65" />
+
+                <path
+                    android:pathData="M 144,144 m 0,-100 a 100,100 0 1,1 0,200 a 100,100 0 1,1 0,-200"
+                    android:strokeColor="#8B5CF6"
+                    android:strokeWidth="16"
+                    android:trimPathStart="0.67"
+                    android:trimPathEnd="0.89" />
+
+                <path
+                    android:pathData="M 144,144 m 0,-100 a 100,100 0 1,1 0,200 a 100,100 0 1,1 0,-200"
+                    android:strokeColor="#F59E0B"
+                    android:strokeWidth="16"
+                    android:trimPathStart="0.91"
+                    android:trimPathEnd="0.98" />
+            </group>
+        </vector>
+    </aapt:attr>
+    <target android:name="spinner_group">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator
+                    android:propertyName="rotation"
+                    android:duration="2000"
+                    android:valueFrom="0"
+                    android:valueTo="360"
+                    android:interpolator="@android:anim/linear_interpolator"
+                    android:repeatCount="infinite" />
+            </set>
+        </aapt:attr>
+    </target>
+</animated-vector>

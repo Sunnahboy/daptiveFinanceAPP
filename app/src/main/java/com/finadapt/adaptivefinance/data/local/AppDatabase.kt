@@ -11,13 +11,14 @@ import androidx.room.TypeConverters
  */
 
 @Database(
-    entities = [ExpenseEntity::class, AiInteractionEntity::class],
-    version = 3,
+    entities = [ExpenseEntity::class, AiInteractionEntity::class, ChatThreadEntity::class, ChatMessageEntity::class],
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class) //Gson converter for Room
 abstract class AppDatabase: RoomDatabase(){
     abstract fun expenseDao(): ExpenseDao
+    abstract fun chatDao(): ChatDao
 
     companion object {
         @Volatile
